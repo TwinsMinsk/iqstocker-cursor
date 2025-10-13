@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from config.database import engine, Base, SessionLocal
-from database.models import *
+from src.core.database.models import *
 
 def init_db():
     """Initialize database with all tables."""
