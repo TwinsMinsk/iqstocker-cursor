@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IQStocker Admin Panel</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .sidebar {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .sidebar .nav-link {
+            color: rgba(255,255,255,0.8);
+            border-radius: 10px;
+            margin: 5px 0;
+        }
+        .sidebar .nav-link:hover {
+            color: white;
+            background: rgba(255,255,255,0.1);
+        }
+        .sidebar .nav-link.active {
+            color: white;
+            background: rgba(255,255,255,0.2);
+        }
+        .card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .stat-card .card-body {
+            padding: 1.5rem;
+        }
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse">
+                <div class="position-sticky pt-3">
+                    <div class="text-center mb-4">
+                        <h4 class="text-white">
+                            <i class="fas fa-robot"></i> IQStocker
+                        </h4>
+                        <small class="text-white-50">Admin Panel</small>
+                    </div>
+                    
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="{{ url_for('dashboard') }}">
+                                <i class="fas fa-tachometer-alt"></i> Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('users') }}">
+                                <i class="fas fa-users"></i> Пользователи
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('broadcast') }}">
+                                <i class="fas fa-bullhorn"></i> Рассылки
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('content') }}">
+                                <i class="fas fa-file-alt"></i> Контент
+                            </a>
+                        </li>
+                        <li class="nav-item mt-3">
+                            <a class="nav-link" href="{{ url_for('logout') }}">
+                                <i class="fas fa-sign-out-alt"></i> Выход
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- Main content -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1 class="h2">Dashboard</h1>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        <div class="btn-group me-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshStats()">
+                                <i class="fas fa-sync-alt"></i> Обновить
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Flash messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                <!-- Statistics Cards -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card stat-card">
+                            <div class="card-body text-center">
+                                <i class="fas fa-users fa-2x mb-2"></i>
+                                <div class="stat-number">{{ total_users }}</div>
+                                <div>Всего пользователей</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card stat-card">
+                            <div class="card-body text-center">
+                                <i class="fas fa-crown fa-2x mb-2"></i>
+                                <div class="stat-number">{{ subscription_stats.get('PRO', 0) + subscription_stats.get('ULTRA', 0) }}</div>
+                                <div>Платных подписок</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card stat-card">
+                            <div class="card-body text-center">
+                                <i class="fas fa-flask fa-2x mb-2"></i>
+                                <div class="stat-number">{{ subscription_stats.get('TEST_PRO', 0) }}</div>
+                                <div>Тестовых PRO</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card stat-card">
+                            <div class="card-body text-center">
+                                <i class="fas fa-heartbeat fa-2x mb-2"></i>
+                                <div class="stat-number">{{ health.get('recent_errors', 0) }}</div>
+                                <div>Ошибок за период</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Subscription Statistics -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5><i class="fas fa-chart-pie"></i> Статистика подписок</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="subscriptionChart" width="400" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5><i class="fas fa-bullhorn"></i> Последние рассылки</h5>
+                            </div>
+                            <div class="card-body">
+                                {% if recent_broadcasts %}
+                                    {% for broadcast in recent_broadcasts %}
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <div>
+                                                <strong>{{ broadcast.text[:50] }}...</strong>
+                                                <br>
+                                                <small class="text-muted">{{ broadcast.created_at.strftime('%d.%m.%Y %H:%M') if broadcast.created_at else 'Неизвестно' }}</small>
+                                            </div>
+                                            <span class="badge bg-success">{{ broadcast.recipients_count }}</span>
+                                        </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <p class="text-muted">Рассылок пока не было</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- System Health -->
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5><i class="fas fa-heartbeat"></i> Состояние системы</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-3">
+                                        <div class="text-center">
+                                            <i class="fas fa-database fa-2x {{ 'text-success' if health.get('database') == 'healthy' else 'text-danger' }}"></i>
+                                            <h6>База данных</h6>
+                                            <span class="badge bg-{{ 'success' if health.get('database') == 'healthy' else 'danger' }}">
+                                                {{ health.get('database', 'Неизвестно') }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="text-center">
+                                            <i class="fas fa-robot fa-2x {{ 'text-success' if health.get('bot') == 'healthy' else 'text-danger' }}"></i>
+                                            <h6>Telegram бот</h6>
+                                            <span class="badge bg-{{ 'success' if health.get('bot') == 'healthy' else 'danger' }}">
+                                                {{ health.get('bot', 'Неизвестно') }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="text-center">
+                                            <i class="fas fa-clock fa-2x text-info"></i>
+                                            <h6>Последняя проверка</h6>
+                                            <small class="text-muted">{{ health.get('last_check', 'Неизвестно') }}</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="text-center">
+                                            <i class="fas fa-exclamation-triangle fa-2x {{ 'text-warning' if health.get('recent_errors', 0) > 0 else 'text-success' }}"></i>
+                                            <h6>Ошибки</h6>
+                                            <span class="badge bg-{{ 'warning' if health.get('recent_errors', 0) > 0 else 'success' }}">
+                                                {{ health.get('recent_errors', 0) }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Subscription chart
+        const ctx = document.getElementById('subscriptionChart').getContext('2d');
+        const subscriptionChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['FREE', 'TEST_PRO', 'PRO', 'ULTRA'],
+                datasets: [{
+                    data: [
+                        {{ subscription_stats.get('FREE', 0) }},
+                        {{ subscription_stats.get('TEST_PRO', 0) }},
+                        {{ subscription_stats.get('PRO', 0) }},
+                        {{ subscription_stats.get('ULTRA', 0) }}
+                    ],
+                    backgroundColor: [
+                        '#6c757d',
+                        '#ffc107',
+                        '#007bff',
+                        '#6f42c1'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+
+        // Refresh stats function
+        function refreshStats() {
+            location.reload();
+        }
+
+        // Auto-refresh every 30 seconds
+        setInterval(refreshStats, 30000);
+    </script>
+</body>
+</html>

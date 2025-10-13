@@ -1,0 +1,187 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Главная - IQStocker Admin{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1><i class="fas fa-tachometer-alt"></i> Панель управления</h1>
+        <p class="text-muted">Обзор системы IQStocker</p>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4>{{ total_users }}</h4>
+                        <p class="mb-0">Всего пользователей</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-users fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4>{{ pro_users + ultra_users }}</h4>
+                        <p class="mb-0">Платящих пользователей</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-crown fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4>{{ test_pro_users }}</h4>
+                        <p class="mb-0">Тестовых PRO</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-clock fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4>{{ free_users }}</h4>
+                        <p class="mb-0">Бесплатных</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-gift fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-user-plus"></i> Последние пользователи</h5>
+            </div>
+            <div class="card-body">
+                {% if recent_users %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Username</th>
+                                    <th>Подписка</th>
+                                    <th>Дата</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for user in recent_users %}
+                                <tr>
+                                    <td>{{ user.telegram_id }}</td>
+                                    <td>{{ user.username or user.first_name }}</td>
+                                    <td>
+                                        <span class="badge bg-{{ 'success' if user.subscription_type.value in ['PRO', 'ULTRA'] else 'warning' if user.subscription_type.value == 'TEST_PRO' else 'secondary' }}">
+                                            {{ user.subscription_type.value }}
+                                        </span>
+                                    </td>
+                                    <td>{{ user.created_at.strftime('%d.%m.%Y') }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted">Нет данных</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-line"></i> Последние аналитики</h5>
+            </div>
+            <div class="card-body">
+                {% if recent_analytics %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Пользователь</th>
+                                    <th>Период</th>
+                                    <th>Статус</th>
+                                    <th>Дата</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for analysis in recent_analytics %}
+                                <tr>
+                                    <td>{{ analysis.user.telegram_id }}</td>
+                                    <td>{{ analysis.month }}.{{ analysis.year }}</td>
+                                    <td>
+                                        <span class="badge bg-{{ 'success' if analysis.status == 'COMPLETED' else 'warning' if analysis.status == 'PROCESSING' else 'secondary' }}">
+                                            {{ analysis.status }}
+                                        </span>
+                                    </td>
+                                    <td>{{ analysis.created_at.strftime('%d.%m.%Y') }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted">Нет данных</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-pie"></i> Распределение пользователей по подпискам</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 text-center">
+                        <h3 class="text-primary">{{ free_users }}</h3>
+                        <p class="text-muted">FREE</p>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <h3 class="text-warning">{{ test_pro_users }}</h3>
+                        <p class="text-muted">TEST_PRO</p>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <h3 class="text-success">{{ pro_users }}</h3>
+                        <p class="text-muted">PRO</p>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <h3 class="text-info">{{ ultra_users }}</h3>
+                        <p class="text-muted">ULTRA</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,163 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Статистика - IQStocker Admin{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1><i class="fas fa-chart-bar"></i> Статистика системы</h1>
+        <p class="text-muted">Подробная аналитика IQStocker</p>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body text-center">
+                <h2>{{ total_analytics }}</h2>
+                <p class="mb-0">Всего аналитик</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body text-center">
+                <h2>{{ completed_analytics }}</h2>
+                <p class="mb-0">Завершенных</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body text-center">
+                <h2>{{ total_themes }}</h2>
+                <p class="mb-0">Глобальных тем</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body text-center">
+                <h2>{{ total_theme_requests }}</h2>
+                <p class="mb-0">Запросов тем</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-users"></i> Пользователи по подпискам</h5>
+            </div>
+            <div class="card-body">
+                {% if user_stats %}
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Тип подписки</th>
+                                    <th>Количество</th>
+                                    <th>Процент</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for stat in user_stats %}
+                                <tr>
+                                    <td>
+                                        <span class="badge bg-{{ 'success' if stat.subscription_type.value in ['PRO', 'ULTRA'] else 'warning' if stat.subscription_type.value == 'TEST_PRO' else 'secondary' }}">
+                                            {{ stat.subscription_type.value }}
+                                        </span>
+                                    </td>
+                                    <td>{{ stat.count }}</td>
+                                    <td>
+                                        <div class="progress" style="height: 20px;">
+                                            <div class="progress-bar" role="progressbar" style="width: {{ (stat.count / user_stats|sum(attribute='count') * 100)|round(1) }}%">
+                                                {{ (stat.count / user_stats|sum(attribute='count') * 100)|round(1) }}%
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted">Нет данных</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-pie"></i> Статистика аналитики</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6">
+                        <h3 class="text-primary">{{ total_analytics }}</h3>
+                        <p class="text-muted">Всего загружено</p>
+                    </div>
+                    <div class="col-6">
+                        <h3 class="text-success">{{ completed_analytics }}</h3>
+                        <p class="text-muted">Обработано</p>
+                    </div>
+                </div>
+                
+                {% if total_analytics > 0 %}
+                    <div class="progress mt-3" style="height: 25px;">
+                        <div class="progress-bar bg-success" role="progressbar" 
+                             style="width: {{ (completed_analytics / total_analytics * 100)|round(1) }}%">
+                            {{ (completed_analytics / total_analytics * 100)|round(1) }}%
+                        </div>
+                    </div>
+                    <p class="text-muted text-center mt-2">
+                        Процент успешно обработанных аналитик
+                    </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-info-circle"></i> Системная информация</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <h6>Активность системы</h6>
+                        <ul class="list-unstyled">
+                            <li><i class="fas fa-check-circle text-success"></i> База данных подключена</li>
+                            <li><i class="fas fa-check-circle text-success"></i> Redis доступен</li>
+                            <li><i class="fas fa-check-circle text-success"></i> Celery работает</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>Последние обновления</h6>
+                        <ul class="list-unstyled">
+                            <li><i class="fas fa-clock text-info"></i> Календарь: ежемесячно</li>
+                            <li><i class="fas fa-clock text-info"></i> Темы: еженедельно</li>
+                            <li><i class="fas fa-clock text-info"></i> Уведомления: ежедневно</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>Рекомендации</h6>
+                        <ul class="list-unstyled">
+                            <li><i class="fas fa-lightbulb text-warning"></i> Проверяйте логи регулярно</li>
+                            <li><i class="fas fa-lightbulb text-warning"></i> Мониторьте использование лимитов</li>
+                            <li><i class="fas fa-lightbulb text-warning"></i> Обновляйте контент вовремя</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
