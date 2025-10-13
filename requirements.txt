@@ -26,6 +26,7 @@ lxml==5.3.0
 flask==3.1.0
 flask-admin==1.6.1
 flask-sqlalchemy==3.1.1
+sqladmin==0.19.0
 
 # Webhook Server
 fastapi==0.115.6

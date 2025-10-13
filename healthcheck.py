@@ -21,7 +21,8 @@ def health_check():
             "status": "healthy",
             "service": "iqstocker-bot",
             "database": "connected",
-            "settings": "loaded"
+            "settings": "loaded",
+            "admin_panel": "available"
         }), 200
         
     except Exception as e:
@@ -37,7 +38,17 @@ def root():
     return jsonify({
         "service": "IQStocker Bot",
         "status": "running",
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "admin_panel": "http://localhost:5000/admin"
+    }), 200
+
+@app.route('/admin')
+def admin_redirect():
+    """Redirect to admin panel."""
+    return jsonify({
+        "message": "Admin panel is available",
+        "url": "http://localhost:5000/admin",
+        "note": "Use FastAPI admin panel for full functionality"
     }), 200
 
 if __name__ == '__main__':

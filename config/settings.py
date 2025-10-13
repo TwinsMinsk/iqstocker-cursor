@@ -3,35 +3,126 @@
 import os
 from typing import Optional
 from pydantic import Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class Settings(BaseSettings):
-    """Application settings."""
+class BotSettings(BaseSettings):
+    """Telegram Bot settings."""
+    model_config = SettingsConfigDict(
+        env_prefix='BOT_',
+        case_sensitive=False,
+        env_file='.env',
+        env_file_encoding='utf-8'
+    )
     
-    # Telegram Bot Configuration
-    bot_token: str = Field("", env="BOT_TOKEN")
+    token: str = Field("", env="BOT_TOKEN")
     webhook_url: Optional[str] = Field(None, env="WEBHOOK_URL")
     webhook_path: str = Field("/webhook", env="WEBHOOK_PATH")
+
+
+class DBSettings(BaseSettings):
+    """Database settings."""
+    model_config = SettingsConfigDict(
+        env_prefix='DB_',
+        case_sensitive=False,
+        env_file='.env',
+        env_file_encoding='utf-8'
+    )
     
-    # Database Configuration
-    database_url: str = Field("sqlite:///iqstocker.db", env="DATABASE_URL")
-    redis_url: str = Field("redis://localhost:6379/0", env="REDIS_URL")
+    url: str = Field("sqlite:///iqstocker.db", env="DATABASE_URL")
+
+
+class RedisSettings(BaseSettings):
+    """Redis settings."""
+    model_config = SettingsConfigDict(
+        env_prefix='REDIS_',
+        case_sensitive=False,
+        env_file='.env',
+        env_file_encoding='utf-8'
+    )
     
-    # AI Providers
+    url: str = Field("redis://localhost:6379/0", env="REDIS_URL")
+
+
+class AdminSettings(BaseSettings):
+    """Admin panel settings."""
+    model_config = SettingsConfigDict(
+        env_prefix='ADMIN_',
+        case_sensitive=False,
+        env_file='.env',
+        env_file_encoding='utf-8'
+    )
+    
+    # Имя пользователя для входа в админку
+    username: str = Field("admin", env="ADMIN_USERNAME")
+    # Пароль для входа в админку
+    password: str = Field("admin123", env="ADMIN_PASSWORD")
+    # Секретный ключ для подписи сессионных cookie
+    secret_key: str = Field("default-secret-key-change-in-production", env="ADMIN_SECRET_KEY")
+
+
+class AISettings(BaseSettings):
+    """AI providers settings."""
+    model_config = SettingsConfigDict(
+        env_prefix='AI_',
+        case_sensitive=False,
+        env_file='.env',
+        env_file_encoding='utf-8'
+    )
+    
     openai_api_key: Optional[str] = Field(None, env="OPENAI_API_KEY")
     anthropic_api_key: Optional[str] = Field(None, env="ANTHROPIC_API_KEY")
+
+
+class PaymentSettings(BaseSettings):
+    """Payment provider settings."""
+    model_config = SettingsConfigDict(
+        env_prefix='PAYMENT_',
+        case_sensitive=False,
+        env_file='.env',
+        env_file_encoding='utf-8'
+    )
     
-    # Payment Provider (Boosty)
     boosty_api_key: Optional[str] = Field(None, env="BOOSTY_API_KEY")
     boosty_client_id: Optional[str] = Field(None, env="BOOSTY_CLIENT_ID")
     boosty_client_secret: Optional[str] = Field(None, env="BOOSTY_CLIENT_SECRET")
     boosty_webhook_secret: Optional[str] = Field(None, env="BOOSTY_WEBHOOK_SECRET")
+
+
+class Settings:
+    """Главный класс настроек, объединяющий все остальные."""
     
-    # Admin Panel
-    admin_secret_key: str = Field("default-secret-key-change-in-production", env="ADMIN_SECRET_KEY")
-    admin_username: str = Field("admin", env="ADMIN_USERNAME")
-    admin_password: str = Field("admin123", env="ADMIN_PASSWORD")
+    def __init__(self):
+        self.bot = BotSettings()
+        self.db = DBSettings()
+        self.redis = RedisSettings()
+        self.admin = AdminSettings()
+        self.ai = AISettings()
+        self.payment = PaymentSettings()
+        
+        # Backward compatibility properties
+        self.bot_token = self.bot.token
+        self.database_url = self.db.url
+        self.redis_url = self.redis.url
+        self.admin_secret_key = self.admin.secret_key
+        self.admin_username = self.admin.username
+        self.admin_password = self.admin.password
+        self.openai_api_key = self.ai.openai_api_key
+        self.anthropic_api_key = self.ai.anthropic_api_key
+        self.boosty_api_key = self.payment.boosty_api_key
+        self.boosty_client_id = self.payment.boosty_client_id
+        self.boosty_client_secret = self.payment.boosty_client_secret
+        self.boosty_webhook_secret = self.payment.boosty_webhook_secret
+
+
+class AppSettings(BaseSettings):
+    """Application settings."""
+    model_config = SettingsConfigDict(
+        env_prefix='APP_',
+        case_sensitive=False,
+        env_file='.env',
+        env_file_encoding='utf-8'
+    )
     
     # Logging and Monitoring
     sentry_dsn: Optional[str] = Field(None, env="SENTRY_DSN")
@@ -72,10 +163,58 @@ class Settings(BaseSettings):
     
     # New works definition (months)
     new_works_months: int = Field(3, env="NEW_WORKS_MONTHS")
+
+
+class Settings:
+    """Главный класс настроек, объединяющий все остальные."""
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
+    def __init__(self):
+        self.bot = BotSettings()
+        self.db = DBSettings()
+        self.redis = RedisSettings()
+        self.admin = AdminSettings()
+        self.ai = AISettings()
+        self.payment = PaymentSettings()
+        self.app = AppSettings()
+        
+        # Backward compatibility properties
+        self.bot_token = self.bot.token
+        self.database_url = self.db.url
+        self.redis_url = self.redis.url
+        self.admin_secret_key = self.admin.secret_key
+        self.admin_username = self.admin.username
+        self.admin_password = self.admin.password
+        self.openai_api_key = self.ai.openai_api_key
+        self.anthropic_api_key = self.ai.anthropic_api_key
+        self.boosty_api_key = self.payment.boosty_api_key
+        self.boosty_client_id = self.payment.boosty_client_id
+        self.boosty_client_secret = self.payment.boosty_client_secret
+        self.boosty_webhook_secret = self.payment.boosty_webhook_secret
+        
+        # App settings compatibility
+        self.sentry_dsn = self.app.sentry_dsn
+        self.log_level = self.app.log_level
+        self.upload_folder = self.app.upload_folder
+        self.max_file_size = self.app.max_file_size
+        self.adobe_stock_rate_limit = self.app.adobe_stock_rate_limit
+        self.redis_cache_ttl = self.app.redis_cache_ttl
+        self.debug = self.app.debug
+        self.host = self.app.host
+        self.port = self.app.port
+        self.test_pro_duration_days = self.app.test_pro_duration_days
+        self.pro_discount_percent = self.app.pro_discount_percent
+        self.free_discount_percent = self.app.free_discount_percent
+        self.free_analytics_limit = self.app.free_analytics_limit
+        self.free_themes_limit = self.app.free_themes_limit
+        self.test_pro_analytics_limit = self.app.test_pro_analytics_limit
+        self.test_pro_themes_limit = self.app.test_pro_themes_limit
+        self.pro_analytics_limit = self.app.pro_analytics_limit
+        self.pro_themes_limit = self.app.pro_themes_limit
+        self.pro_top_themes_limit = self.app.pro_top_themes_limit
+        self.ultra_analytics_limit = self.app.ultra_analytics_limit
+        self.ultra_themes_limit = self.app.ultra_themes_limit
+        self.ultra_top_themes_limit = self.app.ultra_top_themes_limit
+        self.new_works_months = self.app.new_works_months
 
 
 # Global settings instance
