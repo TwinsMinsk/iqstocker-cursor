@@ -28,4 +28,4 @@ ENV PYTHONUNBUFFERED=1
 EXPOSE 8000 5000
 
 # Run database migrations and start bot
-CMD ["sh", "-c", "python init_railway_db.py && python bot/main.py"]
+CMD ["sh", "-c", "python init_railway_db.py && python healthcheck.py & python bot/main.py"]

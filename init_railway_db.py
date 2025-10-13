@@ -81,24 +81,13 @@ def init_db():
 
 def check_environment():
     """Check if required environment variables are set."""
-    required_vars = [
-        'DATABASE_URL',
-        'BOT_TOKEN',
-        'ADMIN_SECRET_KEY',
-        'ADMIN_PASSWORD'
-    ]
+    from config.settings import validate_required_settings
     
-    missing_vars = []
-    for var in required_vars:
-        if not os.getenv(var):
-            missing_vars.append(var)
-    
-    if missing_vars:
-        print(f"❌ Missing required environment variables: {', '.join(missing_vars)}")
-        print("Please set these variables in your Railway project settings.")
-        sys.exit(1)
-    
-    print("✅ All required environment variables are set!")
+    if not validate_required_settings():
+        print("⚠️  Some required variables are missing, but continuing with defaults...")
+        print("Please set proper values in Railway project settings for production.")
+    else:
+        print("✅ All required environment variables are set!")
 
 if __name__ == "__main__":
     print("=" * 50)

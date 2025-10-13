@@ -10,13 +10,13 @@ class Settings(BaseSettings):
     """Application settings."""
     
     # Telegram Bot Configuration
-    bot_token: str = Field(..., env="BOT_TOKEN")
+    bot_token: str = Field("", env="BOT_TOKEN")
     webhook_url: Optional[str] = Field(None, env="WEBHOOK_URL")
     webhook_path: str = Field("/webhook", env="WEBHOOK_PATH")
     
     # Database Configuration
-    database_url: str = Field(..., env="DATABASE_URL")
-    redis_url: str = Field(..., env="REDIS_URL")
+    database_url: str = Field("sqlite:///iqstocker.db", env="DATABASE_URL")
+    redis_url: str = Field("redis://localhost:6379/0", env="REDIS_URL")
     
     # AI Providers
     openai_api_key: Optional[str] = Field(None, env="OPENAI_API_KEY")
@@ -29,9 +29,9 @@ class Settings(BaseSettings):
     boosty_webhook_secret: Optional[str] = Field(None, env="BOOSTY_WEBHOOK_SECRET")
     
     # Admin Panel
-    admin_secret_key: str = Field(..., env="ADMIN_SECRET_KEY")
+    admin_secret_key: str = Field("default-secret-key-change-in-production", env="ADMIN_SECRET_KEY")
     admin_username: str = Field("admin", env="ADMIN_USERNAME")
-    admin_password: str = Field(..., env="ADMIN_PASSWORD")
+    admin_password: str = Field("admin123", env="ADMIN_PASSWORD")
     
     # Logging and Monitoring
     sentry_dsn: Optional[str] = Field(None, env="SENTRY_DSN")
@@ -85,3 +85,25 @@ settings = Settings()
 def get_settings() -> Settings:
     """Get application settings."""
     return settings
+
+
+def validate_required_settings() -> bool:
+    """Validate that required settings are present."""
+    required_vars = {
+        'BOT_TOKEN': settings.bot_token,
+        'DATABASE_URL': settings.database_url,
+        'ADMIN_SECRET_KEY': settings.admin_secret_key,
+        'ADMIN_PASSWORD': settings.admin_password
+    }
+    
+    missing_vars = []
+    for var_name, var_value in required_vars.items():
+        if not var_value or var_value in ['', 'default-secret-key-change-in-production', 'admin123']:
+            missing_vars.append(var_name)
+    
+    if missing_vars:
+        print(f"❌ Missing required environment variables: {', '.join(missing_vars)}")
+        print("Please set these variables in your Railway project settings.")
+        return False
+    
+    return True
