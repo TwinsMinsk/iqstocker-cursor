@@ -62,9 +62,9 @@ class UserAdmin(ModelView, model=User):
 class SubscriptionAdmin(ModelView, model=Subscription):
     column_list = [
         Subscription.id, Subscription.user_id, Subscription.subscription_type,
-        Subscription.starts_at, Subscription.expires_at, Subscription.is_active
+        Subscription.started_at, Subscription.expires_at, Subscription.payment_id
     ]
-    column_sortable_list = [Subscription.starts_at, Subscription.expires_at]
+    column_sortable_list = [Subscription.started_at, Subscription.expires_at]
     can_create = True
     can_edit = True
     can_delete = True
@@ -81,51 +81,51 @@ class LimitsAdmin(ModelView, model=Limits):
 
 class CSVAnalysisAdmin(ModelView, model=CSVAnalysis):
     column_list = [
-        CSVAnalysis.id, CSVAnalysis.user_id, CSVAnalysis.filename,
-        CSVAnalysis.status, CSVAnalysis.created_at, CSVAnalysis.completed_at
+        CSVAnalysis.id, CSVAnalysis.user_id, CSVAnalysis.file_path,
+        CSVAnalysis.status, CSVAnalysis.created_at, CSVAnalysis.processed_at
     ]
-    column_sortable_list = [CSVAnalysis.created_at, CSVAnalysis.completed_at]
+    column_sortable_list = [CSVAnalysis.created_at, CSVAnalysis.processed_at]
     can_create = False
     can_edit = True
     can_delete = True
 
 class AnalyticsReportAdmin(ModelView, model=AnalyticsReport):
     column_list = [
-        AnalyticsReport.id, AnalyticsReport.user_id, AnalyticsReport.period_month,
-        AnalyticsReport.total_revenue, AnalyticsReport.unique_assets_sold,
+        AnalyticsReport.id, AnalyticsReport.csv_analysis_id, AnalyticsReport.total_sales,
+        AnalyticsReport.total_revenue, AnalyticsReport.portfolio_sold_percent,
         AnalyticsReport.created_at
     ]
-    column_sortable_list = [AnalyticsReport.created_at]
+    column_sortable_list = [AnalyticsReport.created_at, AnalyticsReport.total_revenue]
     can_create = False
     can_edit = True
     can_delete = True
 
 class TopThemeAdmin(ModelView, model=TopTheme):
     column_list = [
-        TopTheme.id, TopTheme.user_id, TopTheme.theme_name,
-        TopTheme.sales_count, TopTheme.revenue, TopTheme.created_at
+        TopTheme.id, TopTheme.csv_analysis_id, TopTheme.theme_name,
+        TopTheme.sales_count, TopTheme.revenue, TopTheme.rank, TopTheme.created_at
     ]
-    column_sortable_list = [TopTheme.created_at, TopTheme.sales_count, TopTheme.revenue]
+    column_sortable_list = [TopTheme.created_at, TopTheme.sales_count, TopTheme.revenue, TopTheme.rank]
     can_create = True
     can_edit = True
     can_delete = True
 
 class ThemeRequestAdmin(ModelView, model=ThemeRequest):
     column_list = [
-        ThemeRequest.id, ThemeRequest.user_id, ThemeRequest.theme_text,
-        ThemeRequest.status, ThemeRequest.created_at
+        ThemeRequest.id, ThemeRequest.user_id, ThemeRequest.themes,
+        ThemeRequest.requested_at
     ]
-    column_sortable_list = [ThemeRequest.created_at]
+    column_sortable_list = [ThemeRequest.requested_at]
     can_create = True
     can_edit = True
     can_delete = True
 
 class GlobalThemeAdmin(ModelView, model=GlobalTheme):
     column_list = [
-        GlobalTheme.id, GlobalTheme.theme_name, GlobalTheme.description,
-        GlobalTheme.is_active, GlobalTheme.created_at
+        GlobalTheme.id, GlobalTheme.theme_name, GlobalTheme.total_sales,
+        GlobalTheme.total_revenue, GlobalTheme.authors_count, GlobalTheme.last_updated
     ]
-    column_sortable_list = [GlobalTheme.created_at]
+    column_sortable_list = [GlobalTheme.last_updated, GlobalTheme.total_sales, GlobalTheme.total_revenue]
     can_create = True
     can_edit = True
     can_delete = True
@@ -133,10 +133,9 @@ class GlobalThemeAdmin(ModelView, model=GlobalTheme):
 class VideoLessonAdmin(ModelView, model=VideoLesson):
     column_list = [
         VideoLesson.id, VideoLesson.title, VideoLesson.description,
-        VideoLesson.video_url, VideoLesson.subscription_required,
-        VideoLesson.is_active, VideoLesson.created_at
+        VideoLesson.url, VideoLesson.order, VideoLesson.is_pro_only, VideoLesson.created_at
     ]
-    column_sortable_list = [VideoLesson.created_at]
+    column_sortable_list = [VideoLesson.created_at, VideoLesson.order]
     can_create = True
     can_edit = True
     can_delete = True
@@ -153,11 +152,10 @@ class CalendarEntryAdmin(ModelView, model=CalendarEntry):
 
 class BroadcastMessageAdmin(ModelView, model=BroadcastMessage):
     column_list = [
-        BroadcastMessage.id, BroadcastMessage.message_text,
-        BroadcastMessage.target_subscription, BroadcastMessage.status,
-        BroadcastMessage.sent_count, BroadcastMessage.created_at
+        BroadcastMessage.id, BroadcastMessage.text,
+        BroadcastMessage.recipients_count, BroadcastMessage.sent_at, BroadcastMessage.created_at
     ]
-    column_sortable_list = [BroadcastMessage.created_at]
+    column_sortable_list = [BroadcastMessage.created_at, BroadcastMessage.sent_at]
     can_create = True
     can_edit = True
     can_delete = True

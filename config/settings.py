@@ -12,7 +12,8 @@ class BotSettings(BaseSettings):
         env_prefix='BOT_',
         case_sensitive=False,
         env_file='.env',
-        env_file_encoding='utf-8'
+        env_file_encoding='utf-8',
+        extra='ignore'
     )
     
     token: str = Field("", env="BOT_TOKEN")
@@ -26,7 +27,8 @@ class DBSettings(BaseSettings):
         env_prefix='DB_',
         case_sensitive=False,
         env_file='.env',
-        env_file_encoding='utf-8'
+        env_file_encoding='utf-8',
+        extra='ignore'
     )
     
     url: str = Field("sqlite:///iqstocker.db", env="DATABASE_URL")
@@ -38,7 +40,8 @@ class RedisSettings(BaseSettings):
         env_prefix='REDIS_',
         case_sensitive=False,
         env_file='.env',
-        env_file_encoding='utf-8'
+        env_file_encoding='utf-8',
+        extra='ignore'
     )
     
     url: str = Field("redis://localhost:6379/0", env="REDIS_URL")
@@ -50,7 +53,8 @@ class AdminSettings(BaseSettings):
         env_prefix='ADMIN_',
         case_sensitive=False,
         env_file='.env',
-        env_file_encoding='utf-8'
+        env_file_encoding='utf-8',
+        extra='ignore'
     )
     
     # Имя пользователя для входа в админку
@@ -67,7 +71,8 @@ class AISettings(BaseSettings):
         env_prefix='AI_',
         case_sensitive=False,
         env_file='.env',
-        env_file_encoding='utf-8'
+        env_file_encoding='utf-8',
+        extra='ignore'
     )
     
     openai_api_key: Optional[str] = Field(None, env="OPENAI_API_KEY")
@@ -80,7 +85,8 @@ class PaymentSettings(BaseSettings):
         env_prefix='PAYMENT_',
         case_sensitive=False,
         env_file='.env',
-        env_file_encoding='utf-8'
+        env_file_encoding='utf-8',
+        extra='ignore'
     )
     
     boosty_api_key: Optional[str] = Field(None, env="BOOSTY_API_KEY")
@@ -121,7 +127,8 @@ class AppSettings(BaseSettings):
         env_prefix='APP_',
         case_sensitive=False,
         env_file='.env',
-        env_file_encoding='utf-8'
+        env_file_encoding='utf-8',
+        extra='ignore'
     )
     
     # Logging and Monitoring
