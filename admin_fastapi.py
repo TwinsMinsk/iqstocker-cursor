@@ -4,6 +4,7 @@ from sqladmin import Admin, ModelView
 from sqladmin.authentication import AuthenticationBackend
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
+from starlette.middleware.sessions import SessionMiddleware
 
 from config.settings import settings
 from database.models import (
@@ -15,23 +16,39 @@ from config.database import engine
 
 app = FastAPI(title="IQStocker Admin Panel", version="1.0.0")
 
+# Добавляем middleware для сессий
+app.add_middleware(SessionMiddleware, secret_key=settings.admin.secret_key)
+
 class AdminAuth(AuthenticationBackend):
     async def login(self, request: Request) -> bool:
-        form = await request.form()
-        username, password = form["username"], form["password"]
+        try:
+            form = await request.form()
+            username = form.get("username", "")
+            password = form.get("password", "")
 
-        # Проверяем логин и пароль из наших настроек
-        if username == settings.admin.username and password == settings.admin.password:
-            request.session.update({"token": "admin_session"})  # Просто маркер, что мы вошли
-            return True
-        return False
+            # Проверяем логин и пароль из наших настроек
+            if username == settings.admin.username and password == settings.admin.password:
+                request.session.update({"token": "admin_session", "username": username})
+                return True
+            return False
+        except Exception as e:
+            print(f"Login error: {e}")
+            return False
 
     async def logout(self, request: Request) -> bool:
-        request.session.clear()
-        return True
+        try:
+            request.session.clear()
+            return True
+        except Exception as e:
+            print(f"Logout error: {e}")
+            return False
 
     async def authenticate(self, request: Request) -> bool:
-        return "token" in request.session
+        try:
+            return "token" in request.session and request.session.get("token") == "admin_session"
+        except Exception as e:
+            print(f"Authentication error: {e}")
+            return False
 
 # Создаем экземпляр бэкенда с секретным ключом
 authentication_backend = AdminAuth(secret_key=settings.admin.secret_key)
@@ -42,7 +59,8 @@ admin = Admin(
     engine=engine,
     authentication_backend=authentication_backend,
     title="IQStocker Admin",
-    base_url="/admin"
+    base_url="/admin",
+    debug=True  # Включаем debug режим для лучшей диагностики
 )
 
 # Добавляем представления моделей
@@ -161,27 +179,46 @@ class BroadcastMessageAdmin(ModelView, model=BroadcastMessage):
     can_delete = True
 
 # Регистрируем все представления
-admin.add_view(UserAdmin)
-admin.add_view(SubscriptionAdmin)
-admin.add_view(LimitsAdmin)
-admin.add_view(CSVAnalysisAdmin)
-admin.add_view(AnalyticsReportAdmin)
-admin.add_view(TopThemeAdmin)
-admin.add_view(ThemeRequestAdmin)
-admin.add_view(GlobalThemeAdmin)
-admin.add_view(VideoLessonAdmin)
-admin.add_view(CalendarEntryAdmin)
-admin.add_view(BroadcastMessageAdmin)
+try:
+    admin.add_view(UserAdmin)
+    admin.add_view(SubscriptionAdmin)
+    admin.add_view(LimitsAdmin)
+    admin.add_view(CSVAnalysisAdmin)
+    admin.add_view(AnalyticsReportAdmin)
+    admin.add_view(TopThemeAdmin)
+    admin.add_view(ThemeRequestAdmin)
+    admin.add_view(GlobalThemeAdmin)
+    admin.add_view(VideoLessonAdmin)
+    admin.add_view(CalendarEntryAdmin)
+    admin.add_view(BroadcastMessageAdmin)
+    print("✅ All admin views registered successfully")
+except Exception as e:
+    print(f"❌ Error registering admin views: {e}")
 
 # Добавляем healthcheck endpoint
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    return {
-        "status": "healthy",
-        "service": "iqstocker-admin",
-        "version": "1.0.0"
-    }
+    try:
+        # Проверяем подключение к БД
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        
+        return {
+            "status": "healthy",
+            "service": "iqstocker-admin",
+            "version": "1.0.0",
+            "database": "connected",
+            "admin_panel": "available"
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "service": "iqstocker-admin",
+            "version": "1.0.0",
+            "error": str(e)
+        }
 
 @app.get("/")
 async def root():
