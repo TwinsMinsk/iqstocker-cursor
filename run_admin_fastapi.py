@@ -4,10 +4,10 @@
 import uvicorn
 
 if __name__ == "__main__":
-    print("🚀 Starting IQStocker FastAPI Admin Panel...")
-    print("📊 Admin Panel: http://localhost:5000/admin")
-    print("🔍 Health Check: http://localhost:5000/health")
-    print("📋 API Docs: http://localhost:5000/docs")
+    print("Starting IQStocker FastAPI Admin Panel...")
+    print("Admin Panel: http://localhost:5000/admin")
+    print("Health Check: http://localhost:5000/health")
+    print("API Docs: http://localhost:5000/docs")
     
     uvicorn.run(
         "admin_fastapi:app",  # Import string instead of app object
