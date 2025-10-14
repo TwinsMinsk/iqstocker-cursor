@@ -1,0 +1,13 @@
+# Railway Deployment Update Marker
+# This file forces Railway to recognize code changes
+
+# Update timestamp: 2025-10-14T08:50:00Z
+# Fix: ModuleNotFoundError: No module named 'src'
+
+# Changes made:
+# 1. Fixed init_railway_db.py imports
+# 2. Updated Dockerfile CMD
+# 3. Created railway_fix.py for verification
+# 4. Updated healthcheck to use PORT variable
+
+# This file should trigger a new deployment

@@ -1,4 +1,4 @@
-"""Enhanced theme generation with AI integration."""
+"""Enhanced theme generation with AI integration and market analysis."""
 
 import asyncio
 from typing import List, Dict, Any, Optional
@@ -9,6 +9,11 @@ from sqlalchemy import desc
 from config.database import SessionLocal
 from database.models import GlobalTheme, TopTheme, User, SubscriptionType, ThemeRequest
 from core.ai.categorizer import ThemeCategorizer
+from core.ai.sales_predictor import SalesPredictor
+from core.ai.recommendation_engine import RecommendationEngine
+from core.ai.market_analyzer import MarketAnalyzer
+from core.ai.cache_manager import AICacheManager
+from core.ai.rate_limiter import AIRateLimiter
 
 
 class EnhancedThemeManager:
@@ -16,6 +21,11 @@ class EnhancedThemeManager:
     
     def __init__(self):
         self.theme_categorizer = ThemeCategorizer()
+        self.sales_predictor = SalesPredictor()
+        self.recommendation_engine = RecommendationEngine()
+        self.market_analyzer = MarketAnalyzer()
+        self.cache_manager = AICacheManager()
+        self.rate_limiter = AIRateLimiter()
         self.db = SessionLocal()
     
     def __del__(self):
@@ -28,53 +38,117 @@ class EnhancedThemeManager:
         user_id: int, 
         subscription_type: SubscriptionType,
         count: int = 5
-    ) -> List[str]:
-        """Generate weekly themes with enhanced AI analysis."""
+    ) -> List[Dict[str, Any]]:
+        """Generate weekly themes with enhanced AI analysis and predictions."""
         
         try:
+            # Check cache first
+            cache_key = f"weekly_themes_{user_id}_{count}"
+            cached_themes = self.cache_manager.get_cached_result("weekly_themes", cache_key)
+            if cached_themes:
+                return cached_themes.get("themes", [])
+            
+            # Get sales predictions for user
+            sales_prediction = self.sales_predictor.predict_next_month_sales(user_id)
+            
+            # Get personalized recommendations
+            personalized_recommendations = self.recommendation_engine.get_personalized_themes(user_id, count)
+            
+            # Get market trends
+            market_trends = self.market_analyzer.get_trending_themes('week', 20)
+            
             # Get user's top themes from analytics
             user_top_themes = self.get_user_top_themes(user_id)
-            
-            # Get trending themes from global database
-            trending_themes = self.get_trending_themes(limit=20)
-            trending_names = [theme.theme_name for theme in trending_themes]
             
             # Get seasonal themes for current month
             seasonal_themes = self.get_seasonal_themes()
             
-            # Generate themes using AI
-            if user_top_themes:
-                # Generate personal themes based on user's success
-                personal_themes = await self.theme_categorizer.generate_personal_themes(user_top_themes)
-            else:
-                # For new users, use trending themes
-                personal_themes = trending_names[:3]
+            # Generate themes using AI with rate limiting
+            async def generate_personal_themes():
+                if user_top_themes:
+                    return await self.theme_categorizer.generate_personal_themes(user_top_themes)
+                else:
+                    return [rec["theme"] for rec in personalized_recommendations[:3]]
             
-            # Mix themes: personal + trending + seasonal
+            # Queue AI request with rate limiting
+            queue_result = await self.rate_limiter.queue_request(
+                "openai", 
+                generate_personal_themes, 
+                str(user_id)
+            )
+            
+            if queue_result["queued"]:
+                personal_themes = await generate_personal_themes()
+            else:
+                personal_themes = [rec["theme"] for rec in personalized_recommendations[:3]]
+            
+            # Mix themes with improved algorithm (personal 50%, trending 30%, seasonal 20%)
             all_themes = []
             
-            # Add personal themes (40% of total)
-            personal_count = max(1, count // 3)
-            all_themes.extend(personal_themes[:personal_count])
+            # Add personal themes (50% of total)
+            personal_count = max(1, int(count * 0.5))
+            for i, theme in enumerate(personal_themes[:personal_count]):
+                all_themes.append({
+                    "theme": theme,
+                    "source": "personal",
+                    "confidence": 0.9,
+                    "reason": "Основано на ваших успешных темах",
+                    "predicted_performance": "high" if sales_prediction.get("confidence") == "high" else "medium"
+                })
             
-            # Add trending themes (40% of total)
-            trending_count = max(1, count // 3)
-            trending_filtered = [t for t in trending_names if t not in all_themes]
-            all_themes.extend(trending_filtered[:trending_count])
+            # Add trending themes (30% of total)
+            trending_count = max(1, int(count * 0.3))
+            trending_names = [trend["theme_name"] for trend in market_trends]
+            for i, theme in enumerate(trending_names[:trending_count]):
+                if not any(t["theme"] == theme for t in all_themes):
+                    trend_data = next((t for t in market_trends if t["theme_name"] == theme), {})
+                    all_themes.append({
+                        "theme": theme,
+                        "source": "trending",
+                        "confidence": trend_data.get("trend_score", 0.7),
+                        "reason": f"Трендовая тема (рост: {trend_data.get('growth_rate', 0):.1f}%)",
+                        "predicted_performance": "high" if trend_data.get("trend_score", 0) > 0.8 else "medium"
+                    })
             
             # Add seasonal themes (20% of total)
             seasonal_count = max(1, count - len(all_themes))
-            seasonal_filtered = [t for t in seasonal_themes if t not in all_themes]
-            all_themes.extend(seasonal_filtered[:seasonal_count])
+            for i, theme in enumerate(seasonal_themes[:seasonal_count]):
+                if not any(t["theme"] == theme for t in all_themes):
+                    all_themes.append({
+                        "theme": theme,
+                        "source": "seasonal",
+                        "confidence": 0.8,
+                        "reason": "Сезонная тема для текущего месяца",
+                        "predicted_performance": "medium"
+                    })
             
             # Ensure we have enough themes
             if len(all_themes) < count:
                 remaining_count = count - len(all_themes)
                 additional_themes = [
                     theme for theme in trending_names 
-                    if theme not in all_themes
+                    if not any(t["theme"] == theme for t in all_themes)
                 ][:remaining_count]
-                all_themes.extend(additional_themes)
+                
+                for theme in additional_themes:
+                    all_themes.append({
+                        "theme": theme,
+                        "source": "fallback",
+                        "confidence": 0.6,
+                        "reason": "Популярная тема",
+                        "predicted_performance": "medium"
+                    })
+            
+            # Sort by confidence and predicted performance
+            all_themes.sort(key=lambda x: (x["confidence"], x["predicted_performance"]), reverse=True)
+            
+            # Cache the results
+            self.cache_manager.cache_result("weekly_themes", cache_key, {
+                "themes": all_themes[:count],
+                "generated_at": datetime.utcnow().isoformat(),
+                "user_id": user_id,
+                "sales_prediction": sales_prediction
+            }, ttl=3600)  # Cache for 1 hour
             
             return all_themes[:count]
             
@@ -259,7 +333,7 @@ class EnhancedThemeManager:
             print(f"Error updating global themes: {e}")
             self.db.rollback()
     
-    def _get_fallback_themes(self, count: int) -> List[str]:
+    def _get_fallback_themes(self, count: int) -> List[Dict[str, Any]]:
         """Get fallback themes when AI generation fails."""
         
         fallback_themes = [
@@ -275,7 +349,67 @@ class EnhancedThemeManager:
             "Мода и стиль"
         ]
         
-        return fallback_themes[:count]
+        return [{"theme": theme, "source": "fallback", "confidence": 0.5, "reason": "Резервная тема", "predicted_performance": "medium"} for theme in fallback_themes[:count]]
+    
+    async def get_enhanced_theme_analysis(self, user_id: int) -> Dict[str, Any]:
+        """Get comprehensive theme analysis with AI insights."""
+        try:
+            # Get sales prediction
+            sales_prediction = self.sales_predictor.predict_next_month_sales(user_id)
+            
+            # Get personalized recommendations
+            recommendations = self.recommendation_engine.get_comprehensive_recommendations(user_id)
+            
+            # Get market trends
+            market_trends = self.market_analyzer.get_trending_themes('week', 10)
+            
+            # Get seasonal analysis
+            current_month = datetime.utcnow().month
+            seasonal_analysis = self.market_analyzer.analyze_seasonal_trends(current_month)
+            
+            # Get user's success patterns
+            success_patterns = self.recommendation_engine.get_success_patterns(user_id)
+            
+            return {
+                "user_id": user_id,
+                "sales_prediction": sales_prediction,
+                "recommendations": recommendations,
+                "market_trends": market_trends,
+                "seasonal_analysis": seasonal_analysis,
+                "success_patterns": success_patterns,
+                "generated_at": datetime.utcnow().isoformat()
+            }
+            
+        except Exception as e:
+            print(f"Error getting enhanced theme analysis: {e}")
+            return {"user_id": user_id, "error": str(e)}
+    
+    def get_ai_performance_metrics(self) -> Dict[str, Any]:
+        """Get AI performance metrics for theme generation."""
+        try:
+            # Get cache statistics
+            cache_stats = self.cache_manager.get_cache_statistics()
+            
+            # Get rate limit status
+            rate_limit_status = self.rate_limiter.get_rate_limit_status("openai")
+            
+            return {
+                "cache_performance": cache_stats,
+                "rate_limit_status": rate_limit_status,
+                "ai_components": {
+                    "theme_categorizer": "active",
+                    "sales_predictor": "active", 
+                    "recommendation_engine": "active",
+                    "market_analyzer": "active",
+                    "cache_manager": "active",
+                    "rate_limiter": "active"
+                },
+                "generated_at": datetime.utcnow().isoformat()
+            }
+            
+        except Exception as e:
+            print(f"Error getting AI performance metrics: {e}")
+            return {"error": str(e)}
 
 
 # Global enhanced theme manager instance

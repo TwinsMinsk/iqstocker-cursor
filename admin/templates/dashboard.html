@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IQStocker Admin Dashboard</title>
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="/static/css/iqstocker-theme.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Plotly.js -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Header -->
+        <div class="dashboard-header">
+            <h1><i class="fas fa-chart-line"></i> IQStocker Admin Dashboard</h1>
+            <p>Панель управления и аналитики</p>
+        </div>
+
+        {% if error %}
+        <div class="error-message">
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>Ошибка загрузки данных:</strong> {{ error }}
+        </div>
+        {% endif %}
+
+        <!-- Metrics Cards -->
+        <div class="metrics-grid">
+            <!-- Total Users -->
+            <div class="metric-card primary">
+                <div class="metric-header">
+                    <div class="metric-title">Всего пользователей</div>
+                    <div class="metric-icon primary">
+                        <i class="fas fa-users"></i>
+                    </div>
+                </div>
+                <p class="metric-value">{{ metrics.users.total if metrics.users else 0 }}</p>
+                <div class="metric-change positive">
+                    <i class="fas fa-arrow-up"></i>
+                    +{{ metrics.users.new_30d if metrics.users else 0 }} за 30 дней
+                </div>
+            </div>
+
+            <!-- Active Users -->
+            <div class="metric-card success">
+                <div class="metric-header">
+                    <div class="metric-title">Активные пользователи</div>
+                    <div class="metric-icon success">
+                        <i class="fas fa-user-check"></i>
+                    </div>
+                </div>
+                <p class="metric-value">{{ metrics.users.active if metrics.users else 0 }}</p>
+                <div class="metric-change positive">
+                    <i class="fas fa-percentage"></i>
+                    {{ "%.1f"|format(metrics.users.activity_rate) if metrics.users else 0 }}% активности
+                </div>
+            </div>
+
+            <!-- Total Revenue -->
+            <div class="metric-card warning">
+                <div class="metric-header">
+                    <div class="metric-title">Общий доход</div>
+                    <div class="metric-icon warning">
+                        <i class="fas fa-dollar-sign"></i>
+                    </div>
+                </div>
+                <p class="metric-value">${{ "{:,.0f}".format(metrics.financial.total_revenue) if metrics.financial else 0 }}</p>
+                <div class="metric-change positive">
+                    <i class="fas fa-chart-line"></i>
+                    MRR: ${{ "{:,.0f}".format(metrics.financial.mrr) if metrics.financial else 0 }}
+                </div>
+            </div>
+
+            <!-- Conversion Rate -->
+            <div class="metric-card info">
+                <div class="metric-header">
+                    <div class="metric-title">Конверсия</div>
+                    <div class="metric-icon info">
+                        <i class="fas fa-percentage"></i>
+                    </div>
+                </div>
+                <p class="metric-value">{{ "%.1f"|format(metrics.financial.conversion_rate) if metrics.financial else 0 }}%</p>
+                <div class="metric-change positive">
+                    <i class="fas fa-arrow-up"></i>
+                    ARPU: ${{ "%.2f"|format(metrics.financial.arpu) if metrics.financial else 0 }}
+                </div>
+            </div>
+
+            <!-- CSV Analyses -->
+            <div class="metric-card primary">
+                <div class="metric-header">
+                    <div class="metric-title">CSV Анализы</div>
+                    <div class="metric-icon primary">
+                        <i class="fas fa-file-csv"></i>
+                    </div>
+                </div>
+                <p class="metric-value">{{ metrics.usage.csv_analyses.total if metrics.usage else 0 }}</p>
+                <div class="metric-change positive">
+                    <i class="fas fa-plus"></i>
+                    +{{ metrics.usage.csv_analyses.last_30d if metrics.usage else 0 }} за 30 дней
+                </div>
+            </div>
+
+            <!-- Theme Requests -->
+            <div class="metric-card secondary">
+                <div class="metric-header">
+                    <div class="metric-title">Запросы тем</div>
+                    <div class="metric-icon secondary">
+                        <i class="fas fa-palette"></i>
+                    </div>
+                </div>
+                <p class="metric-value">{{ metrics.usage.theme_requests.total if metrics.usage else 0 }}</p>
+                <div class="metric-change positive">
+                    <i class="fas fa-plus"></i>
+                    +{{ metrics.usage.theme_requests.last_30d if metrics.usage else 0 }} за 30 дней
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="quick-actions">
+            <h3><i class="fas fa-bolt"></i> Быстрые действия</h3>
+            <div class="actions-grid">
+                <a href="/admin/user/list" class="action-button">
+                    <i class="fas fa-users"></i>
+                    Управление пользователями
+                </a>
+                <a href="/admin/subscription/list" class="action-button">
+                    <i class="fas fa-credit-card"></i>
+                    Подписки
+                </a>
+                <a href="/admin/csv-analysis/list" class="action-button">
+                    <i class="fas fa-chart-bar"></i>
+                    Анализы CSV
+                </a>
+                <a href="/admin/calendar-entry/list" class="action-button">
+                    <i class="fas fa-calendar"></i>
+                    Календарь
+                </a>
+                <a href="/admin/video-lesson/list" class="action-button">
+                    <i class="fas fa-video"></i>
+                    Видео уроки
+                </a>
+                <a href="/admin/broadcast-message/list" class="action-button">
+                    <i class="fas fa-bullhorn"></i>
+                    Рассылки
+                </a>
+            </div>
+        </div>
+
+        <!-- Charts Grid -->
+        <div class="charts-grid">
+            <!-- User Growth Chart -->
+            <div class="chart-container">
+                <div class="chart-header">
+                    <div>
+                        <h3 class="chart-title">Рост пользователей</h3>
+                        <p class="chart-subtitle">Новые регистрации по месяцам</p>
+                    </div>
+                </div>
+                <div class="chart-content">
+                    <div id="user-growth-chart" style="width: 100%; height: 300px;"></div>
+                </div>
+            </div>
+
+            <!-- Subscription Distribution -->
+            <div class="chart-container">
+                <div class="chart-header">
+                    <div>
+                        <h3 class="chart-title">Распределение подписок</h3>
+                        <p class="chart-subtitle">Типы подписок пользователей</p>
+                    </div>
+                </div>
+                <div class="chart-content">
+                    <div id="subscription-distribution" style="width: 100%; height: 300px;"></div>
+                </div>
+            </div>
+
+            <!-- Revenue Trends -->
+            <div class="chart-container">
+                <div class="chart-header">
+                    <div>
+                        <h3 class="chart-title">Динамика доходов</h3>
+                        <p class="chart-subtitle">Месячные доходы</p>
+                    </div>
+                </div>
+                <div class="chart-content">
+                    <div id="revenue-trends" style="width: 100%; height: 300px;"></div>
+                </div>
+            </div>
+
+            <!-- Feature Usage -->
+            <div class="chart-container">
+                <div class="chart-header">
+                    <div>
+                        <h3 class="chart-title">Использование функций</h3>
+                        <p class="chart-subtitle">Процент пользователей по функциям</p>
+                    </div>
+                </div>
+                <div class="chart-content">
+                    <div id="feature-usage" style="width: 100%; height: 300px;"></div>
+                </div>
+            </div>
+
+            <!-- Popular Themes -->
+            <div class="chart-container">
+                <div class="chart-header">
+                    <div>
+                        <h3 class="chart-title">Популярные темы</h3>
+                        <p class="chart-subtitle">Топ-10 запрашиваемых тем</p>
+                    </div>
+                </div>
+                <div class="chart-content">
+                    <div id="popular-themes" style="width: 100%; height: 300px;"></div>
+                </div>
+            </div>
+
+            <!-- Activity Heatmap -->
+            <div class="chart-container">
+                <div class="chart-header">
+                    <div>
+                        <h3 class="chart-title">Активность пользователей</h3>
+                        <p class="chart-subtitle">Паттерны активности по дням и часам</p>
+                    </div>
+                </div>
+                <div class="chart-content">
+                    <div id="activity-heatmap" style="width: 100%; height: 300px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Status -->
+        <div class="quick-actions">
+            <h3><i class="fas fa-server"></i> Статус системы</h3>
+            <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+                <div class="status-indicator healthy">
+                    <i class="fas fa-check-circle"></i>
+                    База данных подключена
+                </div>
+                <div class="status-indicator healthy">
+                    <i class="fas fa-check-circle"></i>
+                    Админ панель активна
+                </div>
+                <div class="status-indicator healthy">
+                    <i class="fas fa-check-circle"></i>
+                    Система работает
+                </div>
+                <div style="margin-left: auto; color: var(--gray-500); font-size: 0.875rem;">
+                    <i class="fas fa-clock"></i>
+                    Обновлено: {{ metrics.last_updated[:19] if metrics.last_updated else 'Неизвестно' }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+        // Render charts when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            const charts = {{ charts | tojson | safe }};
+            
+            // Render each chart
+            Object.keys(charts).forEach(chartId => {
+                const chartElement = document.getElementById(chartId);
+                if (chartElement && charts[chartId]) {
+                    try {
+                        const chartData = JSON.parse(charts[chartId]);
+                        Plotly.newPlot(chartId, chartData.data, chartData.layout, {
+                            responsive: true,
+                            displayModeBar: true,
+                            displaylogo: false,
+                            modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d']
+                        });
+                    } catch (error) {
+                        console.error(`Error rendering chart ${chartId}:`, error);
+                        chartElement.innerHTML = '<div class="loading">Ошибка загрузки графика</div>';
+                    }
+                }
+            });
+        });
+
+        // Auto-refresh every 5 minutes
+        setInterval(function() {
+            location.reload();
+        }, 300000);
+
+        // Add loading states for better UX
+        function showLoading(elementId) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.innerHTML = '<div class="loading">Загрузка...</div>';
+            }
+        }
+
+        // Handle chart resize on window resize
+        window.addEventListener('resize', function() {
+            Object.keys({{ charts | tojson | safe }}).forEach(chartId => {
+                const chartElement = document.getElementById(chartId);
+                if (chartElement && Plotly) {
+                    Plotly.Plots.resize(chartId);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 """Script to run FastAPI admin panel."""
 
+import os
 import uvicorn
 
 if __name__ == "__main__":
-    print("Starting IQStocker FastAPI Admin Panel...")
-    print("Admin Panel: http://localhost:5000/admin")
-    print("Health Check: http://localhost:5000/health")
-    print("API Docs: http://localhost:5000/docs")
+    port = int(os.getenv('PORT', 5000))
+    print(f"Starting IQStocker FastAPI Admin Panel on port {port}...")
+    print(f"Admin Panel: http://localhost:{port}/admin")
+    print(f"Health Check: http://localhost:{port}/health")
+    print(f"API Docs: http://localhost:{port}/docs")
     
     uvicorn.run(
         "admin_fastapi:app",  # Import string instead of app object
         host="0.0.0.0",
-        port=5000,
-        reload=True,
+        port=port,
+        reload=False,  # Disable reload in production
         log_level="info"
     )

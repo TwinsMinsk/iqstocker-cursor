@@ -1,4 +1,4 @@
-"""Report generator for analytics."""
+"""Report generator for analytics with AI insights and predictions."""
 
 from typing import Dict, Any, List
 from datetime import datetime
@@ -8,6 +8,11 @@ from config.database import SessionLocal
 from database.models import CSVAnalysis, AnalyticsReport, TopTheme, User
 from core.analytics.metrics_calculator import MetricsCalculator
 from core.ai.categorizer import ThemeCategorizer
+from core.ai.sales_predictor import SalesPredictor
+from core.ai.recommendation_engine import RecommendationEngine
+from core.ai.market_analyzer import MarketAnalyzer
+from core.analytics.advanced_metrics import AdvancedMetrics
+from core.analytics.benchmark_engine import BenchmarkEngine
 from core.parser.adobe_stock import AdobeStockParser
 
 
@@ -17,6 +22,11 @@ class ReportGenerator:
     def __init__(self):
         self.metrics_calculator = MetricsCalculator()
         self.theme_categorizer = ThemeCategorizer()
+        self.sales_predictor = SalesPredictor()
+        self.recommendation_engine = RecommendationEngine()
+        self.market_analyzer = MarketAnalyzer()
+        self.advanced_metrics = AdvancedMetrics()
+        self.benchmark_engine = BenchmarkEngine()
         self.adobe_parser = AdobeStockParser()
         self.db = SessionLocal()
     
@@ -187,5 +197,104 @@ class ReportGenerator:
 Если хочешь посмотреть аналитику за другой месяц — проверь свои лимиты в разделе 👤 Профиль и загрузи новый CSV-файл.
 Пока сосредоточься на качестве. Посмотри обучающие материалы, чтобы понять что нужно делать.
 Следи за статистикой - через пару месяцев уже будут первые объективные показатели и ты узнаешь надо ли корректировать что-то в работе."""
+    
+    async def _generate_ai_insights(self, user_id: int, report: AnalyticsReport) -> Dict[str, Any]:
+        """Generate AI insights for the report."""
+        try:
+            # Get sales prediction
+            sales_prediction = self.sales_predictor.predict_next_month_sales(user_id)
+            
+            # Get growth trend analysis
+            growth_trend = self.sales_predictor.calculate_growth_trend(user_id)
+            
+            # Get upload strategy recommendations
+            upload_strategy = self.sales_predictor.suggest_upload_strategy(user_id)
+            
+            # Get seasonal patterns
+            seasonal_patterns = self.sales_predictor.get_seasonal_patterns(user_id)
+            
+            # Get market trends
+            market_trends = self.market_analyzer.get_trending_themes('week', 10)
+            
+            return {
+                "sales_prediction": sales_prediction,
+                "growth_trend": growth_trend,
+                "upload_strategy": upload_strategy,
+                "seasonal_patterns": seasonal_patterns,
+                "market_trends": market_trends,
+                "insights_generated_at": datetime.utcnow().isoformat()
+            }
+            
+        except Exception as e:
+            print(f"Error generating AI insights: {e}")
+            return {"error": str(e)}
+    
+    async def generate_enhanced_report(
+        self, 
+        csv_analysis_id: int, 
+        sales_data: List[Dict[str, Any]],
+        portfolio_size: int,
+        upload_limit: int,
+        monthly_uploads: int,
+        acceptance_rate: float
+    ) -> Dict[str, Any]:
+        """Generate enhanced analytics report with all AI features."""
         
-        return report_text
+        try:
+            # Generate basic report first
+            basic_report = await self.generate_report(
+                csv_analysis_id, sales_data, portfolio_size, 
+                upload_limit, monthly_uploads, acceptance_rate
+            )
+            
+            # Get CSV analysis for user_id
+            csv_analysis = self.db.query(CSVAnalysis).filter(
+                CSVAnalysis.id == csv_analysis_id
+            ).first()
+            
+            if not csv_analysis:
+                raise ValueError("CSV analysis not found")
+            
+            user_id = csv_analysis.user_id
+            
+            # Get comprehensive AI analysis
+            ai_analysis = await self._generate_comprehensive_ai_analysis(user_id)
+            
+            # Get benchmark data
+            benchmark_data = self.benchmark_engine.get_user_percentile_ranking(user_id)
+            
+            # Get advanced metrics
+            advanced_metrics = self.advanced_metrics.get_comprehensive_metrics(user_id)
+            
+            return {
+                **basic_report,
+                "ai_analysis": ai_analysis,
+                "benchmark_data": benchmark_data,
+                "advanced_metrics": advanced_metrics,
+                "report_type": "enhanced",
+                "generated_at": datetime.utcnow().isoformat()
+            }
+            
+        except Exception as e:
+            print(f"Error generating enhanced report: {e}")
+            raise
+    
+    async def _generate_comprehensive_ai_analysis(self, user_id: int) -> Dict[str, Any]:
+        """Generate comprehensive AI analysis for user."""
+        try:
+            # Get all AI insights
+            sales_prediction = self.sales_predictor.get_comprehensive_prediction(user_id)
+            recommendations = self.recommendation_engine.get_comprehensive_recommendations(user_id)
+            market_overview = self.market_analyzer.get_market_overview()
+            
+            return {
+                "sales_prediction": sales_prediction,
+                "recommendations": recommendations,
+                "market_overview": market_overview,
+                "analysis_completeness": "comprehensive",
+                "generated_at": datetime.utcnow().isoformat()
+            }
+            
+        except Exception as e:
+            print(f"Error generating comprehensive AI analysis: {e}")
+            return {"error": str(e)}

@@ -1,13 +1,55 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
-    "builder": "DOCKERFILE"
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "Dockerfile"
   },
   "deploy": {
-    "startCommand": "python init_railway_db.py && python healthcheck.py & python bot/main.py",
+    "startCommand": "python railway_startup.py",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE",
-    "restartPolicyMaxRetries": 10
-  }
+    "restartPolicyMaxRetries": 10,
+    "environment": {
+      "PYTHONPATH": "/app",
+      "PYTHONUNBUFFERED": "1",
+      "SERVICE_TYPE": "healthcheck"
+    }
+  },
+  "services": [
+    {
+      "name": "iqstocker-bot",
+      "source": ".",
+      "build": {
+        "builder": "DOCKERFILE"
+      },
+      "deploy": {
+        "startCommand": "python railway_startup.py",
+        "healthcheckPath": "/health",
+        "healthcheckTimeout": 300,
+        "restartPolicyType": "ON_FAILURE",
+        "restartPolicyMaxRetries": 10,
+        "environment": {
+          "SERVICE_TYPE": "bot"
+        }
+      }
+    },
+    {
+      "name": "admin-panel",
+      "source": ".",
+      "build": {
+        "builder": "DOCKERFILE"
+      },
+      "deploy": {
+        "startCommand": "python railway_startup.py",
+        "healthcheckPath": "/health",
+        "healthcheckTimeout": 300,
+        "restartPolicyType": "ON_FAILURE",
+        "restartPolicyMaxRetries": 10,
+        "environment": {
+          "SERVICE_TYPE": "admin"
+        }
+      }
+    }
+  ]
 }

@@ -10,12 +10,27 @@ from typing import Generator
 from config.settings import settings
 
 # SQLAlchemy setup
-engine = create_engine(
-    settings.database_url,
-    poolclass=StaticPool,
-    pool_pre_ping=True,
-    echo=settings.debug
-)
+# Detect database type
+is_postgresql = 'postgresql' in settings.database_url
+
+engine_kwargs = {
+    'pool_pre_ping': True,
+    'echo': settings.debug
+}
+
+if is_postgresql:
+    # PostgreSQL specific settings
+    engine_kwargs.update({
+        'pool_size': 10,
+        'max_overflow': 20,
+        'pool_recycle': 3600,
+        'pool_timeout': 30
+    })
+else:
+    # SQLite specific settings
+    engine_kwargs['poolclass'] = StaticPool
+
+engine = create_engine(settings.database_url, **engine_kwargs)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()

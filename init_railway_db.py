@@ -1,12 +1,15 @@
 """Initialize database for Railway deployment."""
 
-import os
 import sys
+import os
+
+# Добавляем корневую директорию проекта в путь Python,
+# чтобы он мог найти все модули проекта.
+project_root = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, project_root)
+
+# Теперь этот импорт должен сработать
 from datetime import datetime, timezone
-
-# Add project root to Python path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
 from config.database import engine, Base, SessionLocal
 from database.models import *
 
