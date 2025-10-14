@@ -183,7 +183,8 @@ local_settings.py
 # AI/ML models
 *.pkl
 *.joblib
-models/
+ai_models/
+ml_models/
 
 # Cache
 .cache/
