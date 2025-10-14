@@ -1,54 +1,59 @@
-# Multi-stage build for production optimization
+# Этап 1: Сборщик с зависимостями
 FROM python:3.11-slim as builder
 
 WORKDIR /app
 
-# Install build dependencies
+# Установка зависимостей для сборки
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install Python dependencies
+# Копирование и установка Python-пакетов
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Production stage
+# ---
+# Этап 2: Финальный, чистый образ
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install runtime dependencies
+# Установка зависимостей для работы
 RUN apt-get update && apt-get install -y \
     postgresql-client \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy Python packages from builder
+# Копирование установленных Python-пакетов из сборщика
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Copy application code
+# Копирование кода приложения и скрипта-загрузчика
 COPY . .
 
-# Create necessary directories
+# --- ГЛАВНЫЕ ИЗМЕНЕНИЯ ---
+
+# 1. Делаем наш скрипт-загрузчик исполняемым
+RUN chmod +x /app/entrypoint.sh
+
+# 2. Устанавливаем его как точку входа для контейнера
+ENTRYPOINT ["/app/entrypoint.sh"]
+
+# 3. Старая команда CMD удалена. Теперь команда будет браться из railway.json
+# -------------------------
+
+# Создание необходимых директорий
 RUN mkdir -p logs uploads admin/static admin/templates
 
-# Set environment variables
+# Настройка окружения
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
-# Create non-root user for security
+# Создание и использование пользователя без root-прав для безопасности
 RUN useradd --create-home --shell /bin/bash app
 RUN chown -R app:app /app
 USER app
 
-# Expose ports
+# Открытие портов
 EXPOSE 8000 5000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:${PORT:-5000}/health || exit 1
-
-# Run database migrations and start healthcheck service
-CMD ["sh", "-c", "python railway_fix.py && python init_railway_db.py && python run_healthcheck.py"]
