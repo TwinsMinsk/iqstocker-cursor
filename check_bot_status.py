@@ -80,12 +80,12 @@ def check_database_connection():
     print("\n🔍 Проверка подключения к базе данных...")
     
     try:
-        from database.connection import get_db_engine
-        engine = get_db_engine()
+        from config.database import engine
+        from sqlalchemy import text
         
         # Простая проверка подключения
         with engine.connect() as conn:
-            result = conn.execute("SELECT 1")
+            result = conn.execute(text("SELECT 1"))
             result.fetchone()
         
         print("✅ Подключение к базе данных работает")
