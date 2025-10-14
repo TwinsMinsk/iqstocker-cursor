@@ -23,6 +23,17 @@ def start_healthcheck():
 def start_bot():
     """Start bot service."""
     print("🤖 Starting bot service...")
+    
+    # Initialize database first
+    print("📊 Initializing database...")
+    try:
+        subprocess.run([sys.executable, "init_railway_db.py"], check=True)
+        print("✅ Database initialized successfully!")
+    except subprocess.CalledProcessError as e:
+        print(f"⚠️  Database initialization failed: {e}")
+        print("Continuing anyway...")
+    
+    # Start bot
     try:
         subprocess.run([sys.executable, "bot/main.py"], check=True)
     except subprocess.CalledProcessError as e:
@@ -32,6 +43,17 @@ def start_bot():
 def start_admin():
     """Start admin panel service."""
     print("👨‍💼 Starting admin panel service...")
+    
+    # Initialize database first
+    print("📊 Initializing database...")
+    try:
+        subprocess.run([sys.executable, "init_railway_db.py"], check=True)
+        print("✅ Database initialized successfully!")
+    except subprocess.CalledProcessError as e:
+        print(f"⚠️  Database initialization failed: {e}")
+        print("Continuing anyway...")
+    
+    # Start admin panel
     try:
         subprocess.run([sys.executable, "run_admin_fastapi.py"], check=True)
     except subprocess.CalledProcessError as e:
