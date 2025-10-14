@@ -32,7 +32,7 @@
     {
       "name": "worker",
       "deploy": {
-          "startCommand": "dramatiq worker --path .",
+          "startCommand": "python start_worker.py",
           "environment": {
               "SERVICE_TYPE": "worker"
           }
