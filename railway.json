@@ -5,30 +5,14 @@
     "dockerfilePath": "Dockerfile"
   },
   "deploy": {
-    "startCommand": "python railway_startup.py",
-    "healthcheckPath": "/health",
-    "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE",
-    "restartPolicyMaxRetries": 10,
-    "environment": {
-      "PYTHONPATH": "/app",
-      "PYTHONUNBUFFERED": "1",
-      "SERVICE_TYPE": "healthcheck"
-    }
+    "restartPolicyMaxRetries": 10
   },
   "services": [
     {
       "name": "iqstocker-bot",
-      "source": ".",
-      "build": {
-        "builder": "DOCKERFILE"
-      },
       "deploy": {
-        "startCommand": "python railway_startup.py",
-        "healthcheckPath": "/health",
-        "healthcheckTimeout": 300,
-        "restartPolicyType": "ON_FAILURE",
-        "restartPolicyMaxRetries": 10,
+        "startCommand": "python -m bot.main",
         "environment": {
           "SERVICE_TYPE": "bot"
         }
@@ -36,19 +20,22 @@
     },
     {
       "name": "admin-panel",
-      "source": ".",
-      "build": {
-        "builder": "DOCKERFILE"
-      },
       "deploy": {
-        "startCommand": "python railway_startup.py",
+        "startCommand": "python run_admin_fastapi.py",
         "healthcheckPath": "/health",
         "healthcheckTimeout": 300,
-        "restartPolicyType": "ON_FAILURE",
-        "restartPolicyMaxRetries": 10,
         "environment": {
           "SERVICE_TYPE": "admin"
         }
+      }
+    },
+    {
+      "name": "worker",
+      "deploy": {
+          "startCommand": "dramatiq worker.actors --path .",
+          "environment": {
+              "SERVICE_TYPE": "worker"
+          }
       }
     }
   ]
