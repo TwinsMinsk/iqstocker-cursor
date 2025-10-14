@@ -26,11 +26,9 @@ def create_calendar_entries():
         calendar_entry = CalendarEntry(
             month=current_month,
             year=current_year,
-            title=f"Календарь стокера на {_get_month_name_ru(current_month)}",
-            description=_get_season_description(current_month),
+            description=f"Календарь стокера на {_get_month_name_ru(current_month)}",
             load_now_themes=_get_load_now_themes(current_month),
             prepare_themes=_get_prepare_themes(current_month),
-            is_full_version=True,
             created_at=now
         )
         

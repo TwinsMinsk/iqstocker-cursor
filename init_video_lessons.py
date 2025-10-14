@@ -21,21 +21,21 @@ def create_video_lessons():
             {
                 "title": "Урок 1. Почему работы не продаются?",
                 "description": "Разбираем основные причины низких продаж: качество, темы, ключи.",
-                "video_url": "https://example.com/lesson1",
+                "url": "https://example.com/lesson1",
                 "is_pro_only": False,  # Available for FREE users
                 "order": 1
             },
             {
                 "title": "Урок 2. Как подбирать темы, которые реально покупают?",
                 "description": "Пошагово показываю, как анализировать тренды и находить ниши с высоким спросом.",
-                "video_url": "https://example.com/lesson2",
+                "url": "https://example.com/lesson2",
                 "is_pro_only": True,  # PRO only
                 "order": 2
             },
             {
                 "title": "Урок 3. Ошибки при загрузке на стоки.",
                 "description": "Какие мелочи на этапе загрузки убивают продажи: форматы, ключевые слова, описание.",
-                "video_url": "https://example.com/lesson3",
+                "url": "https://example.com/lesson3",
                 "is_pro_only": True,  # PRO only
                 "order": 3
             }
