@@ -5,16 +5,11 @@ This file defines the actors that will be processed by the worker service.
 
 import dramatiq
 from dramatiq.brokers.redis import RedisBroker
-import redis
 import os
 
 # Configure Redis broker
 redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-redis_client = redis.from_url(redis_url)
-broker = RedisBroker(host=redis_client.connection_pool.connection_kwargs["host"],
-                    port=redis_client.connection_pool.connection_kwargs["port"],
-                    db=redis_client.connection_pool.connection_kwargs["db"])
-
+broker = RedisBroker(url=redis_url)
 dramatiq.set_broker(broker)
 
 @dramatiq.actor
