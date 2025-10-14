@@ -14,9 +14,9 @@ from config.settings import settings
 from database.models import (
     User, SubscriptionType, Subscription, Limits,
     CSVAnalysis, AnalyticsReport, TopTheme, ThemeRequest,
-    GlobalTheme, VideoLesson, CalendarEntry, BroadcastMessage
+    GlobalTheme, VideoLesson, CalendarEntry, BroadcastMessage,
+    AuditLog
 )
-from database.models.audit_log import AuditLog
 from config.database import engine
 from admin.utils.analytics_engine import AnalyticsEngine
 from admin.utils.chart_generator import ChartGenerator
