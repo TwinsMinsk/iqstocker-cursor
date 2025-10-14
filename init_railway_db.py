@@ -11,7 +11,7 @@ sys.path.insert(0, project_root)
 # Теперь этот импорт должен сработать
 from datetime import datetime, timezone
 from config.database import engine, Base, SessionLocal
-from database.models import *
+from src.core.database.models import *
 
 def init_db():
     """Initialize database with all tables."""
