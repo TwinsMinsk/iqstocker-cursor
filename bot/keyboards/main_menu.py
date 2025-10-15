@@ -2,6 +2,7 @@
 
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from database.models import SubscriptionType
+from bot.lexicon.lexicon_ru import LEXICON_COMMANDS_RU
 
 
 def get_main_menu_keyboard(subscription_type: SubscriptionType) -> InlineKeyboardMarkup:
@@ -11,32 +12,32 @@ def get_main_menu_keyboard(subscription_type: SubscriptionType) -> InlineKeyboar
     
     # First row - Profile and Analytics
     keyboard.append([
-        InlineKeyboardButton(text="👤 Профиль", callback_data="profile"),
-        InlineKeyboardButton(text="📊 Аналитика", callback_data="analytics")
+        InlineKeyboardButton(text=LEXICON_COMMANDS_RU['profile'], callback_data="profile"),
+        InlineKeyboardButton(text=LEXICON_COMMANDS_RU['analytics'], callback_data="analytics")
     ])
     
     # Second row - Themes and Top Themes
     keyboard.append([
-        InlineKeyboardButton(text="🎯 Темы", callback_data="themes"),
-        InlineKeyboardButton(text="🏆 Топ темы", callback_data="top_themes")
+        InlineKeyboardButton(text=LEXICON_COMMANDS_RU['themes'], callback_data="themes"),
+        InlineKeyboardButton(text=LEXICON_COMMANDS_RU['top_themes'], callback_data="top_themes")
     ])
     
     # Third row - Lessons and Calendar
     keyboard.append([
-        InlineKeyboardButton(text="🎥 Уроки", callback_data="lessons"),
-        InlineKeyboardButton(text="📅 Календарь", callback_data="calendar")
+        InlineKeyboardButton(text=LEXICON_COMMANDS_RU['lessons'], callback_data="lessons"),
+        InlineKeyboardButton(text=LEXICON_COMMANDS_RU['calendar'], callback_data="calendar")
     ])
     
     # Fourth row - FAQ and Channel
     keyboard.append([
-        InlineKeyboardButton(text="❓ FAQ", callback_data="faq"),
-        InlineKeyboardButton(text="📢 ТГ-канал", callback_data="channel")
+        InlineKeyboardButton(text=LEXICON_COMMANDS_RU['faq'], callback_data="faq"),
+        InlineKeyboardButton(text=LEXICON_COMMANDS_RU['channel'], callback_data="channel")
     ])
     
     # Add upgrade button for FREE users
     if subscription_type == SubscriptionType.FREE:
         keyboard.append([
-            InlineKeyboardButton(text="🚀 Перейти на PRO", callback_data="upgrade_pro")
+            InlineKeyboardButton(text=LEXICON_COMMANDS_RU['upgrade_pro'], callback_data="upgrade_pro")
         ])
     
     return InlineKeyboardMarkup(inline_keyboard=keyboard)

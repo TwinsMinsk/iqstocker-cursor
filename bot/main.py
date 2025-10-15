@@ -32,7 +32,7 @@ async def main():
     # Create bot instance
     bot = Bot(
         token=settings.bot_token,
-        default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN_V2)
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML)
     )
     
     # Create dispatcher

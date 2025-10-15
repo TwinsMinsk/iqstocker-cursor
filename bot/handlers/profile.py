@@ -1,4 +1,4 @@
-"""Profile handler."""
+"""Profile handler with horizontal navigation."""
 
 from datetime import datetime, timedelta
 from aiogram import Router, F
@@ -8,8 +8,10 @@ from sqlalchemy.orm import Session
 from config.database import SessionLocal
 from database.models import User, Limits, SubscriptionType
 from config.settings import settings
+from bot.lexicon import LEXICON_RU
 from bot.keyboards.profile import get_profile_keyboard
 from bot.keyboards.main_menu import get_main_menu_keyboard
+from bot.utils.safe_edit import safe_edit_message
 
 router = Router()
 
@@ -24,34 +26,35 @@ async def profile_callback(callback: CallbackQuery, user: User, limits: Limits):
         if user.test_pro_started_at:
             expires_at = user.test_pro_started_at + timedelta(days=settings.test_pro_duration_days)
             days_left = (expires_at - datetime.utcnow()).days
-            subscription_info = f"🎯 **TEST PRO** (осталось {days_left} дней)"
+            subscription_info = f"🎯 <b>TEST PRO</b> (осталось {days_left} дней)"
         else:
-            subscription_info = "🎯 **TEST PRO**"
+            subscription_info = "🎯 <b>TEST PRO</b>"
     elif user.subscription_type == SubscriptionType.FREE:
-        subscription_info = "🆓 **FREE**"
+        subscription_info = "🆓 <b>FREE</b>"
     elif user.subscription_type == SubscriptionType.PRO:
-        subscription_info = "🏆 **PRO**"
+        subscription_info = "🏆 <b>PRO</b>"
     elif user.subscription_type == SubscriptionType.ULTRA:
-        subscription_info = "🚀 **ULTRA**"
+        subscription_info = "🚀 <b>ULTRA</b>"
     
     # Limits info
     limits_text = f"""
-📊 **Аналитика:** {limits.analytics_used}/{limits.analytics_total}
-🎯 **Темы:** {limits.themes_used}/{limits.themes_total}
-🏆 **Топ тем:** {limits.top_themes_used}/{limits.top_themes_total}
+📊 <b>Аналитика:</b> {limits.analytics_used}/{limits.analytics_total}
+🎯 <b>Темы:</b> {limits.themes_used}/{limits.themes_total}
+🏆 <b>Топ тем:</b> {limits.top_themes_used}/{limits.top_themes_total}
 """
     
-    profile_text = f"""👤 **Профиль**
+    profile_text = f"""👤 <b>Профиль</b>
 
-**Подписка:** {subscription_info}
+<b>Подписка:</b> {subscription_info}
 
-**Лимиты:**
+<b>Лимиты:</b>
 {limits_text}
 
 Выбери действие:"""
     
-    await callback.message.edit_text(
-        profile_text,
+    await safe_edit_message(
+        callback=callback,
+        text=profile_text,
         reply_markup=get_profile_keyboard(user.subscription_type)
     )
     await callback.answer()
@@ -61,18 +64,9 @@ async def profile_callback(callback: CallbackQuery, user: User, limits: Limits):
 async def limits_info_callback(callback: CallbackQuery, user: User):
     """Handle limits info callback."""
     
-    limits_text = """❓ **Как работают лимиты?**
-
-Лимиты не обнуляются каждый месяц, они копятся без ограничений по времени.
-
-📊 **Лимит на аналитику** = количество CSV-файлов, которые ты можешь загрузить для анализа портфеля. Каждый загруженный CSV списывает 1 лимит.
-
-🎯 **Лимит на темы** = количество запросов, чтобы получить подборку тем для генераций. Обычно это 1 раз в неделю (= 4 в месяц), но лимиты можно копить и использовать позже.
-
-🏆 **Лимит на топ тем** привязан к аналитике. Когда ты загружаешь CSV и расходуешь лимит аналитики, вместе с этим списывается 1 лимит к разделу «Топ тем»."""
-    
-    await callback.message.edit_text(
-        limits_text,
+    await safe_edit_message(
+        callback=callback,
+        text=LEXICON_RU['limits_info'],
         reply_markup=get_profile_keyboard(user.subscription_type)
     )
     await callback.answer()
@@ -82,20 +76,9 @@ async def limits_info_callback(callback: CallbackQuery, user: User):
 async def compare_free_pro_callback(callback: CallbackQuery, user: User):
     """Handle compare FREE and PRO callback."""
     
-    compare_text = """📊 *Сравнение FREE и PRO*
-
-*Функция* | *FREE* | *PRO*
-─────────|────────|─────
-Аналитика портфеля | ❌ | ✅
-Темы для генерации/съёмок | 1 тема/неделя | 5 тем/неделя
-Топ-темы по продажам и доходу | ❌ | ✅
-Календарь стокера | Сокращенный | Расширенный
-Видеоуроки | Только базовые | Все
-
-*PRO дает больше инструментов для роста\\!*"""
-    
-    await callback.message.edit_text(
-        compare_text,
+    await safe_edit_message(
+        callback=callback,
+        text=LEXICON_RU['tariffs_comparison'],
         reply_markup=get_profile_keyboard(user.subscription_type)
     )
     await callback.answer()
@@ -105,9 +88,9 @@ async def compare_free_pro_callback(callback: CallbackQuery, user: User):
 async def compare_pro_ultra_callback(callback: CallbackQuery, user: User):
     """Handle compare PRO and ULTRA callback."""
     
-    compare_text = """📊 *Сравнение PRO и ULTRA*
+    compare_text = """📊 <b>Сравнение PRO и ULTRA</b>
 
-*Функция* | *PRO* | *ULTRA*
+<b>Функция</b> | <b>PRO</b> | <b>ULTRA</b>
 ─────────|───────|────────
 Аналитика портфеля | 2/мес | 4/мес
 Темы для генерации/съёмок | 5 тем/неделя | 10 тем/неделя
@@ -115,10 +98,11 @@ async def compare_pro_ultra_callback(callback: CallbackQuery, user: User):
 Календарь стокера | Расширенный | Расширенный
 Видеоуроки | Все | Все
 
-*ULTRA для максимального роста\\!*"""
+<b>ULTRA для максимального роста!</b>"""
     
-    await callback.message.edit_text(
-        compare_text,
+    await safe_edit_message(
+        callback=callback,
+        text=compare_text,
         reply_markup=get_profile_keyboard(user.subscription_type)
     )
     await callback.answer()
@@ -137,13 +121,13 @@ async def upgrade_pro_callback(callback: CallbackQuery, user: User):
     base_price = 990
     if discount_info["has_discount"]:
         discounted_price = base_price * (1 - discount_info["discount_percent"] / 100)
-        price_text = f"~~{base_price}₽~~ **{discounted_price:.0f}₽** ({discount_info['discount_percent']}% скидка)"
-        discount_message = f"\n🎉 **{discount_info['message']}**"
+        price_text = f"~~{base_price}₽~~ <b>{discounted_price:.0f}₽</b> ({discount_info['discount_percent']}% скидка)"
+        discount_message = f"\n🎉 <b>{discount_info['message']}</b>"
     else:
-        price_text = f"**{base_price}₽/месяц**"
+        price_text = f"<b>{base_price}₽/месяц</b>"
         discount_message = ""
     
-    upgrade_text = f"""🏆 **Переход на PRO**
+    upgrade_text = f"""🏆 <b>Переход на PRO</b>
 
 PRO подписка включает:
 • 2 аналитики в месяц
@@ -152,12 +136,13 @@ PRO подписка включает:
 • Расширенный календарь стокера
 • Все видеоуроки
 
-**Цена:** {price_text}{discount_message}
+<b>Цена:</b> {price_text}{discount_message}
 
 Для оформления подписки перейди по ссылке: [Boosty PRO](https://boosty.to/iqstocker/pro)"""
     
-    await callback.message.edit_text(
-        upgrade_text,
+    await safe_edit_message(
+        callback=callback,
+        text=upgrade_text,
         reply_markup=get_profile_keyboard(user.subscription_type)
     )
     await callback.answer()
@@ -176,13 +161,13 @@ async def upgrade_ultra_callback(callback: CallbackQuery, user: User):
     base_price = 1990
     if discount_info["has_discount"]:
         discounted_price = base_price * (1 - discount_info["discount_percent"] / 100)
-        price_text = f"~~{base_price}₽~~ **{discounted_price:.0f}₽** ({discount_info['discount_percent']}% скидка)"
-        discount_message = f"\n🎉 **{discount_info['message']}**"
+        price_text = f"~~{base_price}₽~~ <b>{discounted_price:.0f}₽</b> ({discount_info['discount_percent']}% скидка)"
+        discount_message = f"\n🎉 <b>{discount_info['message']}</b>"
     else:
-        price_text = f"**{base_price}₽/месяц**"
+        price_text = f"<b>{base_price}₽/месяц</b>"
         discount_message = ""
     
-    upgrade_text = f"""🚀 **Переход на ULTRA**
+    upgrade_text = f"""🚀 <b>Переход на ULTRA</b>
 
 ULTRA подписка включает:
 • 4 аналитики в месяц
@@ -191,12 +176,13 @@ ULTRA подписка включает:
 • Расширенный календарь стокера
 • Все видеоуроки
 
-**Цена:** {price_text}{discount_message}
+<b>Цена:</b> {price_text}{discount_message}
 
 Для оформления подписки перейди по ссылке: [Boosty ULTRA](https://boosty.to/iqstocker/ultra)"""
     
-    await callback.message.edit_text(
-        upgrade_text,
+    await safe_edit_message(
+        callback=callback,
+        text=upgrade_text,
         reply_markup=get_profile_keyboard(user.subscription_type)
     )
     await callback.answer()

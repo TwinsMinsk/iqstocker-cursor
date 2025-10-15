@@ -1,4 +1,4 @@
-"""Lessons handler."""
+"""Lessons handler with horizontal navigation."""
 
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -7,8 +7,9 @@ from sqlalchemy import asc
 
 from config.database import SessionLocal
 from database.models import User, SubscriptionType, VideoLesson
-
 from bot.keyboards.main_menu import get_main_menu_keyboard
+from bot.keyboards.common import create_subscription_buttons, add_back_to_menu_button
+from bot.utils.safe_edit import safe_edit_message
 
 router = Router()
 
@@ -26,11 +27,11 @@ async def lessons_callback(callback: CallbackQuery, user: User):
                 VideoLesson.is_pro_only == False
             ).order_by(asc(VideoLesson.order)).all()
             
-            lessons_text = """🎥 **Видеоуроки**
+            lessons_text = """🎥 <b>Видеоуроки</b>
 
 Здесь собраны бесплатные уроки, которые помогут тебе прокачать портфель и разобраться в основных ошибках.
 
-**Доступные уроки:**"""
+<b>Доступные уроки:</b>"""
             
             for lesson in lessons:
                 lessons_text += f"\n• {lesson.title} [ссылка — доступен]"
@@ -49,27 +50,18 @@ async def lessons_callback(callback: CallbackQuery, user: User):
 👉 Остальные видео доступны по PRO-подписке.
 Не ограничивайся базой - оформи PRO и смотри все уроки без ограничений."""
             
-            keyboard = [
-                [
-                    InlineKeyboardButton(text="🏆 Перейти на PRO", callback_data="upgrade_pro")
-                ],
-                [
-                    InlineKeyboardButton(text="📊 Сравнить Free и PRO", callback_data="compare_free_pro")
-                ],
-                [
-                    InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
-                ]
-            ]
+            keyboard = create_subscription_buttons(user.subscription_type)
+            keyboard = add_back_to_menu_button(keyboard, user.subscription_type)
             
         else:
             # Show all lessons for PRO/ULTRA users
             lessons = db.query(VideoLesson).order_by(asc(VideoLesson.order)).all()
             
-            lessons_text = """🎥 **Видеоуроки**
+            lessons_text = """🎥 <b>Видеоуроки</b>
 
 Здесь собраны бесплатные материалы, которые помогут тебе прокачать портфель и разобраться в основных ошибках.
 
-**Все уроки:**"""
+<b>Все уроки:</b>"""
             
             for lesson in lessons:
                 lessons_text += f"\n• {lesson.title} [ссылка — доступен]"
@@ -78,14 +70,12 @@ async def lessons_callback(callback: CallbackQuery, user: User):
 
 ⚡️ Все материалы доступны без лимита по времени — ты можешь посмотреть их когда захочешь."""
             
-            keyboard = [
-                [
-                    InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
-                ]
-            ]
+            keyboard = []
+            keyboard = add_back_to_menu_button(keyboard, user.subscription_type)
         
-        await callback.message.edit_text(
-            lessons_text,
+        await safe_edit_message(
+            callback=callback,
+            text=lessons_text,
             reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
         )
         

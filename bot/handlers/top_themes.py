@@ -1,4 +1,4 @@
-"""Top themes handler."""
+"""Top themes handler with horizontal navigation."""
 
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -8,8 +8,10 @@ from sqlalchemy import desc
 from config.database import SessionLocal
 from database.models import User, SubscriptionType, TopTheme, CSVAnalysis
 from core.analytics.report_generator_fixed import FixedReportGenerator
-
+from bot.lexicon import LEXICON_RU
 from bot.keyboards.main_menu import get_main_menu_keyboard
+from bot.keyboards.common import create_subscription_buttons, add_back_to_menu_button
+from bot.utils.safe_edit import safe_edit_message
 
 router = Router()
 
@@ -20,22 +22,12 @@ async def top_themes_callback(callback: CallbackQuery, user: User):
     
     if user.subscription_type == SubscriptionType.FREE:
         # Show limitation message for FREE users
-        limitation_text = """🚫 Этот раздел недоступен по бесплатной подписке\\.\n\nОформи PRO чтобы пользоваться всеми функциями без ограничений\\."""
+        keyboard = create_subscription_buttons(user.subscription_type)
+        keyboard = add_back_to_menu_button(keyboard, user.subscription_type)
         
-        keyboard = [
-            [
-                InlineKeyboardButton(text="🏆 Оформить PRO", callback_data="upgrade_pro")
-            ],
-            [
-                InlineKeyboardButton(text="📊 Сравнить Free и PRO", callback_data="compare_free_pro")
-            ],
-            [
-                InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
-            ]
-        ]
-        
-        await callback.message.edit_text(
-            limitation_text,
+        await safe_edit_message(
+            callback=callback,
+            text=LEXICON_RU['top_themes_unavailable_free'],
             reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
         )
     else:
@@ -50,13 +42,20 @@ async def top_themes_callback(callback: CallbackQuery, user: User):
             
             if not latest_csv:
                 # No analytics available
-                no_data_text = """🏆 *Топ тем по продажам и доходу*\n\nУ тебя пока нет проанализированных данных\\.\n\n📊 *Что нужно сделать:*
-1\\. Загрузи CSV\\-файл с продажами в разделе "Аналитика портфеля"
-2\\. Дождись завершения анализа
-3\\. Вернись сюда, чтобы увидеть топ\\-темы\n\n💡 *Совет:* топ\\-темы формируются на основе твоих реальных продаж и помогают понять, какие направления работают лучше всего\\."""
+                no_data_text = """🏆 <b>Топ тем по продажам и доходу</b>
+
+У тебя пока нет проанализированных данных.
+
+📊 <b>Что нужно сделать:</b>
+1. Загрузи CSV-файл с продажами в разделе "Аналитика портфеля"
+2. Дождись завершения анализа
+3. Вернись сюда, чтобы увидеть топ-темы
+
+💡 <b>Совет:</b> топ-темы формируются на основе твоих реальных продаж и помогают понять, какие направления работают лучше всего."""
                 
-                await callback.message.edit_text(
-                    no_data_text,
+                await safe_edit_message(
+                    callback=callback,
+                    text=no_data_text,
                     reply_markup=get_main_menu_keyboard(user.subscription_type)
                 )
                 await callback.answer()
@@ -90,18 +89,18 @@ async def top_themes_callback(callback: CallbackQuery, user: User):
                     
                 except Exception as e:
                     # Fallback to simple message
-                    no_themes_text = f"""🏆 **ТОП ТЕМ ПО ПРОДАЖАМ И ДОХОДУ**
+                    no_themes_text = f"""🏆 <b>ТОП ТЕМ ПО ПРОДАЖАМ И ДОХОДУ</b>
 
 Анализ за {latest_csv.month}.{latest_csv.year}:
-Топ темы не найдены.
 Топ темы не найдены.
 
 ❗️ Все топ-темы сохраняются в этом разделе без ограничения по времени. Ты в любое время можешь зайти сюда, чтобы пересмотреть их.
 
 💡 Совет: используй эти темы в своих будущих генерациях и съемках — они уже доказали свою эффективность и ты можешь сделать на них еще больше работ."""
                 
-                await callback.message.edit_text(
-                    no_themes_text,
+                await safe_edit_message(
+                    callback=callback,
+                    text=no_themes_text,
                     reply_markup=get_main_menu_keyboard(user.subscription_type)
                 )
                 await callback.answer()
@@ -110,10 +109,10 @@ async def top_themes_callback(callback: CallbackQuery, user: User):
             # Determine how many themes to show based on subscription
             if user.subscription_type == SubscriptionType.PRO:
                 themes_to_show = min(5, len(top_themes))
-                themes_text = "**Топ-5 тем:**"
+                themes_text = LEXICON_RU['top_themes_pro']
             else:  # ULTRA
                 themes_to_show = min(10, len(top_themes))
-                themes_text = "**Топ-10 тем:**"
+                themes_text = LEXICON_RU['top_themes_ultra']
             
             # Format themes
             themes_list = []
@@ -122,11 +121,17 @@ async def top_themes_callback(callback: CallbackQuery, user: User):
                     f"{i}. {theme.theme_name} — {theme.sales_count} продаж/{theme.revenue:.2f}$"
                 )
             
-            top_themes_text = f"""🏆 *Топ тем по продажам и доходу*\n\nЯ проанализировал твои продажи \\- вот список тем, которые показали наилучшие результаты за {latest_csv.month}.{latest_csv.year}:\n\n{themes_text}
-{chr(10).join(themes_list)}\n\n❗️ Все топ\\-темы сохраняются в этом разделе без ограничения по времени\\. Ты в любое время можешь зайти сюда, чтобы пересмотреть их\\.\n\n💡 *Совет:* используй эти темы в своих будущих генерациях и съемках — они уже доказали свою эффективность и ты можешь сделать на них еще больше работ\\."""
+            top_themes_text = f"""{themes_text}
+
+{chr(10).join(themes_list)}
+
+❗️ Все топ-темы сохраняются в этом разделе без ограничения по времени. Ты в любое время можешь зайти сюда, чтобы пересмотреть их.
+
+💡 <b>Совет:</b> используй эти темы в своих будущих генерациях и съемках — они уже доказали свою эффективность и ты можешь сделать на них еще больше работ."""
             
-            await callback.message.edit_text(
-                top_themes_text,
+            await safe_edit_message(
+                callback=callback,
+                text=top_themes_text,
                 reply_markup=get_main_menu_keyboard(user.subscription_type)
             )
             

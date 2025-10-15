@@ -1,4 +1,4 @@
-"""Calendar handler."""
+"""Calendar handler with horizontal navigation."""
 
 from datetime import datetime
 from aiogram import Router, F
@@ -8,8 +8,10 @@ from sqlalchemy import desc
 
 from config.database import SessionLocal
 from database.models import User, SubscriptionType, CalendarEntry
-
+from bot.lexicon import LEXICON_RU
 from bot.keyboards.main_menu import get_main_menu_keyboard
+from bot.keyboards.common import create_subscription_buttons, add_back_to_menu_button
+from bot.utils.safe_edit import safe_edit_message
 
 router = Router()
 
@@ -31,10 +33,17 @@ async def calendar_callback(callback: CallbackQuery, user: User):
         
         if not calendar_entry:
             # No calendar data available
-            no_data_text = """📅 *Календарь стокера*\n\nКалендарь на текущий месяц пока не готов\\.\n\nℹ️ Информация в этом разделе обновляется *ежемесячно*\\. Тебе ничего не нужно делать — в начале месяца здесь автоматически появится новая подборка\\.\n\n📌 *Совет:* загружай сезонные темы за 4–8 недель до события\\. Так они успеют выйти в топ и дать максимальные результаты\\."""
+            no_data_text = """📅 <b>Календарь стокера</b>
+
+Календарь на текущий месяц пока не готов.
+
+ℹ️ Информация в этом разделе обновляется <b>ежемесячно</b>. Тебе ничего не нужно делать — в начале месяца здесь автоматически появится новая подборка.
+
+📌 <b>Совет:</b> загружай сезонные темы за 4–8 недель до события. Так они успеют выйти в топ и дать максимальные результаты."""
             
-            await callback.message.edit_text(
-                no_data_text,
+            await safe_edit_message(
+                callback=callback,
+                text=no_data_text,
                 reply_markup=get_main_menu_keyboard(user.subscription_type)
             )
             await callback.answer()
@@ -46,37 +55,21 @@ async def calendar_callback(callback: CallbackQuery, user: User):
         
         if user.subscription_type == SubscriptionType.FREE:
             # Show limited calendar for FREE users
-            calendar_text = f"""📅 *Календарь стокера*\n\nℹ️ Информация в этом разделе обновляется *ежемесячно*\\. Тебе ничего не нужно делать — в начале месяца здесь автоматически появится новая подборка\\.\n\n✨ *Календарь стокера на {calendar_entry.month}.{calendar_entry.year}* ✨ сокращенный\n\n*Грузить сейчас:*
-{chr(10).join([f"• {theme}" for theme in load_now_themes[:1]])}\n\n*Генерировать / готовиться:*
-{chr(10).join([f"• {theme}" for theme in prepare_themes[:1]])}\n\n📌 *Совет:* загружай сезонные темы за 4–8 недель до события\\. Так они успеют выйти в топ и дать максимальные результаты\\."""
+            calendar_text = LEXICON_RU['stocker_calendar_free']
             
-            keyboard = [
-                [
-                    InlineKeyboardButton(text="🏆 Перейти на PRO", callback_data="upgrade_pro")
-                ],
-                [
-                    InlineKeyboardButton(text="📊 Сравнить Free и PRO", callback_data="compare_free_pro")
-                ],
-                [
-                    InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
-                ]
-            ]
+            keyboard = create_subscription_buttons(user.subscription_type)
+            keyboard = add_back_to_menu_button(keyboard, user.subscription_type)
             
         else:
             # Show full calendar for PRO/ULTRA users
-            calendar_text = f"""📅 *Календарь стокера*\n\nℹ️ Информация в этом разделе обновляется *ежемесячно*\\. Тебе ничего не нужно делать — в начале месяца здесь автоматически появится новая подборка\\.\n\n✨ *Календарь стокера на {calendar_entry.month}.{calendar_entry.year}* ✨\n\n*Общее описание сезона:*
-{calendar_entry.description}\n\n*Грузить сейчас* \\(то, что уже должно уходить на стоки\\):
-{chr(10).join([f"• {theme}" for theme in load_now_themes])}\n\n*Генерировать / готовиться* \\(то, что будет востребовано через 1\\-2 месяца\\):
-{chr(10).join([f"• {theme}" for theme in prepare_themes])}\n\n📌 *Совет:* загружай сезонные темы за 4–8 недель до события\\. Так они успеют выйти в топ и дать максимальные результаты\\."""
+            calendar_text = LEXICON_RU['stocker_calendar_pro_ultra']
             
-            keyboard = [
-                [
-                    InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
-                ]
-            ]
+            keyboard = []
+            keyboard = add_back_to_menu_button(keyboard, user.subscription_type)
         
-        await callback.message.edit_text(
-            calendar_text,
+        await safe_edit_message(
+            callback=callback,
+            text=calendar_text,
             reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
         )
         
