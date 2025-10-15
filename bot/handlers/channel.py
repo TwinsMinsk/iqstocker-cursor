@@ -21,7 +21,7 @@ async def channel_callback(callback: CallbackQuery, user: User):
             InlineKeyboardButton(text=LEXICON_COMMANDS_RU['go_to_channel'], url="https://t.me/iqstocker")
         ],
         [
-            InlineKeyboardButton(text=LEXICON_COMMANDS_RU['back_to_menu'], callback_data="main_menu")
+            InlineKeyboardButton(text=LEXICON_COMMANDS_RU['back_to_main_menu'], callback_data="main_menu")
         ]
     ]
     

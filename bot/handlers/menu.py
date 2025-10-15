@@ -17,7 +17,7 @@ async def main_menu_callback(callback: CallbackQuery, user: User):
     
     await safe_edit_message(
         callback=callback,
-        text=LEXICON_RU['main_menu_title'],
+        text=LEXICON_RU['main_menu_message'],
         reply_markup=get_main_menu_keyboard(user.subscription_type)
     )
     await callback.answer()

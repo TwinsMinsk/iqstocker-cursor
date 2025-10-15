@@ -56,15 +56,15 @@ async def admin_command(message: Message, state: FSMContext):
 • Резервное копирование"""
     
     keyboard = [
+        # First button full width (most important)
+        [InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")],
+        # Remaining buttons in pairs
         [
-            InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats"),
-            InlineKeyboardButton(text="📢 Рассылка", callback_data="admin_broadcast")
+            InlineKeyboardButton(text="📢 Рассылка", callback_data="admin_broadcast"),
+            InlineKeyboardButton(text="⚙️ Система", callback_data="admin_system")
         ],
         [
-            InlineKeyboardButton(text="⚙️ Система", callback_data="admin_system"),
-            InlineKeyboardButton(text="📈 Здоровье", callback_data="admin_health")
-        ],
-        [
+            InlineKeyboardButton(text="📈 Здоровье", callback_data="admin_health"),
             InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
         ]
     ]
@@ -141,22 +141,18 @@ async def admin_broadcast_callback(callback: CallbackQuery):
 • **TEST_PRO** - только тестовым"""
     
     keyboard = [
-        [
-            InlineKeyboardButton(text="👥 Всем", callback_data="broadcast_all")
-        ],
+        # First button full width (most important)
+        [InlineKeyboardButton(text="👥 Всем", callback_data="broadcast_all")],
+        # Remaining buttons in pairs
         [
             InlineKeyboardButton(text="🆓 FREE", callback_data="broadcast_free"),
             InlineKeyboardButton(text="💎 PRO/ULTRA", callback_data="broadcast_pro")
         ],
         [
-            InlineKeyboardButton(text="🧪 TEST_PRO", callback_data="broadcast_test_pro")
-        ],
-        [
+            InlineKeyboardButton(text="🧪 TEST_PRO", callback_data="broadcast_test_pro"),
             InlineKeyboardButton(text="📋 История", callback_data="broadcast_history")
         ],
-        [
-            InlineKeyboardButton(text="↩️ Назад в админку", callback_data="admin_back")
-        ]
+        [InlineKeyboardButton(text="↩️ Назад в админку", callback_data="admin_back")]
     ]
     
     try:
@@ -341,18 +337,14 @@ async def admin_system_callback(callback: CallbackQuery):
 • **Проверка системы** - диагностика компонентов"""
     
     keyboard = [
+        # First button full width (most important)
+        [InlineKeyboardButton(text="🔧 Параметры", callback_data="admin_params")],
+        # Remaining buttons in pairs
         [
-            InlineKeyboardButton(text="🔧 Параметры", callback_data="admin_params")
-        ],
-        [
-            InlineKeyboardButton(text="🔄 Обновить данные", callback_data="admin_refresh")
-        ],
-        [
+            InlineKeyboardButton(text="🔄 Обновить данные", callback_data="admin_refresh"),
             InlineKeyboardButton(text="🧹 Очистить кэш", callback_data="admin_clear_cache")
         ],
-        [
-            InlineKeyboardButton(text="↩️ Назад в админку", callback_data="admin_back")
-        ]
+        [InlineKeyboardButton(text="↩️ Назад в админку", callback_data="admin_back")]
     ]
     
     try:
@@ -443,15 +435,15 @@ async def admin_back_callback(callback: CallbackQuery):
 • Резервное копирование"""
     
     keyboard = [
+        # First button full width (most important)
+        [InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")],
+        # Remaining buttons in pairs
         [
-            InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats"),
-            InlineKeyboardButton(text="📢 Рассылка", callback_data="admin_broadcast")
+            InlineKeyboardButton(text="📢 Рассылка", callback_data="admin_broadcast"),
+            InlineKeyboardButton(text="⚙️ Система", callback_data="admin_system")
         ],
         [
-            InlineKeyboardButton(text="⚙️ Система", callback_data="admin_system"),
-            InlineKeyboardButton(text="📈 Здоровье", callback_data="admin_health")
-        ],
-        [
+            InlineKeyboardButton(text="📈 Здоровье", callback_data="admin_health"),
             InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
         ]
     ]

@@ -2,7 +2,7 @@
 
 import asyncio
 from aiogram import Router, F
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from datetime import datetime, timezone, timedelta
 
@@ -71,27 +71,22 @@ async def create_new_user(message: Message, db):
 
 
 async def send_welcome_sequence(message: Message):
-    """Send step-by-step welcome messages."""
+    """Send welcome messages with instruction button."""
     
-    # Step 1: First message
-    await message.answer(LEXICON_RU['start_message_1'])
-    await asyncio.sleep(1.5)
+    # Step 1: Информационное сообщение
+    await message.answer(LEXICON_RU['how_to_start_info'])
     
-    # Step 2: Second message
-    await message.answer(LEXICON_RU['start_message_2'])
-    await asyncio.sleep(1.5)
-    
-    # Step 3: Third message
-    await message.answer(LEXICON_RU['start_message_3'])
-    
-    # Step 4: Final message with description and analytics button
-    analytics_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=LEXICON_COMMANDS_RU['do_analytics'], callback_data="analytics_start")]
+    # Step 2: Призыв к действию с кнопкой инструкции
+    instruction_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text=LEXICON_COMMANDS_RU['instruction_button'], 
+            callback_data="show_csv_instruction"
+        )]
     ])
     
     await message.answer(
-        LEXICON_RU['bot_description'],
-        reply_markup=analytics_keyboard
+        LEXICON_RU['upload_csv_call_to_action'],
+        reply_markup=instruction_keyboard
     )
 
 
@@ -126,8 +121,8 @@ async def handle_existing_user(message: Message, user: User, db):
 
 Рад снова тебя видеть!
 
-<b>Твой тариф:</b> {user.subscription_type.value}
-<b>Статус:</b> {status_text}
+▫️ <b>Твой тариф:</b> {user.subscription_type.value}
+▫️ <b>Статус:</b> {status_text}
 
 Что будем делать сегодня? 👇"""
     
@@ -135,3 +130,45 @@ async def handle_existing_user(message: Message, user: User, db):
         welcome_text,
         reply_markup=get_main_menu_keyboard(user.subscription_type)
     )
+
+
+@router.callback_query(F.data == "show_csv_instruction")
+async def show_csv_instruction_callback(callback: CallbackQuery):
+    """Show CSV instruction."""
+    
+    # Клавиатура с кнопкой "Назад"
+    back_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text=LEXICON_COMMANDS_RU['back_button'], 
+            callback_data="back_to_upload_prompt"
+        )]
+    ])
+    
+    # Редактируем сообщение
+    await callback.message.edit_text(
+        text=LEXICON_RU['csv_instruction_message'],
+        reply_markup=back_keyboard
+    )
+    
+    await callback.answer()
+
+
+@router.callback_query(F.data == "back_to_upload_prompt")
+async def back_to_upload_prompt_callback(callback: CallbackQuery):
+    """Return to upload CSV prompt."""
+    
+    # Клавиатура с кнопкой "Инструкция"
+    instruction_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text=LEXICON_COMMANDS_RU['instruction_button'], 
+            callback_data="show_csv_instruction"
+        )]
+    ])
+    
+    # Редактируем сообщение обратно
+    await callback.message.edit_text(
+        text=LEXICON_RU['upload_csv_call_to_action'],
+        reply_markup=instruction_keyboard
+    )
+    
+    await callback.answer()

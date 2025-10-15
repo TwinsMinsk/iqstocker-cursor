@@ -12,7 +12,7 @@ def get_profile_keyboard(subscription_type: SubscriptionType) -> InlineKeyboardM
     
     # Back to main menu
     keyboard.append([
-        InlineKeyboardButton(text=LEXICON_COMMANDS_RU['back_to_menu_alt'], callback_data="main_menu")
+        InlineKeyboardButton(text=LEXICON_COMMANDS_RU['back_to_main_menu'], callback_data="main_menu")
     ])
     
     # Upgrade buttons for FREE users

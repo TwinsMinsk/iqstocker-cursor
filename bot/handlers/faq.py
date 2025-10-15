@@ -1,4 +1,4 @@
-"""FAQ handler with horizontal navigation."""
+"""FAQ handler with multi-level navigation."""
 
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -7,6 +7,8 @@ from database.models import User
 from bot.lexicon import LEXICON_RU
 from bot.lexicon.lexicon_ru import LEXICON_COMMANDS_RU
 from bot.keyboards.main_menu import get_main_menu_keyboard
+from bot.keyboards.callbacks import FAQCallback
+from bot.data.faq_data import FAQ_STRUCTURE
 from bot.utils.safe_edit import safe_edit_message
 
 router = Router()
@@ -14,45 +16,40 @@ router = Router()
 
 @router.callback_query(F.data == "faq")
 async def faq_callback(callback: CallbackQuery, user: User):
-    """Handle FAQ callback."""
+    """Handle FAQ callback - show categories."""
     
-    faq_text = LEXICON_RU['help_page']
+    faq_text = "❓ <b>Часто задаваемые вопросы</b>\n\nВыберите категорию:"
     
-    keyboard = [
-        [
-            InlineKeyboardButton(text=LEXICON_COMMANDS_RU['faq_csv'], callback_data="faq_csv")
-        ],
-        [
-            InlineKeyboardButton(text=LEXICON_COMMANDS_RU['faq_limits'], callback_data="faq_limits")
-        ],
-        [
-            InlineKeyboardButton(text=LEXICON_COMMANDS_RU['faq_bot_not_responding'], callback_data="faq_bot_not_responding")
-        ],
-        [
-            InlineKeyboardButton(text=LEXICON_COMMANDS_RU['faq_support'], callback_data="faq_support")
-        ],
-        [
-            InlineKeyboardButton(text=LEXICON_COMMANDS_RU['faq_themes'], callback_data="faq_themes")
-        ],
-        [
-            InlineKeyboardButton(text=LEXICON_COMMANDS_RU['faq_top_themes'], callback_data="faq_top_themes")
-        ],
-        [
-            InlineKeyboardButton(text=LEXICON_COMMANDS_RU['faq_calendar'], callback_data="faq_calendar")
-        ],
-        [
-            InlineKeyboardButton(text=LEXICON_COMMANDS_RU['faq_subscription'], callback_data="faq_subscription")
-        ],
-        [
-            InlineKeyboardButton(text=LEXICON_COMMANDS_RU['faq_limits_end'], callback_data="faq_limits_end")
-        ],
-        [
-            InlineKeyboardButton(text=LEXICON_COMMANDS_RU['faq_payment'], callback_data="faq_payment")
-        ],
-        [
-            InlineKeyboardButton(text=LEXICON_COMMANDS_RU['back_to_menu'], callback_data="main_menu")
-        ]
-    ]
+    keyboard = []
+    
+    # Add category buttons in asymmetric layout (1, 2, 2)
+    categories = list(FAQ_STRUCTURE.items())
+    
+    # First category full width (most important)
+    first_category_key, first_category_data = categories[0]
+    keyboard.append([
+        InlineKeyboardButton(
+            text=first_category_data["title"],
+            callback_data=FAQCallback(level=2, category=first_category_key).pack()
+        )
+    ])
+    
+    # Remaining categories in pairs
+    for i in range(1, len(categories), 2):
+        row = []
+        for j in range(2):
+            if i + j < len(categories):
+                category_key, category_data = categories[i + j]
+                row.append(InlineKeyboardButton(
+                    text=category_data["title"],
+                    callback_data=FAQCallback(level=2, category=category_key).pack()
+                ))
+        keyboard.append(row)
+    
+    # Add back to menu button
+    keyboard.append([
+            InlineKeyboardButton(text=LEXICON_COMMANDS_RU['back_to_main_menu'], callback_data="main_menu")
+    ])
     
     await safe_edit_message(
         callback=callback,
@@ -62,153 +59,88 @@ async def faq_callback(callback: CallbackQuery, user: User):
     await callback.answer()
 
 
-@router.callback_query(F.data == "faq_csv")
-async def faq_csv_callback(callback: CallbackQuery, user: User):
-    """Handle FAQ CSV callback."""
+@router.callback_query(FAQCallback.filter(F.level == 2))
+async def faq_category_callback(callback: CallbackQuery, callback_data: FAQCallback, user: User):
+    """Handle FAQ category callback - show questions in category."""
     
-    answer_text = """❓ <b>Как загрузить CSV?</b>
-
-В личном кабинете Adobe Stock зайди в «Моя статистика», выбери тип данных - действие, период - обязательно должен быть 1 календарный месяц» → нажми показать статистику → нажми «Экспорт CSV». Прикрепи скачанный файл сюда в бот."""
+    category_key = callback_data.category
+    category_data = FAQ_STRUCTURE.get(category_key)
+    
+    if not category_data:
+        await callback.answer("Категория не найдена")
+        return
+    
+    faq_text = f"❓ <b>{category_data['title']}</b>\n\nВыберите вопрос:"
+    
+    keyboard = []
+    
+    # Add question buttons in asymmetric layout (1, 2, 2, ...)
+    questions = list(category_data["questions"].items())
+    
+    # First question full width (most important)
+    if questions:
+        first_question_key, first_question_data = questions[0]
+        keyboard.append([
+            InlineKeyboardButton(
+                text=f"❓ {first_question_data['question']}",
+                callback_data=FAQCallback(level=3, category=category_key, question=first_question_key).pack()
+            )
+        ])
+    
+    # Remaining questions in pairs
+    for i in range(1, len(questions), 2):
+        row = []
+        for j in range(2):
+            if i + j < len(questions):
+                question_key, question_data = questions[i + j]
+                row.append(InlineKeyboardButton(
+                    text=f"❓ {question_data['question']}",
+                    callback_data=FAQCallback(level=3, category=category_key, question=question_key).pack()
+                ))
+        keyboard.append(row)
+    
+    # Add back to categories button
+    keyboard.append([
+        InlineKeyboardButton(text="◀️ Назад к категориям", callback_data="faq")
+    ])
     
     await safe_edit_message(
         callback=callback,
-        text=answer_text,
-        reply_markup=get_main_menu_keyboard(user.subscription_type)
+        text=faq_text,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
     )
     await callback.answer()
 
 
-@router.callback_query(F.data == "faq_limits")
-async def faq_limits_callback(callback: CallbackQuery, user: User):
-    """Handle FAQ limits callback."""
+@router.callback_query(FAQCallback.filter(F.level == 3))
+async def faq_question_callback(callback: CallbackQuery, callback_data: FAQCallback, user: User):
+    """Handle FAQ question callback - show answer."""
     
-    answer_text = LEXICON_RU['limits_info']
+    category_key = callback_data.category
+    question_key = callback_data.question
     
-    await safe_edit_message(
-        callback=callback,
-        text=answer_text,
-        reply_markup=get_main_menu_keyboard(user.subscription_type)
-    )
-    await callback.answer()
-
-
-@router.callback_query(F.data == "faq_bot_not_responding")
-async def faq_bot_not_responding_callback(callback: CallbackQuery, user: User):
-    """Handle FAQ bot not responding callback."""
+    category_data = FAQ_STRUCTURE.get(category_key)
+    if not category_data:
+        await callback.answer("Категория не найдена")
+        return
     
-    answer_text = """❓ <b>Что делать, если бот не отвечает?</b>
-
-Попробуй нажать /start. Если не помогает — свяжись с поддержкой."""
+    question_data = category_data["questions"].get(question_key)
+    if not question_data:
+        await callback.answer("Вопрос не найден")
+        return
     
-    await safe_edit_message(
-        callback=callback,
-        text=answer_text,
-        reply_markup=get_main_menu_keyboard(user.subscription_type)
-    )
-    await callback.answer()
-
-
-@router.callback_query(F.data == "faq_support")
-async def faq_support_callback(callback: CallbackQuery, user: User):
-    """Handle FAQ support callback."""
+    answer_text = question_data["answer"]
     
-    answer_text = """❓ <b>Как связаться с поддержкой?</b>
-
-Напиши на почту [email] или в Telegram [@ник]."""
+    keyboard = [
+        [InlineKeyboardButton(
+            text="◀️ Назад к вопросам",
+            callback_data=FAQCallback(level=2, category=category_key).pack()
+        )]
+    ]
     
     await safe_edit_message(
         callback=callback,
         text=answer_text,
-        reply_markup=get_main_menu_keyboard(user.subscription_type)
-    )
-    await callback.answer()
-
-
-@router.callback_query(F.data == "faq_themes")
-async def faq_themes_callback(callback: CallbackQuery, user: User):
-    """Handle FAQ themes callback."""
-    
-    answer_text = """❓ <b>Что такое «темы для генераций»?</b>
-
-Это список тем, на основе которых ты можешь генерировать/снимать новые работы. Он составляется еженедельно на основе трендов рынка + персональные темы, подобранные на основе твоей аналитики."""
-    
-    await safe_edit_message(
-        callback=callback,
-        text=answer_text,
-        reply_markup=get_main_menu_keyboard(user.subscription_type)
-    )
-    await callback.answer()
-
-
-@router.callback_query(F.data == "faq_top_themes")
-async def faq_top_themes_callback(callback: CallbackQuery, user: User):
-    """Handle FAQ top themes callback."""
-    
-    answer_text = """❓ <b>Что показывает «Топ тем»?</b>
-
-Это список тем, которые дали больше всего продаж/дохода в твоём портфеле за месяц."""
-    
-    await safe_edit_message(
-        callback=callback,
-        text=answer_text,
-        reply_markup=get_main_menu_keyboard(user.subscription_type)
-    )
-    await callback.answer()
-
-
-@router.callback_query(F.data == "faq_calendar")
-async def faq_calendar_callback(callback: CallbackQuery, user: User):
-    """Handle FAQ calendar callback."""
-    
-    answer_text = """❓ <b>Что внутри «Календаря стокера»?</b>
-
-Там представлены важные сезонные темы, праздники и тренды, которые нужно делать и загружать в ближайшее время."""
-    
-    await safe_edit_message(
-        callback=callback,
-        text=answer_text,
-        reply_markup=get_main_menu_keyboard(user.subscription_type)
-    )
-    await callback.answer()
-
-
-@router.callback_query(F.data == "faq_subscription")
-async def faq_subscription_callback(callback: CallbackQuery, user: User):
-    """Handle FAQ subscription callback."""
-    
-    answer_text = LEXICON_RU['tariffs_comparison']
-    
-    await safe_edit_message(
-        callback=callback,
-        text=answer_text,
-        reply_markup=get_main_menu_keyboard(user.subscription_type)
-    )
-    await callback.answer()
-
-
-@router.callback_query(F.data == "faq_limits_end")
-async def faq_limits_end_callback(callback: CallbackQuery, user: User):
-    """Handle FAQ limits end callback."""
-    
-    answer_text = LEXICON_RU['limits_ended']
-    
-    await safe_edit_message(
-        callback=callback,
-        text=answer_text,
-        reply_markup=get_main_menu_keyboard(user.subscription_type)
-    )
-    await callback.answer()
-
-
-@router.callback_query(F.data == "faq_payment")
-async def faq_payment_callback(callback: CallbackQuery, user: User):
-    """Handle FAQ payment callback."""
-    
-    answer_text = LEXICON_RU['payment_options']
-    
-    await safe_edit_message(
-        callback=callback,
-        text=answer_text,
-        reply_markup=get_main_menu_keyboard(user.subscription_type)
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
     )
     await callback.answer()

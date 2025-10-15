@@ -1,119 +1,50 @@
-"""Fixed report generator according to TЗ."""
+"""Fixed report generator according to specification."""
 
 from datetime import datetime
 from typing import Dict, Any
 from core.analytics.advanced_csv_processor import AdvancedProcessResult
+from core.analytics.recommendation_engine import RecommendationEngine
+from bot.lexicon.lexicon_ru import LEXICON_RU
+
 
 class FixedReportGenerator:
-    """Fixed report generator that follows TЗ requirements."""
+    """Fixed report generator that follows specification requirements."""
+    
+    def __init__(self):
+        self.recommendation_engine = RecommendationEngine()
     
     def generate_monthly_report(self, result: AdvancedProcessResult) -> str:
-        """Generate monthly report according to TЗ."""
+        """Generate monthly report according to specification."""
         
-        # Format period with month and year
-        period_text = result.period_human_ru
+        # Get all recommendations using RecommendationEngine
+        recommendations = self.recommendation_engine.get_all_recommendations(
+            portfolio_rate=result.portfolio_sold_percent,
+            new_work_rate=result.new_works_sales_percent,
+            limit_usage=result.upload_limit_usage,
+            acceptance_rate=result.acceptance_rate
+        )
         
-        # Main indicators with HTML formatting
-        main_indicators = f"""📊 <b>ОТЧЁТ ЗА {period_text.upper()} ГОТОВ!</b>
-
-🏢 <b>ОСНОВНЫЕ ПОКАЗАТЕЛИ:</b>
-• Продаж: {result.rows_used}
-• Доход: ${result.total_revenue_usd:.2f}
-• % портфеля, который продался: {result.portfolio_sold_percent:.1f}%
-• Доля продаж новых работ: {result.new_works_sales_percent:.1f}%"""
+        # Use template from lexicon_ru.py
+        report = LEXICON_RU['final_analytics_report_header'].format(
+            month_year=result.period_human_ru.upper()
+        )
         
-        # Additional indicators
-        additional_indicators = f"""
-📈 <b>ДОПОЛНИТЕЛЬНЫЕ ПОКАЗАТЕЛИ:</b>
-• % приемки: {result.acceptance_rate:.0f}%
-• Использование лимита загрузки: {result.upload_limit_usage:.1f}%"""
+        report += "\n\n" + LEXICON_RU['final_analytics_report_body'].format(
+            sales_count=result.rows_used,
+            total_revenue=result.total_revenue_usd,
+            sell_through_rate=result.portfolio_sold_percent,
+            new_work_rate=result.new_works_sales_percent,
+            acceptance_rate=result.acceptance_rate,
+            limit_usage_rate=result.upload_limit_usage,
+            portfolio_rate_recommendation=recommendations['portfolio_rate_recommendation'],
+            new_work_rate_recommendation=recommendations['new_work_rate_recommendation'],
+            limit_usage_recommendation=recommendations['limit_usage_recommendation'],
+            acceptance_rate_recommendation=recommendations['acceptance_rate_recommendation']
+        )
         
-        # Interpretations
-        interpretations = self._generate_interpretations(result)
+        report += "\n\n" + LEXICON_RU['final_analytics_report_footer']
         
-        # Combine all parts
-        full_report = main_indicators + additional_indicators + interpretations
-        
-        return full_report
-    
-    def _generate_interpretations(self, result: AdvancedProcessResult) -> str:
-        """Generate interpretations according to TЗ."""
-        
-        interpretations = f"""
-
-📊 <b>ИНТЕРПРЕТАЦИЯ РЕЗУЛЬТАТОВ:</b>
-
-🆕 <b>Новые работы ({result.new_works_sales_percent:.1f}%):</b>"""
-        
-        # New works interpretation
-        if result.new_works_sales_percent == 100:
-            interpretations += f"\nЕсли ты только начал грузить новый контент — всё впереди, не переживай. Но если загружаешь новое уже 3+ месяца, значит проблема в качестве новых работ: Посмотри <b>обучающие материалы</b>, чтобы понять, в чем может быть проблема и как скорректировать ошибки. Проверь регулярность загрузки."
-        elif result.new_works_sales_percent >= 30:
-            interpretations += f"\nУ тебя всё прекрасно выстроено. Новые работы качественные и прекрасно заходят. Что делать: Просто увеличивай объем загрузки."
-        elif 20 <= result.new_works_sales_percent < 30:
-            interpretations += f"\nОчень сильный результат. Что делать: Продолжай грузить в том же качестве. Добавляй новые темы."
-        elif 10 <= result.new_works_sales_percent < 20:
-            interpretations += f"\nНовый контент пошёл в продажи, это хороший знак. Что делать: Увеличь количество тем, чтобы привлечь новых покупателей."
-        else:
-            interpretations += f"\nЕсли ты только начал грузить новый контент — всё впереди, не переживай. Но если загружаешь новое уже 3+ месяца, значит проблема в качестве новых работ: Посмотри <b>обучающие материалы</b>, чтобы понять, в чем может быть проблема и как скорректировать ошибки. Проверь регулярность загрузки."
-        
-        # Portfolio interpretation
-        interpretations += f"""
-
-📈 <b>Портфель ({result.portfolio_sold_percent:.1f}%):</b>"""
-        
-        if result.portfolio_sold_percent < 1:
-            interpretations += f"\nЕсли ты только недавно начал работу на стоках - все ок. Дай портфелю время. Но если ты на стоках уже давно - проблема в качестве контента."
-        elif 1 <= result.portfolio_sold_percent < 2:
-            interpretations += f"\nПродажи есть, но потенциал полностью не раскрыт. Что делать: Побей триггеров абонентов материала..."
-        elif 2.01 <= result.portfolio_sold_percent < 3:
-            interpretations += f"\nТы на верном пути! Что делать: Продолжай в том же духе. Добавляй больше тем..."
-        elif 3 <= result.portfolio_sold_percent < 5:
-            interpretations += f"\nУ тебя сильный результат. Что делать: Масштабируй; увеличивай объемы загрузки..."
-        else:
-            interpretations += f"\nРаботы 🔥, портфель продаётся мощно. Что делать: Поднимай объём производства, сохраняя текущее качество..."
-        
-        # Acceptance interpretation
-        interpretations += f"""
-
-✅ <b>Приемка ({result.acceptance_rate:.0f}%):</b>"""
-        
-        if result.acceptance_rate < 30:
-            interpretations += f"\nРезультат слабый. Что делать: Посмотри обучающие видео и разберись, где именно ошибки в качестве..."
-        elif 31 <= result.acceptance_rate < 50:
-            interpretations += f"\nЕсть над чем работать. Что делать: Пересмотри учебные видеоуроки, чтобы подтянуть слабые места..."
-        elif 50 <= result.acceptance_rate < 55:
-            interpretations += f"\nЭто стандартный уровень, с которым работает большинство авторов. Что делать: Продолжай грузить, но параллельно смотри аналитику..."
-        elif 55 <= result.acceptance_rate < 65:
-            interpretations += f"\nУ тебя сильные результаты. Что делать: Масштабируй текущие удачные направления..."
-        else:
-            interpretations += f"\nТакая приемка сейчас далеко не у всех. Что делать: Поддерживай качество и увеличивай объём..."
-        
-        # Upload limit interpretation
-        interpretations += f"""
-
-📤 <b>Лимит загрузки ({result.upload_limit_usage:.1f}%):</b>"""
-        
-        if result.upload_limit_usage <= 30:
-            interpretations += f"\nТы не используешь свой потенциал. Что делать: Загружай больше..."
-        elif 30 < result.upload_limit_usage <= 60:
-            interpretations += f"\nХорошее начало, но пока не дотягиваешь до оптимального уровня. Что делать: Ставь цель хотя бы 70–80% лимита..."
-        elif 60 < result.upload_limit_usage <= 80:
-            interpretations += f"\nТы работаешь в хорошем темпе, но есть запас для роста. Что делать: Дотяни до максимума лимита..."
-        elif 80 < result.upload_limit_usage <= 95:
-            interpretations += f"\nОтличный результат, ты близко к максимуму. Что делать: Добей лимит, чтобы использовать потенциал работ 100%."
-        else:
-            interpretations += f"\nТы выжал из лимита всё, что можно. Что делать: Поддерживай такую систему загрузок и дальше."
-        
-        # Conclusion
-        interpretations += f"""
-
-Это был полный отчёт по твоему портфелю за выбранный период.
-Если хочешь посмотреть аналитику за другой месяц — проверь свои лимиты в разделе 👤 Профиль и загрузи новый CSV-файл.
-Пока сосредоточься на качестве. Посмотри обучающие материалы, чтобы понять что нужно делать.
-Следи за статистикой - через пару месяцев уже будут первые объективные показатели и ты узнаешь надо ли корректировать что-то в работе."""
-        
-        return interpretations
+        return report
     
     def generate_top_themes_report(self, result: AdvancedProcessResult, subscription_type: str) -> str:
         """Generate top themes report."""

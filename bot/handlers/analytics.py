@@ -9,6 +9,7 @@ from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message, Document, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from sqlalchemy.orm import Session
+from sqlalchemy import desc
 
 from config.database import SessionLocal
 from database.models import User, SubscriptionType, CSVAnalysis, AnalysisStatus, Limits, AnalyticsReport, TopTheme
@@ -53,7 +54,7 @@ async def analytics_start_callback(callback: CallbackQuery, user: User):
     
     # Edit message to show CSV upload prompt
     back_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=LEXICON_COMMANDS_RU['back_to_menu'], callback_data="main_menu")]
+        [InlineKeyboardButton(text=LEXICON_COMMANDS_RU['back_to_main_menu'], callback_data="main_menu")]
     ])
     
     await safe_edit_message(
@@ -75,46 +76,25 @@ async def analytics_callback(callback: CallbackQuery, user: User, limits: Limits
             text=LEXICON_RU['analytics_unavailable_free'],
             reply_markup=create_analytics_keyboard(user.subscription_type)
         )
-    else:
-        # Check limits
-        if limits.analytics_remaining <= 0:
-            limit_text = """🚫 У тебя закончились лимиты на аналитику.
-
-Проверь свои лимиты в разделе 👤 Профиль или оформи подписку для получения дополнительных лимитов."""
-            
-            await safe_edit_message(
-                callback=callback,
-                text=limit_text,
-                reply_markup=get_main_menu_keyboard(user.subscription_type)
-            )
+        await callback.answer()
+        return
+    
+    # Get all completed analyses for this user
+    db = SessionLocal()
+    try:
+        completed_analyses = db.query(CSVAnalysis).filter(
+            CSVAnalysis.user_id == user.id,
+            CSVAnalysis.status == AnalysisStatus.COMPLETED
+        ).order_by(desc(CSVAnalysis.created_at)).all()
+        
+        if not completed_analyses:
+            # No reports - show upload prompt
+            await show_upload_prompt(callback, limits)
         else:
-            # Show analytics interface for PRO users
-            analytics_text = f"""📊 <b>Аналитика портфеля</b>
-
-Загрузи CSV-файл с продажами Adobe Stock для анализа.
-
-<b>Инструкция:</b>
-1. В личном кабинете Adobe Stock зайди в «Моя статистика»
-2. Выбери тип данных - действие, период - обязательно должен быть 1 календарный месяц
-3. Нажми «Показать статистику» → «Экспорт CSV»
-4. Прикрепи скачанный файл сюда в бот
-
-<b>Что ты получишь:</b>
-• Количество продаж и доход
-• % портфеля, который продался
-• Долю продаж новых работ
-• Топ-5/10 тем по продажам
-• Рекомендации по улучшению
-
-<b>Осталось аналитик:</b> {limits.analytics_remaining}
-
-Загрузи CSV-файл:"""
-            
-            await safe_edit_message(
-                callback=callback,
-                text=analytics_text,
-                reply_markup=get_main_menu_keyboard(user.subscription_type)
-            )
+            # Show list of reports
+            await show_reports_list(callback, user, limits, completed_analyses)
+    finally:
+        db.close()
     
     await callback.answer()
 
@@ -176,8 +156,9 @@ async def handle_csv_upload(message: Message, state: FSMContext, user: User, lim
             await message.delete()
             # Приветственное сообщение
             await message.answer(LEXICON_RU['csv_upload_info_start'])
-            # Первый вопрос
-            await message.answer(LEXICON_RU['ask_portfolio_size'])
+            # Первый вопрос - сохраняем message_id для последующего редактирования
+            first_question_message = await message.answer(LEXICON_RU['ask_portfolio_size'])
+            await state.update_data(question_message_id=first_question_message.message_id)
             
         finally:
             db.close()
@@ -190,97 +171,182 @@ async def handle_csv_upload(message: Message, state: FSMContext, user: User, lim
 async def handle_portfolio_size(message: Message, state: FSMContext):
     """Handle portfolio size input."""
     
+    # Удаляем сообщение пользователя для чистоты чата
+    await message.delete()
+    
+    # Получаем данные из state
+    data = await state.get_data()
+    question_message_id = data.get('question_message_id')
+    
     try:
         portfolio_size = int(message.text)
         if portfolio_size <= 0:
-            await message.answer("⚠️ Пожалуйста, введи положительное число. Попробуй еще раз:")
+            # Редактируем сообщение с ошибкой
+            await message.bot.edit_message_text(
+                chat_id=message.chat.id,
+                message_id=question_message_id,
+                text=f"{LEXICON_RU['ask_portfolio_size']}\n\n⚠️ Пожалуйста, введи положительное число. Попробуй еще раз:"
+            )
             return
         
         await state.update_data(portfolio_size=portfolio_size)
         await state.set_state(AnalyticsStates.waiting_for_upload_limit)
         
-        # Задаем следующий вопрос
-        await message.answer(LEXICON_RU['ask_monthly_limit'])
+        # Редактируем сообщение для показа следующего вопроса
+        await message.bot.edit_message_text(
+            chat_id=message.chat.id,
+            message_id=question_message_id,
+            text=LEXICON_RU['ask_monthly_limit']
+        )
         
     except ValueError:
-        await message.answer("⚠️ Пожалуйста, введи число. Попробуй еще раз:")
+        # Редактируем сообщение с ошибкой валидации
+        await message.bot.edit_message_text(
+            chat_id=message.chat.id,
+            message_id=question_message_id,
+            text=f"{LEXICON_RU['ask_portfolio_size']}\n\n⚠️ Пожалуйста, введи число. Попробуй еще раз:"
+        )
 
 
 @router.message(AnalyticsStates.waiting_for_upload_limit)
 async def handle_upload_limit(message: Message, state: FSMContext):
     """Handle upload limit input."""
     
+    # Удаляем сообщение пользователя для чистоты чата
+    await message.delete()
+    
+    # Получаем данные из state
+    data = await state.get_data()
+    question_message_id = data.get('question_message_id')
+    
     try:
         upload_limit = int(message.text)
         if upload_limit <= 0:
-            await message.answer("⚠️ Пожалуйста, введи положительное число. Попробуй еще раз:")
+            # Редактируем сообщение с ошибкой
+            await message.bot.edit_message_text(
+                chat_id=message.chat.id,
+                message_id=question_message_id,
+                text=f"{LEXICON_RU['ask_monthly_limit']}\n\n⚠️ Пожалуйста, введи положительное число. Попробуй еще раз:"
+            )
             return
         
         await state.update_data(upload_limit=upload_limit)
         await state.set_state(AnalyticsStates.waiting_for_monthly_uploads)
         
-        await message.answer(LEXICON_RU['ask_monthly_uploads'])
+        # Редактируем сообщение для показа следующего вопроса
+        await message.bot.edit_message_text(
+            chat_id=message.chat.id,
+            message_id=question_message_id,
+            text=LEXICON_RU['ask_monthly_uploads']
+        )
         
     except ValueError:
-        await message.answer("⚠️ Пожалуйста, введи число. Попробуй еще раз:")
+        # Редактируем сообщение с ошибкой валидации
+        await message.bot.edit_message_text(
+            chat_id=message.chat.id,
+            message_id=question_message_id,
+            text=f"{LEXICON_RU['ask_monthly_limit']}\n\n⚠️ Пожалуйста, введи число. Попробуй еще раз:"
+        )
 
 
 @router.message(AnalyticsStates.waiting_for_monthly_uploads)
 async def handle_monthly_uploads(message: Message, state: FSMContext):
     """Handle monthly uploads input."""
     
+    # Удаляем сообщение пользователя для чистоты чата
+    await message.delete()
+    
+    # Получаем данные из state
+    data = await state.get_data()
+    question_message_id = data.get('question_message_id')
+    
     try:
         monthly_uploads = int(message.text)
         if monthly_uploads < 0:
-            await message.answer("⚠️ Количество не может быть отрицательным. Попробуй еще раз:")
+            # Редактируем сообщение с ошибкой
+            await message.bot.edit_message_text(
+                chat_id=message.chat.id,
+                message_id=question_message_id,
+                text=f"{LEXICON_RU['ask_monthly_uploads']}\n\n⚠️ Количество не может быть отрицательным. Попробуй еще раз:"
+            )
             return
         
         await state.update_data(monthly_uploads=monthly_uploads)
-        await state.set_state(AnalyticsStates.waiting_for_profit_margin)
+        await state.set_state(AnalyticsStates.waiting_for_acceptance_rate)
         
-        await message.answer(LEXICON_RU['ask_profit_percentage'])
+        # Редактируем сообщение для показа следующего вопроса
+        await message.bot.edit_message_text(
+            chat_id=message.chat.id,
+            message_id=question_message_id,
+            text=LEXICON_RU['ask_profit_percentage']
+        )
         
     except ValueError:
-        await message.answer("⚠️ Пожалуйста, введи число. Попробуй еще раз:")
+        # Редактируем сообщение с ошибкой валидации
+        await message.bot.edit_message_text(
+            chat_id=message.chat.id,
+            message_id=question_message_id,
+            text=f"{LEXICON_RU['ask_monthly_uploads']}\n\n⚠️ Пожалуйста, введи число. Попробуй еще раз:"
+        )
 
 
 
 
-@router.message(AnalyticsStates.waiting_for_profit_margin)
-async def handle_profit_margin(message: Message, state: FSMContext):
-    """Handle profit margin input."""
+@router.message(AnalyticsStates.waiting_for_acceptance_rate)
+async def handle_acceptance_rate(message: Message, state: FSMContext):
+    """Handle acceptance rate input."""
+    
+    # Удаляем сообщение пользователя для чистоты чата
+    await message.delete()
+    
+    # Получаем данные из state
+    data = await state.get_data()
+    question_message_id = data.get('question_message_id')
     
     try:
-        profit_margin = float(message.text)
-        if profit_margin < 0 or profit_margin > 100:
-            await message.answer("⚠️ % прибыли должен быть от 0 до 100. Попробуй еще раз:")
+        acceptance_rate = float(message.text)
+        if acceptance_rate < 0 or acceptance_rate > 100:
+            # Редактируем сообщение с ошибкой
+            await message.bot.edit_message_text(
+                chat_id=message.chat.id,
+                message_id=question_message_id,
+                text=f"{LEXICON_RU['ask_acceptance_rate']}\n\n⚠️ % приемки должен быть от 0 до 100. Попробуй еще раз:"
+            )
             return
         
-        await state.update_data(profit_margin=profit_margin)
+        await state.update_data(acceptance_rate=acceptance_rate)
         await state.set_state(AnalyticsStates.waiting_for_content_type)
         
-        # Create keyboard with content type options
+        # Create keyboard with content type options - asymmetric layout (1, 2, 2)
         content_type_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            # First button full width (most important)
+            [InlineKeyboardButton(text="🤖 AI", callback_data="content_type_AI")],
+            # Remaining buttons in pairs
             [
-                InlineKeyboardButton(text="🤖 AI", callback_data="content_type_AI"),
-                InlineKeyboardButton(text="📸 Фото", callback_data="content_type_PHOTO")
+                InlineKeyboardButton(text="📸 Фото", callback_data="content_type_PHOTO"),
+                InlineKeyboardButton(text="🎨 Иллюстрации", callback_data="content_type_ILLUSTRATION")
             ],
             [
-                InlineKeyboardButton(text="🎨 Иллюстрации", callback_data="content_type_ILLUSTRATION"),
-                InlineKeyboardButton(text="🎬 Видео", callback_data="content_type_VIDEO")
-            ],
-            [
+                InlineKeyboardButton(text="🎬 Видео", callback_data="content_type_VIDEO"),
                 InlineKeyboardButton(text="📐 Вектор", callback_data="content_type_VECTOR")
             ]
         ])
         
-        await message.answer(
-            LEXICON_RU['ask_content_type'],
+        # Редактируем сообщение для показа финального вопроса с кнопками
+        await message.bot.edit_message_text(
+            chat_id=message.chat.id,
+            message_id=question_message_id,
+            text=LEXICON_RU['ask_content_type'],
             reply_markup=content_type_keyboard
         )
         
     except ValueError:
-        await message.answer("⚠️ Пожалуйста, введи число. Попробуй еще раз:")
+        # Редактируем сообщение с ошибкой валидации
+        await message.bot.edit_message_text(
+            chat_id=message.chat.id,
+            message_id=question_message_id,
+            text=f"{LEXICON_RU['ask_acceptance_rate']}\n\n⚠️ Пожалуйста, введи число. Попробуй еще раз:"
+        )
 
 
 @router.callback_query(F.data.startswith("content_type_"))
@@ -305,7 +371,7 @@ async def handle_content_type_callback(callback: CallbackQuery, state: FSMContex
             csv_analysis.upload_limit = data["upload_limit"]
             csv_analysis.monthly_uploads = data["monthly_uploads"]
             csv_analysis.acceptance_rate = data.get("acceptance_rate", 65.0)  # Default
-            csv_analysis.profit_margin = data["profit_margin"]
+            csv_analysis.acceptance_rate = data["acceptance_rate"]
             csv_analysis.content_type = content_type
             csv_analysis.status = AnalysisStatus.PROCESSING
             
@@ -333,6 +399,13 @@ async def handle_content_type_callback(callback: CallbackQuery, state: FSMContex
 @router.message(AnalyticsStates.waiting_for_content_type)
 async def handle_content_type_text(message: Message, state: FSMContext, user: User, limits: Limits):
     """Handle content type text input (fallback for manual typing)."""
+    
+    # Удаляем сообщение пользователя для чистоты чата
+    await message.delete()
+    
+    # Получаем данные из state
+    data = await state.get_data()
+    question_message_id = data.get('question_message_id')
     
     content_type = message.text.strip().upper()
     
@@ -366,7 +439,7 @@ async def handle_content_type_text(message: Message, state: FSMContext, user: Us
             csv_analysis.upload_limit = data["upload_limit"]
             csv_analysis.monthly_uploads = data["monthly_uploads"]
             csv_analysis.acceptance_rate = data.get("acceptance_rate", 65.0)  # Default
-            csv_analysis.profit_margin = data["profit_margin"]
+            csv_analysis.acceptance_rate = data["acceptance_rate"]
             csv_analysis.content_type = content_type_enum
             csv_analysis.status = AnalysisStatus.PROCESSING
             
@@ -382,11 +455,139 @@ async def handle_content_type_text(message: Message, state: FSMContext, user: Us
     # Clear state
     await state.clear()
     
-    # Show processing message
-    await message.answer(LEXICON_RU['csv_processing'])
+    # Редактируем сообщение для показа финального статуса обработки
+    await message.bot.edit_message_text(
+        chat_id=message.chat.id,
+        message_id=question_message_id,
+        text=LEXICON_RU['csv_processing']
+    )
     
     # Process CSV in background
     asyncio.create_task(process_csv_analysis(data["csv_analysis_id"], message))
+
+
+async def show_reports_list(callback: CallbackQuery, user: User, limits: Limits, analyses: list):
+    """Show list of available reports."""
+    
+    keyboard = []
+    
+    # Add button for each report
+    for analysis in analyses:
+        if analysis.analytics_report and analysis.analytics_report.period_human_ru:
+            button_text = f"📊 Отчет за {analysis.analytics_report.period_human_ru}"
+            keyboard.append([
+                InlineKeyboardButton(
+                    text=button_text,
+                    callback_data=f"view_report_{analysis.id}"
+                )
+            ])
+    
+    # Add "New Analysis" button if user has remaining limits
+    if limits.analytics_remaining > 0:
+        keyboard.append([
+            InlineKeyboardButton(
+                text=LEXICON_COMMANDS_RU['new_analysis'],
+                callback_data="new_analysis"
+            )
+        ])
+    
+    # Add back button
+    keyboard.append([
+        InlineKeyboardButton(
+            text=LEXICON_COMMANDS_RU['back_to_main_menu'],
+            callback_data="main_menu"
+        )
+    ])
+    
+    text = f"""📊 <b>Аналитика портфеля</b>
+
+У тебя {len(analyses)} отчет(ов). Выбери для просмотра:
+
+<b>Осталось аналитик:</b> {limits.analytics_remaining}"""
+    
+    await safe_edit_message(
+        callback=callback,
+        text=text,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
+    )
+
+
+async def show_upload_prompt(callback: CallbackQuery, limits: Limits):
+    """Show CSV upload prompt."""
+    
+    upload_text = f"""📊 <b>Аналитика портфеля</b>
+
+Загрузи CSV-файл с продажами Adobe Stock для анализа.
+
+<b>Инструкция:</b>
+1. В личном кабинете Adobe Stock зайди в «Моя статистика»
+2. Выбери тип данных - действие, период - обязательно должен быть 1 календарный месяц
+3. Нажми «Показать статистику» → «Экспорт CSV»
+4. Прикрепи скачанный файл сюда в бот
+
+<b>Осталось аналитик:</b> {limits.analytics_remaining}
+
+Загрузи CSV-файл:"""
+    
+    back_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text=LEXICON_COMMANDS_RU['back_to_main_menu'],
+            callback_data="main_menu"
+        )]
+    ])
+    
+    await safe_edit_message(
+        callback=callback,
+        text=upload_text,
+        reply_markup=back_keyboard
+    )
+
+
+@router.callback_query(F.data.startswith("view_report_"))
+async def view_report_callback(callback: CallbackQuery, user: User):
+    """Handle viewing a specific report."""
+    
+    # Extract analysis ID from callback data
+    analysis_id = int(callback.data.replace("view_report_", ""))
+    
+    db = SessionLocal()
+    try:
+        # Get analysis with report
+        analysis = db.query(CSVAnalysis).filter(
+            CSVAnalysis.id == analysis_id,
+            CSVAnalysis.user_id == user.id
+        ).first()
+        
+        if not analysis or not analysis.analytics_report:
+            await callback.answer("Отчет не найден", show_alert=True)
+            return
+        
+        report = analysis.analytics_report
+        
+        # Show saved report text
+        await safe_edit_message(
+            callback=callback,
+            text=report.report_text_html,
+            reply_markup=get_main_menu_keyboard(user.subscription_type)
+        )
+        
+    finally:
+        db.close()
+    
+    await callback.answer()
+
+
+@router.callback_query(F.data == "new_analysis")
+async def new_analysis_callback(callback: CallbackQuery, user: User, limits: Limits):
+    """Handle request for new analysis."""
+    
+    if limits.analytics_remaining <= 0:
+        await callback.answer("У тебя закончились лимиты на аналитику", show_alert=True)
+        return
+    
+    # Show CSV upload prompt
+    await show_upload_prompt(callback, limits)
+    await callback.answer()
 
 
 async def process_csv_analysis(csv_analysis_id: int, message: Message):
@@ -441,7 +642,9 @@ async def process_csv_analysis(csv_analysis_id: int, message: Message):
                 portfolio_sold_percent=result.portfolio_sold_percent,
                 new_works_sales_percent=result.new_works_sales_percent,
                 acceptance_rate_calc=result.acceptance_rate,
-                upload_limit_usage=result.upload_limit_usage
+                upload_limit_usage=result.upload_limit_usage,
+                report_text_html=report_text,  # Сохраняем готовый текст
+                period_human_ru=result.period_human_ru  # Сохраняем период
             )
             db.add(analytics_report)
             db.flush()

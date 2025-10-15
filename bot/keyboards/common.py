@@ -8,7 +8,7 @@ from bot.lexicon.lexicon_ru import LEXICON_COMMANDS_RU
 def add_back_to_menu_button(keyboard: list, subscription_type: SubscriptionType) -> list:
     """Add universal back to menu button to keyboard."""
     keyboard.append([
-        InlineKeyboardButton(text=LEXICON_COMMANDS_RU['back_to_menu'], callback_data="main_menu")
+        InlineKeyboardButton(text=LEXICON_COMMANDS_RU['back_to_main_menu'], callback_data="main_menu")
     ])
     return keyboard
 

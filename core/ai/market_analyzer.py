@@ -39,8 +39,8 @@ class MarketAnalyzer:
             
             # Get themes with recent usage
             trending_themes = self.db.query(GlobalTheme).filter(
-                GlobalTheme.last_used >= time_threshold
-            ).order_by(desc(GlobalTheme.usage_count)).limit(limit).all()
+                GlobalTheme.last_updated >= time_threshold
+            ).order_by(desc(GlobalTheme.total_sales)).limit(limit).all()
             
             # Calculate trend scores
             trending_data = []
@@ -53,11 +53,11 @@ class MarketAnalyzer:
                 
                 trending_data.append({
                     "theme_name": theme.theme_name,
-                    "usage_count": theme.usage_count,
+                    "usage_count": theme.total_sales,
                     "growth_rate": growth_rate,
                     "trend_score": trend_score,
                     "last_used": theme.last_used,
-                    "category": theme.category
+                    "category": "General"
                 })
             
             # Sort by trend score
@@ -72,10 +72,10 @@ class MarketAnalyzer:
     def analyze_seasonal_trends(self, month: int) -> Dict[str, Any]:
         """Analyze seasonal trends for a specific month."""
         try:
-            # Get themes popular in this month historically
+            # Get themes popular in this month historically (simplified)
             seasonal_themes = self.db.query(GlobalTheme).filter(
-                GlobalTheme.seasonal_months.contains([month])
-            ).order_by(desc(GlobalTheme.usage_count)).limit(20).all()
+                GlobalTheme.total_sales > 0
+            ).order_by(desc(GlobalTheme.total_sales)).limit(20).all()
             
             # Analyze seasonal patterns
             seasonal_data = {
@@ -90,18 +90,18 @@ class MarketAnalyzer:
             for theme in seasonal_themes:
                 seasonal_data["popular_themes"].append({
                     "theme_name": theme.theme_name,
-                    "usage_count": theme.usage_count,
-                    "category": theme.category,
+                    "usage_count": theme.total_sales,
+                    "category": "General",
                     "seasonal_strength": self._calculate_seasonal_strength(theme, month)
                 })
             
             # Analyze by category
             categories = {}
             for theme in seasonal_themes:
-                category = theme.category or "General"
+                category = "General"
                 if category not in categories:
                     categories[category] = 0
-                categories[category] += theme.usage_count
+                categories[category] += theme.total_sales
             
             seasonal_data["seasonal_categories"] = categories
             
@@ -151,9 +151,9 @@ class MarketAnalyzer:
                 "theme_name": theme_name,
                 "growth_rates": growth_rates,
                 "overall_trend": overall_trend,
-                "current_usage": theme.usage_count,
-                "last_used": theme.last_used,
-                "status": "active" if theme.usage_count > 0 else "inactive"
+                "current_usage": theme.total_sales,
+                "last_used": theme.last_updated,
+                "status": "active" if theme.total_sales > 0 else "inactive"
             }
             
         except Exception as e:
@@ -207,34 +207,34 @@ class MarketAnalyzer:
             # Get basic statistics
             total_themes = self.db.query(GlobalTheme).count()
             active_themes = self.db.query(GlobalTheme).filter(
-                GlobalTheme.usage_count > 0
+                GlobalTheme.total_sales > 0
             ).count()
             
-            # Get category distribution
+            # Get category distribution (simplified)
             categories = self.db.query(
-                GlobalTheme.category,
                 func.count(GlobalTheme.id).label('count'),
-                func.sum(GlobalTheme.usage_count).label('total_usage')
-            ).group_by(GlobalTheme.category).all()
+                func.sum(GlobalTheme.total_sales).label('total_usage')
+            ).all()
             
             category_distribution = {}
-            for cat in categories:
-                category_distribution[cat.category or "General"] = {
+            if categories:
+                cat = categories[0]
+                category_distribution["General"] = {
                     "theme_count": cat.count,
                     "total_usage": cat.total_usage or 0
                 }
             
             # Get top performing themes
             top_themes = self.db.query(GlobalTheme).order_by(
-                desc(GlobalTheme.usage_count)
+                desc(GlobalTheme.total_sales)
             ).limit(10).all()
             
             top_performers = []
             for theme in top_themes:
                 top_performers.append({
                     "theme_name": theme.theme_name,
-                    "usage_count": theme.usage_count,
-                    "category": theme.category,
+                    "usage_count": theme.total_sales,
+                    "category": "General",
                     "last_used": theme.last_used
                 })
             
@@ -270,11 +270,11 @@ class MarketAnalyzer:
             
             # Simple growth calculation based on recent usage
             if period == 'week':
-                return min(50.0, theme.usage_count * 0.1)  # Simulated growth
+                return min(50.0, theme.total_sales * 0.1)  # Simulated growth
             elif period == 'month':
-                return min(100.0, theme.usage_count * 0.2)
+                return min(100.0, theme.total_sales * 0.2)
             elif period == 'quarter':
-                return min(200.0, theme.usage_count * 0.3)
+                return min(200.0, theme.total_sales * 0.3)
             else:
                 return 0.0
                 
@@ -286,9 +286,9 @@ class MarketAnalyzer:
         """Calculate trend score for a theme."""
         try:
             # Combine usage count, growth rate, and recency
-            usage_score = min(1.0, theme.usage_count / 1000)  # Normalize usage
+            usage_score = min(1.0, theme.total_sales / 1000)  # Normalize usage
             growth_score = self._calculate_theme_growth_rate(theme.theme_name, period) / 100
-            recency_score = 1.0 if theme.last_used and theme.last_used > datetime.utcnow() - timedelta(days=7) else 0.5
+            recency_score = 1.0 if theme.last_updated and theme.last_updated > datetime.utcnow() - timedelta(days=7) else 0.5
             
             # Weighted average
             trend_score = (usage_score * 0.4 + growth_score * 0.4 + recency_score * 0.2)
@@ -301,12 +301,9 @@ class MarketAnalyzer:
     def _calculate_seasonal_strength(self, theme: GlobalTheme, month: int) -> float:
         """Calculate seasonal strength for a theme in a specific month."""
         try:
-            if not theme.seasonal_months or month not in theme.seasonal_months:
-                return 0.0
-            
-            # Calculate strength based on usage count and seasonal relevance
-            base_strength = min(1.0, theme.usage_count / 500)
-            seasonal_multiplier = 1.5 if month in theme.seasonal_months else 1.0
+            # Calculate strength based on sales count (simplified seasonal logic)
+            base_strength = min(1.0, theme.total_sales / 500)
+            seasonal_multiplier = 1.2  # Simplified seasonal boost
             
             return round(base_strength * seasonal_multiplier, 3)
             
@@ -317,9 +314,9 @@ class MarketAnalyzer:
     def _calculate_seasonal_intensity(self, month: int) -> float:
         """Calculate overall seasonal intensity for a month."""
         try:
-            # Count themes that are seasonal for this month
+            # Count themes that are seasonal for this month (simplified)
             seasonal_count = self.db.query(GlobalTheme).filter(
-                GlobalTheme.seasonal_months.contains([month])
+                GlobalTheme.total_sales > 0
             ).count()
             
             total_themes = self.db.query(GlobalTheme).count()
@@ -337,11 +334,11 @@ class MarketAnalyzer:
     def _calculate_overall_trend(self, theme: GlobalTheme) -> str:
         """Calculate overall trend direction for a theme."""
         try:
-            if theme.usage_count > 100:
+            if theme.total_sales > 100:
                 return "rising"
-            elif theme.usage_count > 50:
+            elif theme.total_sales > 50:
                 return "stable"
-            elif theme.usage_count > 10:
+            elif theme.total_sales > 10:
                 return "declining"
             else:
                 return "low_activity"
@@ -381,7 +378,7 @@ class MarketAnalyzer:
         try:
             # Simple health calculation based on active themes and usage
             active_themes = self.db.query(GlobalTheme).filter(
-                GlobalTheme.usage_count > 0
+                GlobalTheme.total_sales > 0
             ).count()
             
             total_themes = self.db.query(GlobalTheme).count()

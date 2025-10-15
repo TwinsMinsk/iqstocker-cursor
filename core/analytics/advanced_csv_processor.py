@@ -311,19 +311,13 @@ class AdvancedCSVProcessor:
         date_min_iso = date_min.isoformat() if pd.notna(date_min) else None
         date_max_iso = date_max.isoformat() if pd.notna(date_max) else None
         
-        # Дополнительные метрики для бота
-        portfolio_sold_percent = (unique_assets_sold / portfolio_size * 100) if portfolio_size > 0 else 0
+        # Дополнительные метрики для бота через KPICalculator
+        from core.analytics.kpi_calculator import KPICalculator
+        kpi_calc = KPICalculator()
         
-        # Процент новых работ (за последние 3 месяца)
-        new_works_sales = 0
-        if 'sale_datetime_utc' in df_clean.columns and not df_clean['sale_datetime_utc'].isna().all():
-            # Make timezone-aware comparison
-            three_months_ago = pd.Timestamp.now(tz='UTC') - pd.Timedelta(days=90)
-            new_works_mask = df_clean['sale_datetime_utc'] > three_months_ago
-            new_works_sales = int(new_works_mask.sum())
-        
-        new_works_sales_percent = (new_works_sales / total_sales_count * 100) if total_sales_count > 0 else 0
-        upload_limit_usage = (monthly_uploads / upload_limit * 100) if upload_limit > 0 else 0
+        portfolio_sold_percent = kpi_calc.calculate_portfolio_sold_percent(unique_assets_sold, portfolio_size)
+        new_works_sales_percent = kpi_calc.calculate_new_work_rate(df_clean, portfolio_size)
+        upload_limit_usage = kpi_calc.calculate_upload_limit_usage(monthly_uploads, upload_limit)
         
         return AdvancedProcessResult(
             period_month=period_month,

@@ -39,7 +39,7 @@ class RecommendationEngine:
             # Get user's theme requests
             theme_requests = self.db.query(ThemeRequest).filter(
                 ThemeRequest.user_id == user_id
-            ).order_by(desc(ThemeRequest.created_at)).limit(50).all()
+            ).order_by(desc(ThemeRequest.requested_at)).limit(50).all()
             
             # Analyze user preferences
             theme_preferences = {}
