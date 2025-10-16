@@ -130,6 +130,31 @@ def format_themes(themes: List[Dict[str, Any]], requested_date: str = None) -> s
     return result
 
 
+def format_themes_simple(themes: List[Any], requested_at: datetime) -> str:
+    """
+    Простое форматирование тем для истории.
+    
+    Args:
+        themes: Список тем (строки или словари)
+        requested_at: Дата запроса
+    
+    Returns:
+        Отформатированная строка
+    """
+    date_str = requested_at.strftime('%d.%m.%Y')
+    result = f"<i>Запрошено: {date_str}</i>\n\n"
+    
+    for i, theme_data in enumerate(themes, 1):
+        if isinstance(theme_data, str):
+            theme_name = theme_data
+        else:
+            theme_name = theme_data.get('theme', theme_data.get('theme_name', 'Неизвестная тема'))
+        
+        result += f"{i}. {theme_name}\n"
+    
+    return result
+
+
 def format_single_theme(theme: str) -> str:
     """
     Форматирует одну тему для FREE пользователей.

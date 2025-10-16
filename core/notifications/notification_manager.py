@@ -140,36 +140,49 @@ class NotificationManager:
         return sent_count
     
     async def send_weekly_themes_notifications(self) -> int:
-        """Send notifications about available weekly themes."""
+        """Send notifications to users who can request new themes."""
         
-        sent_count = 0
-        now = datetime.now(timezone.utc)
-        
-        # Get users who can request themes (PRO, ULTRA, TEST_PRO)
-        eligible_users = self.db.query(User).filter(
-            User.subscription_type.in_([
-                SubscriptionType.PRO, 
-                SubscriptionType.ULTRA, 
-                SubscriptionType.TEST_PRO
-            ])
-        ).all()
-        
-        for user in eligible_users:
-            # Check if user has unused theme requests
-            if user.limits and user.limits.themes_remaining > 0:
-                if user.subscription_type in [SubscriptionType.PRO, SubscriptionType.TEST_PRO]:
-                    message = """🗓️ **Прошла целая неделя!**
-
-✅ Тебе доступна новая подборка тем - переходи в раздел 👉 «Темы и тренды» и забирай свежие идеи."""
-                else:  # ULTRA
-                    message = """🗓️ **Прошла целая неделя!**
-
-✅ Тебе доступна новая подборка тем - переходи в раздел 👉 «Темы и тренды» и забирай свежие идеи."""
+        try:
+            from database.models import ThemeRequest
+            from sqlalchemy import desc
+            from bot.lexicon import LEXICON_RU
+            
+            sent_count = 0
+            
+            # Получаем всех активных пользователей
+            users = self.db.query(User).all()
+            
+            for user in users:
+                try:
+                    # Проверяем, прошла ли неделя с последнего запроса
+                    last_request = self.db.query(ThemeRequest).filter(
+                        ThemeRequest.user_id == user.id
+                    ).order_by(desc(ThemeRequest.requested_at)).first()
+                    
+                    if last_request:
+                        week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+                        
+                        # Приводим к timezone-aware
+                        if last_request.requested_at.tzinfo is None:
+                            last_request_time = last_request.requested_at.replace(tzinfo=timezone.utc)
+                        else:
+                            last_request_time = last_request.requested_at
+                        
+                        # Проверяем, что прошла неделя И уведомление еще не отправлялось
+                        time_diff = datetime.now(timezone.utc) - last_request_time
+                        if timedelta(days=7) <= time_diff < timedelta(days=7, hours=1):
+                            # Отправляем уведомление
+                            if await self.send_notification(user.telegram_id, LEXICON_RU['themes_cooldown_notification']):
+                                sent_count += 1
                 
-                if await self.send_notification(user.telegram_id, message):
-                    sent_count += 1
-        
-        return sent_count
+                except Exception as e:
+                    print(f"Error sending theme notification to user {user.id}: {e}")
+            
+            return sent_count
+            
+        except Exception as e:
+            print(f"Error in send_weekly_themes_notifications: {e}")
+            return 0
     
     async def send_calendar_update_notifications(self) -> int:
         """Send notifications about calendar updates."""

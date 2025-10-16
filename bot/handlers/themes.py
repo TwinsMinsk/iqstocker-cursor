@@ -19,67 +19,31 @@ router = Router()
 
 @router.callback_query(F.data == "themes")
 async def themes_callback(callback: CallbackQuery, user: User, limits: Limits):
-    """Handle themes callback."""
+    """Handle themes callback - show welcome screen."""
     
     theme_manager = get_enhanced_theme_manager()
     
-    # Check if user can request themes
+    # Формируем приветственный текст по тарифу
+    if user.subscription_type == SubscriptionType.FREE:
+        themes_text = f"🎯 <b>Темы и тренды</b>\n\n{LEXICON_RU['themes_intro_free']}"
+    else:
+        themes_text = f"🎯 <b>Темы и тренды</b>\n\n{LEXICON_RU['themes_intro_pro']}"
+    
+    # Проверяем кулдаун
     can_request = theme_manager.can_request_themes(user.id)
     
-    if not can_request:
-        # Show last requested themes
-        history = theme_manager.get_theme_request_history(user.id)
-        
-        if history:
-            last_themes = history[0]["themes"]
-            requested_date = history[0]["requested_at"]
-            
-            themes_text = format_themes(last_themes, requested_date.strftime('%d.%m.%Y'))
-        else:
-            themes_text = """🎯 <b>Темы и тренды</b>
-
-Здесь ты получаешь еженедельную подборку актуальных идей:
-
-🔎 <b>Тренды рынка</b> — темы, которые уже набирают обороты и скоро выйдут в топ
-📊 <b>Персональные темы</b> — направления, подобранные на основе твоей аналитики и продаж
-
-Нажми кнопку ниже, чтобы получить темы!"""
-        
-        await safe_edit_message(
-            callback=callback,
-            text=themes_text,
-            reply_markup=create_themes_keyboard(user.subscription_type, can_request)
-        )
-    else:
-        # Show interface for requesting new themes
-        themes_count = theme_manager.get_themes_for_subscription(user.subscription_type)
-        
-        if user.subscription_type == SubscriptionType.FREE:
-            themes_text = LEXICON_RU['themes_and_trends_free']
-        else:
-            themes_text = f"""🎯 <b>Темы и тренды</b>
-
-Здесь ты получаешь еженедельную подборку актуальных идей:
-
-🔎 <b>Тренды рынка</b> — темы, которые уже набирают обороты и скоро выйдут в топ
-📊 <b>Персональные темы</b> — направления, подобранные на основе твоей аналитики и продаж
-
-📌 <b>Подборка тем этой недели</b> ({themes_count} тем)
-
-Нажми кнопку ниже, чтобы получить темы!"""
-        
-        await safe_edit_message(
-            callback=callback,
-            text=themes_text,
-            reply_markup=create_themes_keyboard(user.subscription_type, can_request)
-        )
-    
+    # Показываем приветственный экран с кнопкой действия
+    await safe_edit_message(
+        callback=callback,
+        text=themes_text,
+        reply_markup=create_themes_keyboard(user.subscription_type, can_request, limits)
+    )
     await callback.answer()
 
 
 @router.callback_query(F.data == "get_themes")
 async def get_themes_callback(callback: CallbackQuery, user: User, limits: Limits):
-    """Handle get themes callback."""
+    """Handle get themes callback - generate and show themes list."""
     
     theme_manager = get_enhanced_theme_manager()
     
@@ -129,15 +93,29 @@ async def get_themes_callback(callback: CallbackQuery, user: User, limits: Limit
     finally:
         db.close()
     
-    # Format themes text
+    # Формируем текст второго экрана
+    # Заголовок
     if user.subscription_type == SubscriptionType.FREE:
-        themes_text = format_single_theme(themes[0])
+        themes_text = f"🎯 <b>Темы и тренды</b>\n\n{LEXICON_RU['themes_list_header_free']}\n"
     else:
-        themes_text = format_themes(themes)
+        themes_text = f"🎯 <b>Темы и тренды</b>\n\n{LEXICON_RU['themes_list_header_pro']}\n"
     
+    # Список тем
+    for i, theme_data in enumerate(themes, 1):
+        if isinstance(theme_data, str):
+            theme_name = theme_data
+        else:
+            theme_name = theme_data.get('theme', theme_data.get('theme_name', 'Неизвестная тема'))
+        themes_text += f"{i}. {theme_name}\n"
+    
+    # Дисклеймеры
+    themes_text += f"\n{LEXICON_RU['themes_history_disclaimer']}\n"
+    themes_text += f"{LEXICON_RU['themes_urgency_note']}"
+    
+    # Показываем экран с темами (теперь кулдаун активен)
     await safe_edit_message(
         callback=callback,
         text=themes_text,
-        reply_markup=create_themes_keyboard(user.subscription_type, False)
+        reply_markup=create_themes_keyboard(user.subscription_type, False, limits)
     )
     await callback.answer()

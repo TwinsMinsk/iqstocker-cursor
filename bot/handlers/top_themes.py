@@ -10,7 +10,7 @@ from database.models import User, SubscriptionType, TopTheme, CSVAnalysis
 from core.analytics.report_generator_fixed import FixedReportGenerator
 from bot.lexicon import LEXICON_RU
 from bot.keyboards.main_menu import get_main_menu_keyboard
-from bot.keyboards.common import create_subscription_buttons, add_back_to_menu_button
+from bot.keyboards.common import get_top_themes_keyboard
 from bot.utils.safe_edit import safe_edit_message
 
 router = Router()
@@ -22,13 +22,10 @@ async def top_themes_callback(callback: CallbackQuery, user: User):
     
     if user.subscription_type == SubscriptionType.FREE:
         # Show limitation message for FREE users
-        keyboard = create_subscription_buttons(user.subscription_type)
-        keyboard = add_back_to_menu_button(keyboard, user.subscription_type)
-        
         await safe_edit_message(
             callback=callback,
             text=LEXICON_RU['top_themes_unavailable_free'],
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
+            reply_markup=get_top_themes_keyboard(user.subscription_type)
         )
     else:
         # Get user's top themes from database
@@ -56,7 +53,7 @@ async def top_themes_callback(callback: CallbackQuery, user: User):
                 await safe_edit_message(
                     callback=callback,
                     text=no_data_text,
-                    reply_markup=get_main_menu_keyboard(user.subscription_type)
+                    reply_markup=get_top_themes_keyboard(user.subscription_type)
                 )
                 await callback.answer()
                 return
@@ -101,7 +98,7 @@ async def top_themes_callback(callback: CallbackQuery, user: User):
                 await safe_edit_message(
                     callback=callback,
                     text=no_themes_text,
-                    reply_markup=get_main_menu_keyboard(user.subscription_type)
+                    reply_markup=get_top_themes_keyboard(user.subscription_type)
                 )
                 await callback.answer()
                 return
@@ -132,7 +129,7 @@ async def top_themes_callback(callback: CallbackQuery, user: User):
             await safe_edit_message(
                 callback=callback,
                 text=top_themes_text,
-                reply_markup=get_main_menu_keyboard(user.subscription_type)
+                reply_markup=get_top_themes_keyboard(user.subscription_type)
             )
             
         finally:

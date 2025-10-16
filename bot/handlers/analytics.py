@@ -16,7 +16,7 @@ from database.models import User, SubscriptionType, CSVAnalysis, AnalysisStatus,
 from bot.lexicon import LEXICON_RU
 from bot.lexicon.lexicon_ru import LEXICON_COMMANDS_RU
 from bot.keyboards.main_menu import get_main_menu_keyboard
-from bot.keyboards.common import create_analytics_keyboard
+from bot.keyboards.analytics import get_analytics_list_keyboard, get_analytics_report_view_keyboard, get_analytics_unavailable_keyboard
 from bot.states.analytics import AnalyticsStates
 from core.analytics.csv_parser import CSVParser
 from core.analytics.report_generator import ReportGenerator
@@ -74,7 +74,7 @@ async def analytics_callback(callback: CallbackQuery, user: User, limits: Limits
         await safe_edit_message(
             callback=callback,
             text=LEXICON_RU['analytics_unavailable_free'],
-            reply_markup=create_analytics_keyboard(user.subscription_type)
+            reply_markup=get_analytics_unavailable_keyboard(user.subscription_type)
         )
         await callback.answer()
         return
@@ -91,8 +91,20 @@ async def analytics_callback(callback: CallbackQuery, user: User, limits: Limits
             # No reports - show upload prompt
             await show_upload_prompt(callback, limits)
         else:
-            # Show list of reports
-            await show_reports_list(callback, user, limits, completed_analyses)
+            # Convert analyses to reports format
+            reports = []
+            for analysis in completed_analyses:
+                if analysis.analytics_report:
+                    reports.append(analysis.analytics_report)
+            
+            # Check if user can create new analysis
+            can_create_new = limits.analytics_remaining > 0
+            
+            await safe_edit_message(
+                callback=callback,
+                text=LEXICON_RU['analytics_list_title'],
+                reply_markup=get_analytics_list_keyboard(reports, can_create_new, user.subscription_type)
+            )
     finally:
         db.close()
     
@@ -278,7 +290,7 @@ async def handle_monthly_uploads(message: Message, state: FSMContext):
         await message.bot.edit_message_text(
             chat_id=message.chat.id,
             message_id=question_message_id,
-            text=LEXICON_RU['ask_profit_percentage']
+            text=LEXICON_RU['ask_acceptance_rate']
         )
         
     except ValueError:
@@ -510,6 +522,40 @@ async def show_reports_list(callback: CallbackQuery, user: User, limits: Limits,
         text=text,
         reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
     )
+
+
+@router.callback_query(F.data.startswith("view_report_"))
+async def view_report_callback(callback: CallbackQuery, user: User, limits: Limits):
+    """Handle viewing a specific report."""
+    
+    # Extract report ID from callback data
+    report_id = int(callback.data.split("_")[2])
+    
+    with SessionLocal() as db:
+        # Get the specific report
+        report = db.query(AnalyticsReport).filter(
+            AnalyticsReport.id == report_id,
+            AnalyticsReport.csv_analysis.has(user_id=user.id)
+        ).first()
+        
+        if not report:
+            await callback.answer("Отчет не найден.", show_alert=True)
+            return
+        
+        # Get all user's reports for navigation
+        all_reports = db.query(AnalyticsReport).join(CSVAnalysis).filter(
+            CSVAnalysis.user_id == user.id,
+            CSVAnalysis.status == AnalysisStatus.COMPLETED
+        ).order_by(desc(AnalyticsReport.created_at)).all()
+        
+        # Show the report
+        await safe_edit_message(
+            callback=callback,
+            text=report.report_text_html,
+            reply_markup=get_analytics_report_view_keyboard(all_reports, report_id, user.subscription_type)
+        )
+    
+    await callback.answer()
 
 
 async def show_upload_prompt(callback: CallbackQuery, limits: Limits):

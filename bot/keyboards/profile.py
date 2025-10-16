@@ -21,7 +21,7 @@ def get_profile_keyboard(subscription_type: SubscriptionType) -> InlineKeyboardM
             InlineKeyboardButton(text=LEXICON_COMMANDS_RU['upgrade_pro'], callback_data="upgrade_pro")
         ])
         keyboard.append([
-            InlineKeyboardButton(text=LEXICON_COMMANDS_RU['compare_tariffs'], callback_data="compare_plans")
+            InlineKeyboardButton(text=LEXICON_COMMANDS_RU['compare_tariffs'], callback_data="compare_free_pro")
         ])
     elif subscription_type == SubscriptionType.TEST_PRO:
         keyboard.append([

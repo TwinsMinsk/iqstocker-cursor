@@ -10,7 +10,7 @@ from config.database import SessionLocal
 from database.models import User, SubscriptionType, CalendarEntry
 from bot.lexicon import LEXICON_RU
 from bot.keyboards.main_menu import get_main_menu_keyboard
-from bot.keyboards.common import create_subscription_buttons, add_back_to_menu_button
+from bot.keyboards.common import get_calendar_keyboard
 from bot.utils.safe_edit import safe_edit_message
 
 router = Router()
@@ -44,7 +44,7 @@ async def calendar_callback(callback: CallbackQuery, user: User):
             await safe_edit_message(
                 callback=callback,
                 text=no_data_text,
-                reply_markup=get_main_menu_keyboard(user.subscription_type)
+                reply_markup=get_calendar_keyboard(user.subscription_type)
             )
             await callback.answer()
             return
@@ -56,21 +56,14 @@ async def calendar_callback(callback: CallbackQuery, user: User):
         if user.subscription_type == SubscriptionType.FREE:
             # Show limited calendar for FREE users
             calendar_text = LEXICON_RU['stocker_calendar_free']
-            
-            keyboard = create_subscription_buttons(user.subscription_type)
-            keyboard = add_back_to_menu_button(keyboard, user.subscription_type)
-            
         else:
             # Show full calendar for PRO/ULTRA users
             calendar_text = LEXICON_RU['stocker_calendar_pro_ultra']
-            
-            keyboard = []
-            keyboard = add_back_to_menu_button(keyboard, user.subscription_type)
         
         await safe_edit_message(
             callback=callback,
             text=calendar_text,
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
+            reply_markup=get_calendar_keyboard(user.subscription_type)
         )
         
     finally:
