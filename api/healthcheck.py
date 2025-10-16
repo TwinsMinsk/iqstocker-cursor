@@ -44,7 +44,7 @@ def check_health():
         # Test database connection
         with engine.connect() as conn:
             from sqlalchemy import text
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             conn.execute(text("SELECT 1"))
         
         return {
