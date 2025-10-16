@@ -379,7 +379,7 @@ def generate_calendar():
     
     try:
         import asyncio
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         entry = asyncio.run(
             calendar_manager.generate_calendar_for_month(month, year, use_ai)
         )

@@ -126,7 +126,7 @@ async def check_payment_status(payment_id: str):
 
 if __name__ == "__main__":
     import uvicorn
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     uvicorn.run(
         webhook_app,
         host="0.0.0.0",
