@@ -80,6 +80,82 @@ IQStocker — это Telegram-бот, предназначенный для ав
 - **VPS** (резервный deployment)
 - **GitHub Actions** для CI/CD
 
+## Структура проекта
+
+```
+/project_root
+├── .env                    # Конфигурация (создать из .env.example)
+├── .env.example            # Пример конфигурации
+├── requirements.txt        # Зависимости Python
+├── docker-compose.yml      # Docker конфигурация
+├── pytest.ini             # Настройки тестирования
+├── main.py                # Точка входа приложения
+├── README.md              # Документация проекта
+│
+├── bot/                    # 🤖 Основной пакет бота
+│   ├── handlers/           # Обработчики команд
+│   ├── keyboards/          # Клавиатуры Telegram
+│   ├── lexicon/            # Тексты и словари
+│   ├── middlewares/        # Middleware
+│   ├── states/             # FSM состояния
+│   ├── utils/              # Утилиты бота
+│   └── data/               # Данные бота
+│
+├── core/                   # 🧠 Бизнес-логика
+│   ├── ai/                 # AI компоненты
+│   ├── analytics/          # Аналитика
+│   ├── notifications/      # Уведомления
+│   ├── payments/           # Платежи
+│   ├── subscriptions/      # Подписки
+│   ├── parser/             # Парсеры
+│   ├── admin/              # Админ логика
+│   └── monitoring/         # Мониторинг
+│
+├── admin/                  # 🎛️ Админ-панель (Flask)
+│   ├── views/              # Представления
+│   ├── utils/              # Утилиты админки
+│   ├── templates/          # HTML шаблоны
+│   └── static/             # Статические файлы
+│
+├── api/                    # 🌐 API endpoints
+│   ├── webhook_server.py   # Webhook сервер
+│   ├── healthcheck.py      # Health check
+│   └── admin_panel.py      # FastAPI админка
+│
+├── database/               # 🗄️ База данных
+│   ├── models/             # SQLAlchemy модели
+│   ├── repositories/       # Репозитории
+│   └── migrations/         # Alembic миграции
+│
+├── tests/                  # 🧪 Тесты
+│   ├── unit/               # Юнит тесты
+│   │   ├── test_handlers/  # Тесты хэндлеров
+│   │   ├── test_core/      # Тесты core логики
+│   │   └── test_admin/     # Тесты админки
+│   ├── integration/        # Интеграционные тесты
+│   ├── fixtures/           # Тестовые данные
+│   └── conftest.py         # Конфигурация pytest
+│
+├── docs/                   # 📚 Документация
+│   ├── guides/             # Руководства
+│   ├── deployment/         # Документация по деплою
+│   ├── stages/             # Отчеты по этапам
+│   ├── reports/archive/    # Архив отчетов
+│   └── technical/          # Техническая документация
+│
+├── scripts/                # 🔧 Скрипты и утилиты
+│   ├── setup/              # Скрипты настройки
+│   ├── database/           # Скрипты БД
+│   ├── data/               # Скрипты данных
+│   ├── deployment/         # Скрипты деплоя
+│   └── runners/            # Скрипты запуска
+│
+├── config/                 # ⚙️ Конфигурация
+├── logs/                   # 📝 Логи
+├── uploads/                # 📁 Загруженные файлы
+└── instance/               # 💾 Instance данные
+```
+
 ## Установка и запуск
 
 ### Локальная разработка

@@ -51,7 +51,7 @@ services:
     depends_on:
       - postgres
       - redis
-    command: python admin/app.py
+    command: python api/admin_panel.py
 
   postgres:
     image: postgres:15
