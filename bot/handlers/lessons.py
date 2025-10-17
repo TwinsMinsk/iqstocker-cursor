@@ -15,17 +15,11 @@ router = Router()
 async def lessons_callback(callback: CallbackQuery, user: User):
     """Handle lessons callback with tariff-based content."""
     
-    # Заголовок (одинаковый для всех)
-    header = LEXICON_RU['lessons_header']
-    
     # Определяем контент по тарифу
     if user.subscription_type == SubscriptionType.FREE:
-        content = LEXICON_RU['lessons_for_free']
+        lessons_text = LEXICON_RU['lessons_free']
     else:  # PRO, ULTRA, TEST_PRO
-        content = LEXICON_RU['lessons_for_pro_ultra']
-    
-    # Комбинируем текст
-    lessons_text = f"🎥 <b>Видеоуроки</b>\n\n{header}{content}"
+        lessons_text = LEXICON_RU['lessons_pro_ultra']
     
     # Получаем соответствующую клавиатуру
     keyboard = get_lessons_keyboard(user.subscription_type)

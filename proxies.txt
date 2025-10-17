@@ -1,0 +1,8 @@
+# Example proxy format: http://user:pass@host:port
+# One proxy per line, empty lines and comments (starting with #) are ignored
+# 
+# Add your proxy servers below:
+# http://username:password@proxy1.example.com:8080
+# http://username:password@proxy2.example.com:8080
+# 
+# For testing without proxy, leave this file empty or comment out all lines

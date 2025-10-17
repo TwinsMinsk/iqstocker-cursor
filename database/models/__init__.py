@@ -13,6 +13,8 @@ from .video_lesson import VideoLesson
 from .calendar_entry import CalendarEntry
 from .broadcast_message import BroadcastMessage
 from .audit_log import AuditLog
+from .llm_settings import LLMSettings, LLMProviderType
+from .asset_details import AssetDetails
 
 __all__ = [
     "Base",
@@ -31,4 +33,7 @@ __all__ = [
     "CalendarEntry",
     "BroadcastMessage",
     "AuditLog",
+    "LLMSettings",
+    "LLMProviderType",
+    "AssetDetails",
 ]

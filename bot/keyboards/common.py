@@ -24,6 +24,14 @@ def create_themes_keyboard(
             )
         ])
     
+    # Кнопка истории генерации (для всех пользователей)
+    keyboard.append([
+        InlineKeyboardButton(
+            text="📚 История генерации", 
+            callback_data="themes_history"
+        )
+    ])
+    
     # Для FREE пользователей: кнопки апгрейда
     if subscription_type == SubscriptionType.FREE:
         keyboard.append([
@@ -110,5 +118,41 @@ def get_lessons_keyboard(subscription_type: SubscriptionType) -> InlineKeyboardM
     keyboard.append([
         InlineKeyboardButton(text=LEXICON_COMMANDS_RU['back_to_main_menu'], callback_data="main_menu")
     ])
+    
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+def get_faq_menu_keyboard() -> InlineKeyboardMarkup:
+    """Create FAQ menu keyboard with list of questions."""
+    keyboard = []
+    
+    # Add 10 question buttons (1 per row)
+    for i in range(1, 11):
+        keyboard.append([
+            InlineKeyboardButton(
+                text=LEXICON_COMMANDS_RU[f'faq_btn_{i}'],
+                callback_data=f'faq_{i}'
+            )
+        ])
+    
+    # Add back to main menu button
+    keyboard.append([
+        InlineKeyboardButton(
+            text=LEXICON_COMMANDS_RU['back_to_main_menu'],
+            callback_data='main_menu'
+        )
+    ])
+    
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+def get_faq_answer_keyboard() -> InlineKeyboardMarkup:
+    """Create FAQ answer keyboard with back button."""
+    keyboard = [[
+        InlineKeyboardButton(
+            text=LEXICON_COMMANDS_RU['back'],
+            callback_data='back_to_faq_menu'
+        )
+    ]]
     
     return InlineKeyboardMarkup(inline_keyboard=keyboard)

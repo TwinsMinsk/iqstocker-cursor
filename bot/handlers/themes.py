@@ -10,7 +10,7 @@ from database.models import User, SubscriptionType, Limits
 from bot.lexicon import LEXICON_RU
 from bot.keyboards.main_menu import get_main_menu_keyboard
 from bot.keyboards.common import create_themes_keyboard
-from core.ai.enhanced_theme_manager import get_enhanced_theme_manager
+from core.ai.modern_theme_manager import get_modern_theme_manager
 from bot.utils.theme_formatter import format_themes, format_single_theme
 from bot.utils.safe_edit import safe_edit_message
 
@@ -21,13 +21,13 @@ router = Router()
 async def themes_callback(callback: CallbackQuery, user: User, limits: Limits):
     """Handle themes callback - show welcome screen."""
     
-    theme_manager = get_enhanced_theme_manager()
+    theme_manager = get_modern_theme_manager()
     
     # Формируем приветственный текст по тарифу
     if user.subscription_type == SubscriptionType.FREE:
         themes_text = f"🎯 <b>Темы и тренды</b>\n\n{LEXICON_RU['themes_intro_free']}"
     else:
-        themes_text = f"🎯 <b>Темы и тренды</b>\n\n{LEXICON_RU['themes_intro_pro']}"
+        themes_text = f"🎯 <b>Темы и тренды</b>\n\n{LEXICON_RU['themes_intro_pro_ultra']}"
     
     # Проверяем кулдаун
     can_request = theme_manager.can_request_themes(user.id)
@@ -45,7 +45,7 @@ async def themes_callback(callback: CallbackQuery, user: User, limits: Limits):
 async def get_themes_callback(callback: CallbackQuery, user: User, limits: Limits):
     """Handle get themes callback - generate and show themes list."""
     
-    theme_manager = get_enhanced_theme_manager()
+    theme_manager = get_modern_theme_manager()
     
     # Check limits
     if limits.themes_remaining <= 0:
@@ -96,9 +96,9 @@ async def get_themes_callback(callback: CallbackQuery, user: User, limits: Limit
     # Формируем текст второго экрана
     # Заголовок
     if user.subscription_type == SubscriptionType.FREE:
-        themes_text = f"🎯 <b>Темы и тренды</b>\n\n{LEXICON_RU['themes_list_header_free']}\n"
+        themes_text = f"🎯 <b>Темы и тренды</b>\n\n{LEXICON_RU['themes_list_free']}\n"
     else:
-        themes_text = f"🎯 <b>Темы и тренды</b>\n\n{LEXICON_RU['themes_list_header_pro']}\n"
+        themes_text = f"🎯 <b>Темы и тренды</b>\n\n{LEXICON_RU['themes_list_pro_ultra']}\n"
     
     # Список тем
     for i, theme_data in enumerate(themes, 1):
@@ -117,5 +117,45 @@ async def get_themes_callback(callback: CallbackQuery, user: User, limits: Limit
         callback=callback,
         text=themes_text,
         reply_markup=create_themes_keyboard(user.subscription_type, False, limits)
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "themes_history")
+async def themes_history_callback(callback: CallbackQuery, user: User, limits: Limits):
+    """Показать историю генерации тем пользователя."""
+    
+    theme_manager = get_modern_theme_manager()
+    
+    # Получаем историю запросов
+    history = theme_manager.get_theme_request_history(user.id)
+    
+    if not history:
+        await safe_edit_message(
+            callback=callback,
+            text="📚 <b>История генерации тем</b>\n\n"
+                 "У тебя пока нет истории генерации тем.\n\n"
+                 "Нажми кнопку <b>Получить темы</b>, чтобы сгенерировать первую подборку!",
+            reply_markup=create_themes_keyboard(user.subscription_type, True, limits)
+        )
+        await callback.answer()
+        return
+    
+    # Формируем текст с историей
+    history_text = "📚 <b>История генерации тем</b>\n\n"
+    
+    for i, request in enumerate(history, 1):
+        history_text += f"<b>{i}. {request['formatted_date']}</b>\n"
+        for j, theme in enumerate(request['themes'], 1):
+            history_text += f"   {j}. {theme}\n"
+        history_text += "\n"
+    
+    history_text += f"<i>Всего запросов: {len(history)}</i>\n\n"
+    history_text += "💡 <i>Все твои темы сохраняются здесь без ограничения по времени.</i>"
+    
+    await safe_edit_message(
+        callback=callback,
+        text=history_text,
+        reply_markup=create_themes_keyboard(user.subscription_type, True, limits)
     )
     await callback.answer()

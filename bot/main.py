@@ -12,6 +12,7 @@ from config.settings import settings
 from bot.handlers import start, menu, profile, analytics, themes, top_themes, lessons, calendar, faq, channel, payments, admin
 from bot.middlewares.subscription import SubscriptionMiddleware
 from bot.middlewares.limits import LimitsMiddleware
+from core.utils.lexicon_validator import validate_or_raise
 
 # Configure logging
 logging.basicConfig(
@@ -25,9 +26,24 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+# Validate lexicon keys before starting bot
+try:
+    validate_or_raise()
+    logger.info("Lexicon validation passed")
+except KeyError as e:
+    logger.error(f"Lexicon validation failed: {e}")
+    raise
+
 
 async def main():
     """Main bot function."""
+    
+    # Validate bot token
+    if not settings.bot_token or settings.bot_token == "your_telegram_bot_token_here":
+        logger.error("❌ Bot token is not configured!")
+        logger.error("📝 Please set a valid BOT_TOKEN in your .env file")
+        logger.error("🔧 Get your token from @BotFather in Telegram")
+        return
     
     # Create bot instance
     bot = Bot(

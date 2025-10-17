@@ -1,5 +1,11 @@
 """Admin panel application."""
 
+import os
+from dotenv import load_dotenv
+
+# Загружаем переменные окружения из .env файла
+load_dotenv()
+
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_admin import Admin, AdminIndexView
 from flask_admin.contrib.sqla import ModelView
@@ -13,12 +19,12 @@ from config.database import SessionLocal, engine
 from database.models import (
     User, Subscription, Limits, CSVAnalysis, AnalyticsReport, 
     TopTheme, ThemeRequest, GlobalTheme, VideoLesson, 
-    CalendarEntry, BroadcastMessage, SubscriptionType
+    CalendarEntry, BroadcastMessage, SubscriptionType, LLMSettings
 )
-from core.notifications.sender import NotificationSender
+from admin.forms.llm_settings_form import LLMSettingsForm
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key-here'
+app.config['SECRET_KEY'] = os.getenv('ADMIN_SECRET_KEY', 'your-secret-key-here')
 app.config['FLASK_ADMIN_SWATCH'] = 'cerulean'
 
 # Initialize admin
@@ -80,6 +86,7 @@ admin.add_view(GlobalThemeAdmin(GlobalTheme, SessionLocal()))
 admin.add_view(VideoLessonAdmin(VideoLesson, SessionLocal()))
 admin.add_view(CalendarEntryAdmin(CalendarEntry, SessionLocal()))
 admin.add_view(ModelView(BroadcastMessage, SessionLocal()))
+admin.add_view(ModelView(LLMSettings, SessionLocal()))
 
 
 class BroadcastForm(FlaskForm):
@@ -186,6 +193,55 @@ def settings():
     return render_template('admin/settings.html', form=form)
 
 
+@app.route('/llm-settings', methods=['GET', 'POST'])
+def llm_settings():
+    """LLM provider settings page."""
+    form = LLMSettingsForm()
+    db = SessionLocal()
+    
+    try:
+        if form.validate_on_submit():
+            try:
+                # Deactivate all existing settings
+                db.query(LLMSettings).update({"is_active": False})
+                
+                # Create new settings
+                new_settings = LLMSettings(
+                    provider_name=form.provider.data,
+                    is_active=True,
+                    model_name=_get_model_name(form.provider.data)
+                )
+                new_settings.encrypt_api_key(form.api_key.data)
+                
+                db.add(new_settings)
+                db.commit()
+                
+                flash('Настройки LLM успешно сохранены!', 'success')
+                return redirect(url_for('llm_settings'))
+                
+            except Exception as e:
+                flash(f'Ошибка при сохранении: {str(e)}', 'error')
+                db.rollback()
+        
+        # Get current settings
+        current = db.query(LLMSettings).filter_by(is_active=True).first()
+        
+        return render_template('admin/llm_settings.html', form=form, current=current)
+        
+    finally:
+        db.close()
+
+
+def _get_model_name(provider: str) -> str:
+    """Get model name for provider."""
+    models = {
+        'gemini': 'gemini-2.5-flash-lite',
+        'openai': 'gpt-4o',
+        'claude': 'claude-3-5-sonnet-20241022'
+    }
+    return models.get(provider, 'unknown')
+
+
 @app.route('/statistics')
 def statistics():
     """Statistics page."""
@@ -216,4 +272,4 @@ def statistics():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=False, host='0.0.0.0', port=5000)

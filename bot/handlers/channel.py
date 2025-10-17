@@ -27,7 +27,7 @@ async def channel_callback(callback: CallbackQuery, user: User):
     
     await safe_edit_message(
         callback=callback,
-        text=LEXICON_RU['tg_channel_promo'],
+        text=LEXICON_RU['tg_channel_info'],
         reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
     )
     await callback.answer()

@@ -26,13 +26,6 @@ class ThemeCallback(CallbackData, prefix="theme"):
     theme_id: str = None
 
 
-class FAQCallback(CallbackData, prefix="faq"):
-    """Callback data for FAQ navigation."""
-    level: int  # 1=categories, 2=questions, 3=answer
-    category: str = None
-    question: str = None
-
-
 class ReportPaginationCallback(CallbackData, prefix="report"):
     """Callback data for report pagination."""
     action: str  # "view", "prev", "next", "list"

@@ -189,11 +189,9 @@ class NotificationSender:
         
         all_users = self.db.query(User).all()
         
-        message = """📅 Календарь стокера обновлен!
-
-✨ Новый месяц - новые возможности для заработка.
-
-Переходи в раздел «Календарь стокера» и узнай, что снимать в этом месяце."""
+        # Import LEXICON_RU here to avoid circular imports
+        from bot.lexicon import LEXICON_RU
+        message = LEXICON_RU['calendar_update_notification']
         
         sent_count = 0
         for user in all_users:

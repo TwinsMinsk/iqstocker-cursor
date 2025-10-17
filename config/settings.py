@@ -143,6 +143,9 @@ class AppSettings(BaseSettings):
     adobe_stock_rate_limit: int = Field(10, env="ADOBE_STOCK_RATE_LIMIT")
     redis_cache_ttl: int = Field(2592000, env="REDIS_CACHE_TTL")  # 30 days
     
+    # Proxy Configuration
+    proxy_file: str = Field("proxies.txt", env="PROXY_FILE")
+    
     # Application Settings
     debug: bool = Field(False, env="DEBUG")
     host: str = Field("0.0.0.0", env="HOST")
@@ -205,6 +208,7 @@ class Settings:
         self.max_file_size = self.app.max_file_size
         self.adobe_stock_rate_limit = self.app.adobe_stock_rate_limit
         self.redis_cache_ttl = self.app.redis_cache_ttl
+        self.proxy_file = self.app.proxy_file
         self.debug = self.app.debug
         self.host = self.app.host
         self.port = self.app.port

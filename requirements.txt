@@ -18,6 +18,8 @@ scikit-learn==1.5.2
 # AI Providers
 openai==1.54.4
 anthropic==0.34.2
+google-generativeai==0.8.3
+cryptography==42.0.5
 
 # Web Scraping
 aiohttp==3.10.11
@@ -29,6 +31,7 @@ lxml==5.3.0
 flask==3.1.0
 flask-admin==1.6.1
 flask-sqlalchemy==3.1.1
+flask-wtf==1.2.2
 sqladmin==0.19.0
 
 # Admin Panel Enhancements
@@ -46,7 +49,7 @@ uvicorn==0.32.1
 # Background Tasks
 celery==5.4.0
 apscheduler==3.10.4
-dramatiq==1.15.0
+dramatiq==1.18.0
 
 # Configuration
 python-dotenv==1.0.1

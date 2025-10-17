@@ -167,7 +167,7 @@ async def handle_csv_upload(message: Message, state: FSMContext, user: User, lim
             # Delete the upload request message and send new one with info prompt
             await message.delete()
             # Приветственное сообщение
-            await message.answer(LEXICON_RU['csv_upload_info_start'])
+            await message.answer(LEXICON_RU['upload_csv_prompt'])
             # Первый вопрос - сохраняем message_id для последующего редактирования
             first_question_message = await message.answer(LEXICON_RU['ask_portfolio_size'])
             await state.update_data(question_message_id=first_question_message.message_id)
@@ -290,7 +290,7 @@ async def handle_monthly_uploads(message: Message, state: FSMContext):
         await message.bot.edit_message_text(
             chat_id=message.chat.id,
             message_id=question_message_id,
-            text=LEXICON_RU['ask_acceptance_rate']
+            text=LEXICON_RU['ask_profit_percentage']
         )
         
     except ValueError:
@@ -322,7 +322,7 @@ async def handle_acceptance_rate(message: Message, state: FSMContext):
             await message.bot.edit_message_text(
                 chat_id=message.chat.id,
                 message_id=question_message_id,
-                text=f"{LEXICON_RU['ask_acceptance_rate']}\n\n⚠️ % приемки должен быть от 0 до 100. Попробуй еще раз:"
+                text=f"{LEXICON_RU['ask_profit_percentage']}\n\n⚠️ % приемки должен быть от 0 до 100. Попробуй еще раз:"
             )
             return
         
@@ -357,7 +357,7 @@ async def handle_acceptance_rate(message: Message, state: FSMContext):
         await message.bot.edit_message_text(
             chat_id=message.chat.id,
             message_id=question_message_id,
-            text=f"{LEXICON_RU['ask_acceptance_rate']}\n\n⚠️ Пожалуйста, введи число. Попробуй еще раз:"
+            text=f"{LEXICON_RU['ask_profit_percentage']}\n\n⚠️ Пожалуйста, введи число. Попробуй еще раз:"
         )
 
 
@@ -400,7 +400,7 @@ async def handle_content_type_callback(callback: CallbackQuery, state: FSMContex
     await state.clear()
     
     # Show processing message
-    await callback.message.edit_text(LEXICON_RU['csv_processing'])
+    await callback.message.edit_text(LEXICON_RU['processing_csv'])
     
     # Process CSV in background
     asyncio.create_task(process_csv_analysis(data["csv_analysis_id"], callback.message))
@@ -471,7 +471,7 @@ async def handle_content_type_text(message: Message, state: FSMContext, user: Us
     await message.bot.edit_message_text(
         chat_id=message.chat.id,
         message_id=question_message_id,
-        text=LEXICON_RU['csv_processing']
+        text=LEXICON_RU['processing_csv']
     )
     
     # Process CSV in background
@@ -714,11 +714,19 @@ async def process_csv_analysis(csv_analysis_id: int, message: Message):
             
             print(f"✅ Результаты сохранены в базу данных")
             
+            # Start theme categorization in background
+            try:
+                from workers.theme_actors import scrape_and_categorize_themes
+                scrape_and_categorize_themes.send(csv_analysis_id)
+                print(f"🔄 Запущена фоновая задача для анализа тем")
+            except Exception as e:
+                print(f"⚠️ Не удалось запустить анализ тем: {e}")
+            
             # Edit processing message to show report
             await safe_edit_message(
                 callback=None,
                 message=message,
-                text=report_text,
+                text=report_text + "\n\n🔄 Сейчас анализирую ваши топ-темы... Это займет 2-3 минуты.",
                 reply_markup=get_main_menu_keyboard(user.subscription_type)
             )
             
