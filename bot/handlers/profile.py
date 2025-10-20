@@ -57,7 +57,6 @@ async def profile_callback(callback: CallbackQuery, user: User, limits: Limits):
         text=profile_text,
         reply_markup=get_profile_keyboard(user.subscription_type)
     )
-    await callback.answer()
 
 
 @router.callback_query(F.data == "limits_info")
@@ -69,7 +68,6 @@ async def limits_info_callback(callback: CallbackQuery, user: User):
         text=LEXICON_RU['limits_info'],
         reply_markup=get_profile_keyboard(user.subscription_type)
     )
-    await callback.answer()
 
 
 @router.callback_query(F.data == "compare_free_pro")
@@ -81,7 +79,6 @@ async def compare_free_pro_callback(callback: CallbackQuery, user: User):
         text=LEXICON_RU['tariffs_comparison'],
         reply_markup=get_profile_keyboard(user.subscription_type)
     )
-    await callback.answer()
 
 
 @router.callback_query(F.data == "compare_pro_ultra")
@@ -105,7 +102,6 @@ async def compare_pro_ultra_callback(callback: CallbackQuery, user: User):
         text=compare_text,
         reply_markup=get_profile_keyboard(user.subscription_type)
     )
-    await callback.answer()
 
 
 @router.callback_query(F.data == "upgrade_pro")
@@ -145,7 +141,6 @@ PRO подписка включает:
         text=upgrade_text,
         reply_markup=get_profile_keyboard(user.subscription_type)
     )
-    await callback.answer()
 
 
 @router.callback_query(F.data == "upgrade_ultra")

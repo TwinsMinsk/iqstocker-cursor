@@ -30,8 +30,8 @@ async def start_command(message: Message, state: FSMContext):
         
         if not user:
             # Create new user with TEST_PRO subscription
-            await create_new_user(message, db)
-            await send_welcome_sequence(message)
+            user = await create_new_user(message, db)
+            await send_welcome_sequence(message, user)
         else:
             # Handle existing user
             await handle_existing_user(message, user, db)
@@ -68,25 +68,23 @@ async def create_new_user(message: Message, db):
     )
     db.add(limits)
     db.commit()
+    
+    return user
 
 
-async def send_welcome_sequence(message: Message):
-    """Send welcome messages with instruction button."""
+async def send_welcome_sequence(message: Message, user: User):
+    """Send welcome messages with new sequence."""
     
-    # Step 1: Информационное сообщение
-    await message.answer(LEXICON_RU['how_to_start_info'])
+    # Шаг 1: Промо-сообщение
+    await message.answer(LEXICON_RU['start_promo'])
     
-    # Step 2: Призыв к действию с кнопкой инструкции
-    instruction_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(
-            text=LEXICON_COMMANDS_RU['instruction_button'], 
-            callback_data="show_csv_instruction"
-        )]
-    ])
+    # Шаг 2: Пауза 2 секунды
+    await asyncio.sleep(2)
     
+    # Шаг 3: Инструкция + главное меню
     await message.answer(
-        LEXICON_RU['upload_csv_call_to_action'],
-        reply_markup=instruction_keyboard
+        LEXICON_RU['start_howto'],
+        reply_markup=get_main_menu_keyboard(user.subscription_type)
     )
 
 
@@ -117,58 +115,14 @@ async def handle_existing_user(message: Message, user: User, db):
     else:
         status_text = "Активен"
     
-    welcome_text = f"""👋 <b>С возвращением, {message.from_user.first_name or 'Пользователь'}!</b>
+    welcome_text = LEXICON_RU['returning_user_welcome'].format(
+        first_name=message.from_user.first_name or 'Пользователь',
+        subscription_type=user.subscription_type.value,
+        status_text=status_text
+    )
 
-Рад снова тебя видеть!
-
-▫️ <b>Твой тариф:</b> {user.subscription_type.value}
-▫️ <b>Статус:</b> {status_text}
-
-Что будем делать сегодня? 👇"""
-    
     await message.answer(
         welcome_text,
         reply_markup=get_main_menu_keyboard(user.subscription_type)
     )
 
-
-@router.callback_query(F.data == "show_csv_instruction")
-async def show_csv_instruction_callback(callback: CallbackQuery):
-    """Show CSV instruction."""
-    
-    # Клавиатура с кнопкой "Назад"
-    back_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(
-            text=LEXICON_COMMANDS_RU['back_button'], 
-            callback_data="back_to_upload_prompt"
-        )]
-    ])
-    
-    # Редактируем сообщение
-    await callback.message.edit_text(
-        text=LEXICON_RU['csv_instruction_message'],
-        reply_markup=back_keyboard
-    )
-    
-    await callback.answer()
-
-
-@router.callback_query(F.data == "back_to_upload_prompt")
-async def back_to_upload_prompt_callback(callback: CallbackQuery):
-    """Return to upload CSV prompt."""
-    
-    # Клавиатура с кнопкой "Инструкция"
-    instruction_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(
-            text=LEXICON_COMMANDS_RU['instruction_button'], 
-            callback_data="show_csv_instruction"
-        )]
-    ])
-    
-    # Редактируем сообщение обратно
-    await callback.message.edit_text(
-        text=LEXICON_RU['upload_csv_call_to_action'],
-        reply_markup=instruction_keyboard
-    )
-    
-    await callback.answer()

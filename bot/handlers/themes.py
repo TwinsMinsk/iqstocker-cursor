@@ -38,7 +38,6 @@ async def themes_callback(callback: CallbackQuery, user: User, limits: Limits):
         text=themes_text,
         reply_markup=create_themes_keyboard(user.subscription_type, can_request, limits)
     )
-    await callback.answer()
 
 
 @router.callback_query(F.data == "get_themes")
@@ -54,7 +53,6 @@ async def get_themes_callback(callback: CallbackQuery, user: User, limits: Limit
             text="🚫 У тебя закончились лимиты на темы.\n\nПроверь свои лимиты в разделе 👤 Профиль или оформи подписку для получения дополнительных лимитов.",
             reply_markup=get_main_menu_keyboard(user.subscription_type)
         )
-        await callback.answer()
         return
     
     # Check if user can request themes
@@ -64,7 +62,6 @@ async def get_themes_callback(callback: CallbackQuery, user: User, limits: Limit
             text="⏰ Ты уже запрашивал темы на этой неделе.\n\nСледующий запрос доступен через неделю после последнего.",
             reply_markup=get_main_menu_keyboard(user.subscription_type)
         )
-        await callback.answer()
         return
     
     # Generate themes
@@ -79,7 +76,6 @@ async def get_themes_callback(callback: CallbackQuery, user: User, limits: Limit
             text="❌ Не удалось сгенерировать темы. Попробуй еще раз.",
             reply_markup=get_main_menu_keyboard(user.subscription_type)
         )
-        await callback.answer()
         return
     
     # Save theme request
@@ -118,7 +114,6 @@ async def get_themes_callback(callback: CallbackQuery, user: User, limits: Limit
         text=themes_text,
         reply_markup=create_themes_keyboard(user.subscription_type, False, limits)
     )
-    await callback.answer()
 
 
 @router.callback_query(F.data == "themes_history")
@@ -138,7 +133,6 @@ async def themes_history_callback(callback: CallbackQuery, user: User, limits: L
                  "Нажми кнопку <b>Получить темы</b>, чтобы сгенерировать первую подборку!",
             reply_markup=create_themes_keyboard(user.subscription_type, True, limits)
         )
-        await callback.answer()
         return
     
     # Формируем текст с историей
@@ -158,4 +152,3 @@ async def themes_history_callback(callback: CallbackQuery, user: User, limits: L
         text=history_text,
         reply_markup=create_themes_keyboard(user.subscription_type, True, limits)
     )
-    await callback.answer()

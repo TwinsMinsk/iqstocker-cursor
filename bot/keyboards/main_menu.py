@@ -10,33 +10,26 @@ def get_main_menu_keyboard(subscription_type: SubscriptionType) -> InlineKeyboar
     
     keyboard = []
     
-    # Asymmetric layout - first button full width, then 2 per row
-    # 1. Analytics (most important - full width)
-    keyboard.append([InlineKeyboardButton(text=LEXICON_COMMANDS_RU['analytics'], callback_data="analytics")])
+    # Новая структура согласно заданию
+    # 1. Темы (приоритетная кнопка - полная ширина)
+    keyboard.append([InlineKeyboardButton(text=LEXICON_COMMANDS_RU['themes'], callback_data="themes")])
     
-    # 2. Themes + Top themes (2 per row)
+    # 2. Аналитика портфеля + Календарь стокера (2 в ряд)
     keyboard.append([
-        InlineKeyboardButton(text=LEXICON_COMMANDS_RU['themes'], callback_data="themes"),
-        InlineKeyboardButton(text=LEXICON_COMMANDS_RU['top_themes'], callback_data="top_themes")
+        InlineKeyboardButton(text=LEXICON_COMMANDS_RU['analytics'], callback_data="analytics"),
+        InlineKeyboardButton(text=LEXICON_COMMANDS_RU['calendar'], callback_data="calendar")
     ])
     
-    # 3. Calendar + Lessons (2 per row)
+    # 3. Профиль + Пригласить друга (2 в ряд)
     keyboard.append([
-        InlineKeyboardButton(text=LEXICON_COMMANDS_RU['calendar'], callback_data="calendar"),
-        InlineKeyboardButton(text=LEXICON_COMMANDS_RU['lessons'], callback_data="lessons")
+        InlineKeyboardButton(text=LEXICON_COMMANDS_RU['profile'], callback_data="profile"),
+        InlineKeyboardButton(text=LEXICON_COMMANDS_RU['invite_friend'], callback_data="invite_friend")
     ])
     
-    # 4. FAQ + Profile (2 per row)
+    # 4. Вопросы/ответы + ТГ канал IQStocker (2 в ряд)
     keyboard.append([
         InlineKeyboardButton(text=LEXICON_COMMANDS_RU['faq'], callback_data="faq"),
-        InlineKeyboardButton(text=LEXICON_COMMANDS_RU['profile'], callback_data="profile")
+        InlineKeyboardButton(text=LEXICON_COMMANDS_RU['tg_channel'], callback_data="tg_channel")
     ])
-    
-    # 5. Channel (full width for emphasis)
-    keyboard.append([InlineKeyboardButton(text=LEXICON_COMMANDS_RU['tg_channel'], callback_data="channel")])
-    
-    # Add upgrade button for FREE users (full width for emphasis)
-    if subscription_type == SubscriptionType.FREE:
-        keyboard.append([InlineKeyboardButton(text=LEXICON_COMMANDS_RU['upgrade_pro'], callback_data="upgrade_pro")])
     
     return InlineKeyboardMarkup(inline_keyboard=keyboard)

@@ -9,7 +9,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 from core.notifications.scheduler import get_scheduler
 from config.settings import settings
-from bot.handlers import start, menu, profile, analytics, themes, top_themes, lessons, calendar, faq, channel, payments, admin
+from bot.handlers import start, menu, profile, analytics, themes, top_themes, lessons, calendar, faq, channel, payments, admin, invite
 from bot.middlewares.subscription import SubscriptionMiddleware
 from bot.middlewares.limits import LimitsMiddleware
 from core.utils.lexicon_validator import validate_or_raise
@@ -73,6 +73,7 @@ async def main():
     dp.include_router(channel.router)
     dp.include_router(payments.router)
     dp.include_router(admin.router)
+    dp.include_router(invite.router)
     
     logger.info("Bot started successfully")
     

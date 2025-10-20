@@ -12,7 +12,7 @@ from bot.utils.safe_edit import safe_edit_message
 router = Router()
 
 
-@router.callback_query(F.data == "channel")
+@router.callback_query(F.data == "tg_channel")
 async def channel_callback(callback: CallbackQuery, user: User):
     """Handle channel callback."""
     
@@ -30,4 +30,3 @@ async def channel_callback(callback: CallbackQuery, user: User):
         text=LEXICON_RU['tg_channel_info'],
         reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
     )
-    await callback.answer()

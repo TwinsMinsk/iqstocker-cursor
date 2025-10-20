@@ -164,13 +164,20 @@ async def handle_csv_upload(message: Message, state: FSMContext, user: User, lim
             await state.update_data(csv_analysis_id=csv_analysis.id)
             await state.set_state(AnalyticsStates.waiting_for_portfolio_size)
             
-            # Delete the upload request message and send new one with info prompt
+            # Delete the upload request message
             await message.delete()
-            # Приветственное сообщение
-            await message.answer(LEXICON_RU['upload_csv_prompt'])
+
+            # Отправляем приветственное сообщение и сохраняем его ID
+            prompt_msg = await message.answer(LEXICON_RU['upload_csv_prompt'])
+
             # Первый вопрос - сохраняем message_id для последующего редактирования
             first_question_message = await message.answer(LEXICON_RU['ask_portfolio_size'])
-            await state.update_data(question_message_id=first_question_message.message_id)
+
+            # Сохраняем ID обоих сообщений в state
+            await state.update_data(
+                initial_message_ids=[prompt_msg.message_id],  # Список приветственных сообщений
+                last_question_id=first_question_message.message_id  # ID текущего вопроса
+            )
             
         finally:
             db.close()
@@ -188,7 +195,7 @@ async def handle_portfolio_size(message: Message, state: FSMContext):
     
     # Получаем данные из state
     data = await state.get_data()
-    question_message_id = data.get('question_message_id')
+    question_message_id = data.get('last_question_id')
     
     try:
         portfolio_size = int(message.text)
@@ -229,7 +236,7 @@ async def handle_upload_limit(message: Message, state: FSMContext):
     
     # Получаем данные из state
     data = await state.get_data()
-    question_message_id = data.get('question_message_id')
+    question_message_id = data.get('last_question_id')
     
     try:
         upload_limit = int(message.text)
@@ -270,7 +277,7 @@ async def handle_monthly_uploads(message: Message, state: FSMContext):
     
     # Получаем данные из state
     data = await state.get_data()
-    question_message_id = data.get('question_message_id')
+    question_message_id = data.get('last_question_id')
     
     try:
         monthly_uploads = int(message.text)
@@ -313,7 +320,7 @@ async def handle_acceptance_rate(message: Message, state: FSMContext):
     
     # Получаем данные из state
     data = await state.get_data()
-    question_message_id = data.get('question_message_id')
+    question_message_id = data.get('last_question_id')
     
     try:
         acceptance_rate = float(message.text)
@@ -371,6 +378,10 @@ async def handle_content_type_callback(callback: CallbackQuery, state: FSMContex
     # Get all data from state
     data = await state.get_data()
     
+    # Сохраняем ID сообщений для последующего удаления
+    initial_message_ids = data.get('initial_message_ids', [])
+    last_question_id = data.get('last_question_id')
+    
     # Update CSV analysis with user data
     db = SessionLocal()
     try:
@@ -399,13 +410,23 @@ async def handle_content_type_callback(callback: CallbackQuery, state: FSMContex
     # Clear state
     await state.clear()
     
-    # Show processing message
-    await callback.message.edit_text(LEXICON_RU['processing_csv'])
+    # Show processing message (safe)
+    await safe_edit_message(
+        callback=callback,
+        text=LEXICON_RU['processing_csv']
+    )
     
     # Process CSV in background
-    asyncio.create_task(process_csv_analysis(data["csv_analysis_id"], callback.message))
+    asyncio.create_task(
+        process_csv_analysis(
+            data["csv_analysis_id"], 
+            callback.message,
+            initial_message_ids,  # НОВЫЙ параметр
+            last_question_id      # НОВЫЙ параметр
+        )
+    )
     
-    await callback.answer()
+    # Ответ уже отправлен внутри safe_edit_message
 
 
 @router.message(AnalyticsStates.waiting_for_content_type)
@@ -417,7 +438,7 @@ async def handle_content_type_text(message: Message, state: FSMContext, user: Us
     
     # Получаем данные из state
     data = await state.get_data()
-    question_message_id = data.get('question_message_id')
+    question_message_id = data.get('last_question_id')
     
     content_type = message.text.strip().upper()
     
@@ -438,6 +459,10 @@ async def handle_content_type_text(message: Message, state: FSMContext, user: Us
     
     # Get all data from state
     data = await state.get_data()
+    
+    # Сохраняем ID сообщений для последующего удаления
+    initial_message_ids = data.get('initial_message_ids', [])
+    last_question_id = data.get('last_question_id')
     
     # Update CSV analysis with user data
     db = SessionLocal()
@@ -467,15 +492,21 @@ async def handle_content_type_text(message: Message, state: FSMContext, user: Us
     # Clear state
     await state.clear()
     
-    # Редактируем сообщение для показа финального статуса обработки
-    await message.bot.edit_message_text(
-        chat_id=message.chat.id,
-        message_id=question_message_id,
+    # Редактируем сообщение для показа финального статуса обработки (safe)
+    await safe_edit_message(
+        message=message,
         text=LEXICON_RU['processing_csv']
     )
     
     # Process CSV in background
-    asyncio.create_task(process_csv_analysis(data["csv_analysis_id"], message))
+    asyncio.create_task(
+        process_csv_analysis(
+            data["csv_analysis_id"], 
+            message,
+            initial_message_ids,
+            last_question_id
+        )
+    )
 
 
 async def show_reports_list(callback: CallbackQuery, user: User, limits: Limits, analyses: list):
@@ -636,7 +667,12 @@ async def new_analysis_callback(callback: CallbackQuery, user: User, limits: Lim
     await callback.answer()
 
 
-async def process_csv_analysis(csv_analysis_id: int, message: Message):
+async def process_csv_analysis(
+    csv_analysis_id: int, 
+    message: Message,
+    initial_message_ids: list = None,  # НОВЫЙ параметр
+    last_question_id: int = None        # НОВЫЙ параметр
+):
     """Process CSV analysis in background using advanced processor."""
     
     print(f"🔄 Начинаем обработку CSV анализа {csv_analysis_id}")
@@ -722,10 +758,20 @@ async def process_csv_analysis(csv_analysis_id: int, message: Message):
             except Exception as e:
                 print(f"⚠️ Не удалось запустить анализ тем: {e}")
             
-            # Edit processing message to show report
-            await safe_edit_message(
-                callback=None,
-                message=message,
+            # НОВОЕ: Удаляем все сообщения онбординга перед показом отчета
+            if initial_message_ids or last_question_id:
+                all_ids_to_delete = (initial_message_ids or []).copy()
+                if last_question_id:
+                    all_ids_to_delete.append(last_question_id)
+                
+                for msg_id in all_ids_to_delete:
+                    try:
+                        await message.bot.delete_message(chat_id=message.chat.id, message_id=msg_id)
+                    except Exception:
+                        pass  # Игнорируем ошибки (сообщение могло быть уже удалено)
+
+            # Отправляем НОВОЕ сообщение с отчетом
+            await message.answer(
                 text=report_text + "\n\n🔄 Сейчас анализирую ваши топ-темы... Это займет 2-3 минуты.",
                 reply_markup=get_main_menu_keyboard(user.subscription_type)
             )
