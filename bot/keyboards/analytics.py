@@ -84,3 +84,47 @@ def get_analytics_unavailable_keyboard(subscription_type: SubscriptionType) -> I
     ])
     
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+def get_analytics_intro_keyboard(has_reports: bool = False) -> InlineKeyboardMarkup:
+    """Create analytics intro keyboard with CSV guide button."""
+    keyboard = [
+        [InlineKeyboardButton(
+            text=LEXICON_COMMANDS_RU['how_to_export_csv'], 
+            callback_data="analytics_show_csv_guide"
+        )]
+    ]
+    
+    # Add "Show Reports" button only if user has reports
+    if has_reports:
+        keyboard.append([
+            InlineKeyboardButton(
+                text=LEXICON_COMMANDS_RU['show_reports'], 
+                callback_data="analytics_show_reports"
+            )
+        ])
+    
+    keyboard.append([
+        InlineKeyboardButton(
+            text=LEXICON_COMMANDS_RU['back_to_main_menu'], 
+            callback_data="main_menu"
+        )
+    ])
+    
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+def get_csv_instruction_keyboard() -> InlineKeyboardMarkup:
+    """Create CSV instruction keyboard with navigation buttons."""
+    keyboard = [
+        [InlineKeyboardButton(
+            text=LEXICON_COMMANDS_RU['back'], 
+            callback_data="analytics_show_intro"
+        )],
+        [InlineKeyboardButton(
+            text=LEXICON_COMMANDS_RU['back_to_main_menu'], 
+            callback_data="main_menu"
+        )]
+    ]
+    
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)

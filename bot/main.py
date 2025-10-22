@@ -10,6 +10,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from core.notifications.scheduler import get_scheduler
 from config.settings import settings
 from bot.handlers import start, menu, profile, analytics, themes, top_themes, lessons, calendar, faq, channel, payments, admin, invite
+from bot.middlewares.database import DatabaseMiddleware
 from bot.middlewares.subscription import SubscriptionMiddleware
 from bot.middlewares.limits import LimitsMiddleware
 from core.utils.lexicon_validator import validate_or_raise
@@ -54,7 +55,9 @@ async def main():
     # Create dispatcher
     dp = Dispatcher(storage=MemoryStorage())
     
-    # Register middlewares
+    # Register middlewares (order matters: DatabaseMiddleware first to inject session)
+    dp.message.middleware(DatabaseMiddleware())
+    dp.callback_query.middleware(DatabaseMiddleware())
     dp.message.middleware(SubscriptionMiddleware())
     dp.callback_query.middleware(SubscriptionMiddleware())
     dp.message.middleware(LimitsMiddleware())
