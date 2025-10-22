@@ -38,14 +38,14 @@ class RecommendationEngine:
     
     def get_new_work_rate_recommendation(self, new_work_rate: float) -> str:
         """
-        Get recommendation for new work sales rate.
+        Get recommendation for new work sales rate based on ID prefix logic.
         
-        Gradations from specification (lines 44-71):
-        100%: new_work_rate_full
-        30%+: new_work_rate_super
-        20-30%: new_work_rate_excellent
-        10-20%: new_work_rate_good
-        0-10%: new_work_rate_low
+        Gradations based on lexicon keys:
+        > 85%: new_works_85_100
+        30-85%: new_works_30_85
+        20-30%: new_works_20_30
+        10-20%: new_works_10_20
+        0-10%: new_works_0_10_newbie
         
         Args:
             new_work_rate: Percentage of sales from new works
@@ -53,26 +53,29 @@ class RecommendationEngine:
         Returns:
             Recommendation text from lexicon
         """
-        if new_work_rate == 100:
-            return safe_format_for_telegram(LEXICON_RU['new_work_rate_full'])
-        elif new_work_rate >= 30:
-            return safe_format_for_telegram(LEXICON_RU['new_work_rate_super'])
-        elif 20 <= new_work_rate < 30:
-            return safe_format_for_telegram(LEXICON_RU['new_work_rate_excellent'])
-        elif 10 <= new_work_rate < 20:
-            return safe_format_for_telegram(LEXICON_RU['new_work_rate_good'])
+        # Round to integer for cleaner comparisons
+        percent = round(new_work_rate)
+        
+        if percent > 85:
+            return safe_format_for_telegram(LEXICON_RU['new_works_85_100'])
+        elif 30 < percent <= 85:
+            return safe_format_for_telegram(LEXICON_RU['new_works_30_85'])
+        elif 20 < percent <= 30:
+            return safe_format_for_telegram(LEXICON_RU['new_works_20_30'])
+        elif 10 < percent <= 20:
+            return safe_format_for_telegram(LEXICON_RU['new_works_10_20'])
         else:  # 0-10%
-            return safe_format_for_telegram(LEXICON_RU['new_work_rate_low'])
+            return safe_format_for_telegram(LEXICON_RU['new_works_0_10_newbie'])
     
     def get_limit_usage_recommendation(self, limit_usage: float) -> str:
         """
         Get recommendation for upload limit usage.
         
         Gradations based on existing lexicon keys:
-        0-30%: upload_limit_0_30
+        0-29%: upload_limit_0_30
         30-60%: upload_limit_30_60
         61-80%: upload_limit_61_80
-        81-95%: upload_limit_81_95
+        81-96%: upload_limit_81_95
         97-100%: upload_limit_97_100
         
         Args:
@@ -81,15 +84,18 @@ class RecommendationEngine:
         Returns:
             Recommendation text from lexicon
         """
-        if limit_usage <= 30:
+        # Round to integer for cleaner comparisons
+        percent = round(limit_usage)
+        
+        if percent < 30:
             return safe_format_for_telegram(LEXICON_RU['upload_limit_0_30'])
-        elif 30 < limit_usage <= 60:
+        elif 30 <= percent <= 60:
             return safe_format_for_telegram(LEXICON_RU['upload_limit_30_60'])
-        elif 61 <= limit_usage <= 80:
+        elif 61 <= percent <= 80:
             return safe_format_for_telegram(LEXICON_RU['upload_limit_61_80'])
-        elif 81 <= limit_usage <= 95:
+        elif 81 <= percent <= 96:
             return safe_format_for_telegram(LEXICON_RU['upload_limit_81_95'])
-        else:  # 97-100%
+        else:  # 97% and above
             return safe_format_for_telegram(LEXICON_RU['upload_limit_97_100'])
     
     # def get_acceptance_rate_recommendation(self, acceptance_rate: float) -> str:

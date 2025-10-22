@@ -2,10 +2,15 @@
 
 import pandas as pd
 from typing import Dict, Any
+from config.settings import settings
 
 
 class KPICalculator:
     """Calculator for KPI metrics according to analytics_logic_and_texts.md specification."""
+    
+    def __init__(self):
+        """Initialize KPI Calculator with settings."""
+        self.new_works_prefix = settings.new_works_id_prefix
     
     def calculate_portfolio_sold_percent(self, unique_assets_sold: int, portfolio_size: int) -> float:
         """
@@ -24,18 +29,18 @@ class KPICalculator:
             return 0.0
         return round((unique_assets_sold / portfolio_size) * 100, 2)
     
-    def calculate_new_work_rate(self, df: pd.DataFrame, portfolio_size: int) -> float:
+    def calculate_new_works_sales_percent(self, df: pd.DataFrame) -> float:
         """
-        Calculate percentage of sales from new works.
+        Calculate percentage of sales from new works based on ID prefix.
         
-        Logic: New works are determined by ID (ID > threshold_value)
-        Threshold value = max(asset_id) - (portfolio_size * 0.25)
+        Logic: New works are determined by:
+        1. ID length must be exactly 10 digits
+        2. ID must start with the configured prefix (e.g., "150")
         
         Formula: (Количество продаж новых работ / Общее количество продаж) * 100
         
         Args:
             df: DataFrame with sales data containing 'asset_id' column
-            portfolio_size: Total portfolio size
             
         Returns:
             Percentage of sales from new works (0-100)
@@ -43,24 +48,25 @@ class KPICalculator:
         if len(df) == 0 or 'asset_id' not in df.columns:
             return 0.0
         
-        # Convert asset_id to numeric if it's not already
-        df['asset_id'] = pd.to_numeric(df['asset_id'], errors='coerce')
+        # Convert asset_id to string for pattern matching
+        df_copy = df.copy()
+        df_copy['asset_id_str'] = df_copy['asset_id'].astype(str)
         
-        # Remove rows with invalid asset_id
-        df_clean = df.dropna(subset=['asset_id'])
+        # Total sales count
+        total_sales = len(df_copy)
         
-        if len(df_clean) == 0:
+        if total_sales == 0:
             return 0.0
         
-        # Determine threshold for "new works"
-        max_id = df_clean['asset_id'].max()
-        threshold_id = max_id - (portfolio_size * 0.25)
+        # Count sales of "new" works:
+        # - ID length must be 10 digits
+        # - ID must start with the configured prefix
+        new_sales_count = df_copy[
+            (df_copy['asset_id_str'].str.len() == 10) &
+            (df_copy['asset_id_str'].str.startswith(self.new_works_prefix))
+        ].shape[0]
         
-        # Count sales of new works
-        new_works_sales = len(df_clean[df_clean['asset_id'] > threshold_id])
-        total_sales = len(df_clean)
-        
-        return round((new_works_sales / total_sales) * 100, 2)
+        return round((new_sales_count / total_sales) * 100, 2)
     
     def calculate_upload_limit_usage(self, monthly_uploads: int, upload_limit: int) -> float:
         """
@@ -118,7 +124,7 @@ class KPICalculator:
         
         return {
             'portfolio_sold_percent': self.calculate_portfolio_sold_percent(unique_assets_sold, portfolio_size),
-            'new_work_rate': self.calculate_new_work_rate(df, portfolio_size),
+            'new_works_sales_percent': self.calculate_new_works_sales_percent(df),
             'upload_limit_usage': self.calculate_upload_limit_usage(monthly_uploads, upload_limit),
             'acceptance_rate': self.get_acceptance_rate(acceptance_rate)
         }

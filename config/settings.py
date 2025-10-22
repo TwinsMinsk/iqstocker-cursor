@@ -171,8 +171,9 @@ class AppSettings(BaseSettings):
     ultra_themes_limit: int = Field(10, env="ULTRA_THEMES_LIMIT")
     ultra_top_themes_limit: int = Field(10, env="ULTRA_TOP_THEMES_LIMIT")
     
-    # New works definition (months)
-    new_works_months: int = Field(3, env="NEW_WORKS_MONTHS")
+    # New works definition (ID prefix)
+    # Префикс ID для определения "новых" работ (10 цифр, начинаются с этого префикса)
+    new_works_id_prefix: str = Field("150", env="NEW_WORKS_ID_PREFIX")
 
 
 class Settings:
@@ -225,7 +226,7 @@ class Settings:
         self.ultra_analytics_limit = self.app.ultra_analytics_limit
         self.ultra_themes_limit = self.app.ultra_themes_limit
         self.ultra_top_themes_limit = self.app.ultra_top_themes_limit
-        self.new_works_months = self.app.new_works_months
+        self.new_works_id_prefix = self.app.new_works_id_prefix
 
 
 # Global settings instance

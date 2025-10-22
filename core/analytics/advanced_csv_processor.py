@@ -316,7 +316,7 @@ class AdvancedCSVProcessor:
         kpi_calc = KPICalculator()
         
         portfolio_sold_percent = kpi_calc.calculate_portfolio_sold_percent(unique_assets_sold, portfolio_size)
-        new_works_sales_percent = kpi_calc.calculate_new_work_rate(df_clean, portfolio_size)
+        new_works_sales_percent = kpi_calc.calculate_new_works_sales_percent(df_clean)
         upload_limit_usage = kpi_calc.calculate_upload_limit_usage(monthly_uploads, upload_limit)
         
         return AdvancedProcessResult(

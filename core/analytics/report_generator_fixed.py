@@ -117,10 +117,16 @@ class FixedReportGenerator:
         return safe_format_for_telegram(combined_report, use_markdown=False)
 
     def _get_sold_portfolio_recommendation(self, sold_percent: float) -> str:
-        """Get recommendation text for sold portfolio percentage."""
+        """Get recommendation text for sold portfolio percentage based on FSM data.
+        
+        Args:
+            sold_percent: Percentage of portfolio that sold (0-100)
+            
+        Returns:
+            Formatted recommendation text from lexicon
+        """
         if sold_percent < 1:
-            # For now, use pro version - in real implementation would check user experience
-            return safe_format_for_telegram(LEXICON_RU.get('sold_portfolio_0_1_pro', "Низкий показатель"))
+            return safe_format_for_telegram(LEXICON_RU.get('sold_portfolio_0_1_newbie', "Низкий показатель"))
         elif 1 <= sold_percent < 2:
             return safe_format_for_telegram(LEXICON_RU.get('sold_portfolio_1_2', "Есть потенциал"))
         elif 2 <= sold_percent < 3:
