@@ -210,49 +210,36 @@ logger.info(
 - `last_used_at`: Время последнего использования
 - `processing_time_ms`: Время обработки запроса
 
-## Фоновые задачи
+## ⚠️ ВАЖНОЕ ОБНОВЛЕНИЕ
 
-### Dramatiq акторы
+**Функция глубокого анализа тем была удалена из системы.**
 
-```python
-# workers/theme_actors.py
-@dramatiq.actor(max_retries=3, time_limit=600000)
-def scrape_and_categorize_themes(csv_analysis_id: int):
-    """Полный пайплайн категоризации тем."""
-    pass
+Модули `workers/theme_actors.py` и `core/parser/adobe_stock_playwright.py` больше не существуют.
 
-@dramatiq.actor(max_retries=2, time_limit=300000)
-def update_global_themes(csv_analysis_id: int):
-    """Обновление глобальной базы тем."""
-    pass
-```
+Топ-темы теперь берутся напрямую из CSV-файла без фоновой обработки через LLM и скрапинг Adobe Stock.
 
-### Запуск задач
+## Текущая функциональность LLM
 
-```python
-from workers.theme_actors import scrape_and_categorize_themes
+LLM-сервис остается доступным для других функций системы, но больше не используется для анализа тем портфеля.
 
-# Запуск фоновой задачи
-scrape_and_categorize_themes.send(csv_analysis_id)
-```
+### Доступные провайдеры:
+- Gemini (Google)
+- OpenAI (GPT)
+- Claude (Anthropic)
 
-## Веб-скрапинг Adobe Stock
+### Настройка через админ-панель:
+1. Перейти на `/llm-settings`
+2. Выбрать провайдера
+3. Ввести API-ключ
+4. Активировать провайдера
 
-### Playwright парсер
+## Что было удалено
 
-```python
-from core.parser.adobe_stock_playwright import AdobeStockPlaywrightParser
-
-parser = AdobeStockPlaywrightParser()
-tags = await parser.scrape_asset_tags(asset_id="123", title="Business Meeting")
-```
-
-### Особенности парсинга
-
-- Ротация User-Agent для избежания блокировок
-- Множественные стратегии извлечения тегов
-- Кэширование результатов в БД
-- Обработка JavaScript-контента
+- ❌ Скрапинг тегов с Adobe Stock через Playwright
+- ❌ LLM-категоризация тем портфеля
+- ❌ Фоновые задачи Dramatiq для анализа тем
+- ❌ Модуль `workers/theme_actors.py`
+- ❌ Модуль `core/parser/adobe_stock_playwright.py`
 
 ## Тестирование
 

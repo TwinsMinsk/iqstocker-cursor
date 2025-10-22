@@ -14,15 +14,14 @@ class FixedReportGenerator:
     def __init__(self):
         self.recommendation_engine = RecommendationEngine()
     
-    def generate_monthly_report(self, result: AdvancedProcessResult) -> str:
-        """Generate monthly report according to specification."""
+    def generate_monthly_report(self, result: AdvancedProcessResult) -> Dict[str, Any]:
+        """Generate monthly report data for sequential message sending."""
         
-        # Get all recommendations
+        # Get all recommendations (without acceptance_rate)
         recommendations = self.recommendation_engine.get_all_recommendations(
             portfolio_rate=result.portfolio_sold_percent,
             new_work_rate=result.new_works_sales_percent,
-            limit_usage=result.upload_limit_usage,
-            acceptance_rate=result.acceptance_rate
+            limit_usage=result.upload_limit_usage
         )
         
         # Parse month and year from period_human_ru (e.g., "август 2025")
@@ -30,31 +29,92 @@ class FixedReportGenerator:
         month = parts[0] if len(parts) > 0 else ""
         year = parts[1] if len(parts) > 1 else ""
         
-        # Use existing template from lexicon_ru.py
-        report = LEXICON_RU['final_analytics_report'].format(
-            month=month,
-            year=year,
-            sales_count=result.rows_used,
-            revenue=f"{result.total_revenue_usd:.2f}",
-            sold_portfolio_percentage=f"{result.portfolio_sold_percent:.2f}",
-            new_works_percentage=f"{result.new_works_sales_percent:.2f}",
-            acceptance_rate=f"{result.acceptance_rate:.0f}",
-            upload_limit_usage=f"{result.upload_limit_usage:.0f}",
-            # Titles and texts for interpretation sections
-            new_works_title="Доля продаж новых работ",
-            new_works_text=recommendations['new_work_rate_recommendation'],
-            sold_portfolio_title="Процент проданного портфеля",
-            sold_portfolio_text=self._get_sold_portfolio_recommendation(result.portfolio_sold_percent),
-            acceptance_rate_title="Процент приемки",
-            acceptance_rate_text=recommendations['acceptance_rate_recommendation'],
-            upload_limit_title="Использование лимита",
-            upload_limit_text=recommendations['limit_usage_recommendation']
+        # Prepare data for all messages
+        return {
+            # Basic data for summary message
+            'month': month,
+            'year': year,
+            'sales_count': result.rows_used,
+            'revenue': f"{result.total_revenue_usd:.2f}",
+            'avg_price': f"{result.avg_revenue_per_sale:.4f}",
+            'sold_portfolio_percentage': f"{result.portfolio_sold_percent:.2f}",
+            'new_works_percentage': f"{result.new_works_sales_percent:.2f}",
+            'upload_limit_usage': f"{result.upload_limit_usage:.0f}",
+            
+            # Recommendation texts
+            'sold_portfolio_text': self._get_sold_portfolio_recommendation(result.portfolio_sold_percent),
+            'new_works_text': recommendations['new_work_rate_recommendation'],
+            'upload_limit_text': recommendations['limit_usage_recommendation']
+        }
+
+    def generate_combined_report_for_archive(self, result: AdvancedProcessResult) -> str:
+        """Generate combined report text for archive storage."""
+        
+        # Get all recommendations (without acceptance_rate)
+        recommendations = self.recommendation_engine.get_all_recommendations(
+            portfolio_rate=result.portfolio_sold_percent,
+            new_work_rate=result.new_works_sales_percent,
+            limit_usage=result.upload_limit_usage
         )
         
-        # Clean HTML for Telegram compatibility
-        report = safe_format_for_telegram(report, use_markdown=False)
+        # Parse month and year from period_human_ru
+        parts = result.period_human_ru.split()
+        month = parts[0] if len(parts) > 0 else ""
+        year = parts[1] if len(parts) > 1 else ""
         
-        return report
+        # Get recommendation texts
+        sold_portfolio_text = self._get_sold_portfolio_recommendation(result.portfolio_sold_percent)
+        new_works_text = recommendations['new_work_rate_recommendation']
+        upload_limit_text = recommendations['limit_usage_recommendation']
+        
+        # Create combined report text
+        combined_report = f"""📊 <b>ОТЧЁТ ЗА {month} {year} ГОТОВ!</b> 📊
+
+Продаж - {result.rows_used}
+Доход - ${result.total_revenue_usd:.2f}
+Средняя цена продажи - ${result.avg_revenue_per_sale:.4f}
+% портфеля, который продался за месяц - {result.portfolio_sold_percent:.2f}%
+доля продаж новых работ - {result.new_works_sales_percent:.2f}%
+
+
+===============================
+📝 <b>Объяснение показателей</b>
+===============================
+<b>% портфеля, который продался за месяц - {result.portfolio_sold_percent:.2f}%</b>
+
+Эта метрика показывает, какая доля твоего портфолио превращается в реальные продажи. Это наглядный индикатор эффективности: насколько «живой» твой контент и как он хорошо он работает в портфеле.
+
+<b>О чем говорит твой показатель:</b>
+{sold_portfolio_text}
+
+
+===============================
+<b>Доля продаж нового контента - {result.new_works_sales_percent:.2f}%</b>
+
+Этот показатель показывает, какой процент твоих продаж пришёлся на новые работы, принятые за последние 3 месяца.
+Проще говоря, он показывает, насколько хорошо заходит твой свежий контент — и является одним из ключевых индикаторов того, что ты движешься в правильном направлении.
+
+<b>О чем говорят твои цифры?</b>
+{new_works_text}
+
+
+===============================
+<b>% лимита, который ты используешь - {result.upload_limit_usage:.0f}%</b>
+
+Этот показатель показывает, какой процент своего лимита на адобе ты используешь.
+
+<b>О чем говорит эта цифра?</b>
+{upload_limit_text}
+
+Это был полный отчёт по твоему портфелю за выбранный период.
+
+Если хочешь посмотреть аналитику за другой месяц — проверь свои лимиты в разделе 👤 Профиль и загрузи новый CSV-файл.
+
+<b>ВАЖНО!</b>
+Все отчеты будут храниться в этом разделе без ограничений по времени. Ты в любой момент можешь зайти сюда и посмотреть их."""
+        
+        # Clean HTML for Telegram compatibility
+        return safe_format_for_telegram(combined_report, use_markdown=False)
 
     def _get_sold_portfolio_recommendation(self, sold_percent: float) -> str:
         """Get recommendation text for sold portfolio percentage."""

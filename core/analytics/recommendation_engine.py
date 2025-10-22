@@ -92,40 +92,39 @@ class RecommendationEngine:
         else:  # 97-100%
             return safe_format_for_telegram(LEXICON_RU['upload_limit_97_100'])
     
-    def get_acceptance_rate_recommendation(self, acceptance_rate: float) -> str:
-        """
-        Get recommendation for acceptance rate.
-        
-        Gradations based on existing lexicon keys:
-        <= 30%: acceptance_rate_0_30
-        31-50%: acceptance_rate_31_50
-        50-55%: acceptance_rate_50_55
-        55-65%: acceptance_rate_55_65
-        > 65%: acceptance_rate_65_plus
-        
-        Args:
-            acceptance_rate: Acceptance rate percentage
-            
-        Returns:
-            Recommendation text from lexicon
-        """
-        if acceptance_rate <= 30:
-            return safe_format_for_telegram(LEXICON_RU['acceptance_rate_0_30'])
-        elif 31 <= acceptance_rate <= 50:
-            return safe_format_for_telegram(LEXICON_RU['acceptance_rate_31_50'])
-        elif 50 < acceptance_rate <= 55:
-            return safe_format_for_telegram(LEXICON_RU['acceptance_rate_50_55'])
-        elif 55 < acceptance_rate <= 65:
-            return safe_format_for_telegram(LEXICON_RU['acceptance_rate_55_65'])
-        else:  # > 65%
-            return safe_format_for_telegram(LEXICON_RU['acceptance_rate_65_plus'])
+    # def get_acceptance_rate_recommendation(self, acceptance_rate: float) -> str:
+    #     """
+    #     Get recommendation for acceptance rate.
+    #     
+    #     Gradations based on existing lexicon keys:
+    #     <= 30%: acceptance_rate_0_30
+    #     31-50%: acceptance_rate_31_50
+    #     50-55%: acceptance_rate_50_55
+    #     55-65%: acceptance_rate_55_65
+    #     > 65%: acceptance_rate_65_plus
+    #     
+    #     Args:
+    #         acceptance_rate: Acceptance rate percentage
+    #         
+    #     Returns:
+    #         Recommendation text from lexicon
+    #     """
+    #     if acceptance_rate <= 30:
+    #         return safe_format_for_telegram(LEXICON_RU['acceptance_rate_0_30'])
+    #     elif 31 <= acceptance_rate <= 50:
+    #         return safe_format_for_telegram(LEXICON_RU['acceptance_rate_31_50'])
+    #     elif 50 < acceptance_rate <= 55:
+    #         return safe_format_for_telegram(LEXICON_RU['acceptance_rate_50_55'])
+    #     elif 55 < acceptance_rate <= 65:
+    #         return safe_format_for_telegram(LEXICON_RU['acceptance_rate_55_65'])
+    #     else:  # > 65%
+    #         return safe_format_for_telegram(LEXICON_RU['acceptance_rate_65_plus'])
     
     def get_all_recommendations(
         self, 
         portfolio_rate: float, 
         new_work_rate: float, 
-        limit_usage: float, 
-        acceptance_rate: float
+        limit_usage: float
     ) -> Dict[str, str]:
         """
         Get all recommendations at once.
@@ -134,7 +133,6 @@ class RecommendationEngine:
             portfolio_rate: Portfolio sell-through percentage
             new_work_rate: Percentage of sales from new works
             limit_usage: Percentage of upload limit usage
-            acceptance_rate: Acceptance rate percentage
             
         Returns:
             Dictionary with all recommendations
@@ -142,6 +140,5 @@ class RecommendationEngine:
         return {
             'portfolio_rate_recommendation': self.get_portfolio_rate_recommendation(portfolio_rate),
             'new_work_rate_recommendation': self.get_new_work_rate_recommendation(new_work_rate),
-            'limit_usage_recommendation': self.get_limit_usage_recommendation(limit_usage),
-            'acceptance_rate_recommendation': self.get_acceptance_rate_recommendation(acceptance_rate)
+            'limit_usage_recommendation': self.get_limit_usage_recommendation(limit_usage)
         }

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - IQStocker Admin{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{{ title }}</h1>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <i class="fas fa-tools fa-4x text-muted mb-4"></i>
+                <h3 class="text-muted">{{ title }}</h3>
+                <p class="text-muted lead">{{ description }}</p>
+                <p class="text-muted">Этот раздел находится в разработке и будет доступен в следующих версиях.</p>
+                
+                <div class="mt-4">
+                    <a href="/dashboard" class="btn btn-primary">
+                        <i class="fas fa-arrow-left me-2"></i>Вернуться к дашборду
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

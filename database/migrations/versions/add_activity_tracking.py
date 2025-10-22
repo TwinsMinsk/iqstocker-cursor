@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_activity_tracking'
-down_revision = None
+down_revision = '5f0ff899e96d'
 branch_labels = None
 depends_on = None
 
@@ -19,18 +19,12 @@ depends_on = None
 def upgrade():
     """Add activity tracking fields to User and VideoLesson models."""
     
-    # Add last_activity_at to users table
-    op.add_column('users', sa.Column('last_activity_at', sa.DateTime(), nullable=True))
-    
-    # Add views_count to video_lessons table
-    op.add_column('video_lessons', sa.Column('views_count', sa.Integer(), nullable=False, server_default='0'))
+    # All columns already exist in initial migration
+    pass
 
 
 def downgrade():
     """Remove activity tracking fields."""
     
-    # Remove last_activity_at from users table
-    op.drop_column('users', 'last_activity_at')
-    
-    # Remove views_count from video_lessons table
-    op.drop_column('video_lessons', 'views_count')
+    # All columns already exist in initial migration
+    pass

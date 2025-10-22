@@ -1,7 +1,8 @@
 """Broadcast Message model."""
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import DateTime, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column
 
 from config.database import Base
 
@@ -11,12 +12,12 @@ class BroadcastMessage(Base):
     
     __tablename__ = "broadcast_messages"
     
-    id = Column(Integer, primary_key=True, index=True)
-    text = Column(String(4000), nullable=False)
-    sent_at = Column(DateTime, nullable=True)
-    recipients_count = Column(Integer, default=0, nullable=False)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    text: Mapped[str] = mapped_column(String(4000))
+    sent_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    recipients_count: Mapped[int] = mapped_column(default=0)
     
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     
     def __repr__(self):
         return f"<BroadcastMessage(id={self.id}, recipients={self.recipients_count})>"

@@ -2,7 +2,8 @@
 
 from datetime import datetime
 from enum import Enum
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Enum as SQLEnum
+from sqlalchemy import Boolean, DateTime, Enum as SQLEnum, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column
 from cryptography.fernet import Fernet
 import os
 
@@ -21,17 +22,20 @@ class LLMSettings(Base):
     
     __tablename__ = "llm_settings"
     
-    id = Column(Integer, primary_key=True, index=True)
-    provider_name = Column(SQLEnum(LLMProviderType), nullable=False)
-    api_key_encrypted = Column(String(500), nullable=False)
-    is_active = Column(Boolean, default=False, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, onupdate=datetime.utcnow, nullable=True)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    provider_name: Mapped[LLMProviderType] = mapped_column(SQLEnum(LLMProviderType))
+    api_key_encrypted: Mapped[str] = mapped_column(String(500))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, onupdate=datetime.utcnow, nullable=True)
     
     # Metadata
-    model_name = Column(String(100), nullable=True)
-    requests_count = Column(Integer, default=0, nullable=False)
-    last_used_at = Column(DateTime, nullable=True)
+    model_name: Mapped[str] = mapped_column(String(100), nullable=True)
+    requests_count: Mapped[int] = mapped_column(default=0)
+    last_used_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    
+    # Theme settings
+    theme_request_interval_days: Mapped[int] = mapped_column(Integer, server_default="7")
     
     def encrypt_api_key(self, api_key: str):
         """Encrypt API key before storing."""

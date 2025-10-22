@@ -710,13 +710,13 @@ async def process_csv_analysis(
             
             print(f"✅ CSV обработан: {result.rows_used} продаж, ${result.total_revenue_usd}")
             
-            # Generate bot report using fixed generator
+            # Generate bot report data using fixed generator
             report_generator = FixedReportGenerator()
-            report_text = report_generator.generate_monthly_report(result)
+            report_data = report_generator.generate_monthly_report(result)
             
             # Save results to database
             
-            # Create analytics report
+            # Create analytics report (save combined format for archive)
             analytics_report = AnalyticsReport(
                 csv_analysis_id=csv_analysis_id,
                 total_sales=result.rows_used,
@@ -725,7 +725,7 @@ async def process_csv_analysis(
                 new_works_sales_percent=result.new_works_sales_percent,
                 acceptance_rate_calc=result.acceptance_rate,
                 upload_limit_usage=result.upload_limit_usage,
-                report_text_html=report_text,  # Сохраняем готовый текст
+                report_text_html=report_generator.generate_combined_report_for_archive(result),  # Combined report for archive
                 period_human_ru=result.period_human_ru  # Сохраняем период
             )
             db.add(analytics_report)
@@ -750,13 +750,6 @@ async def process_csv_analysis(
             
             print(f"✅ Результаты сохранены в базу данных")
             
-            # Start theme categorization in background
-            try:
-                from workers.theme_actors import scrape_and_categorize_themes
-                scrape_and_categorize_themes.send(csv_analysis_id)
-                print(f"🔄 Запущена фоновая задача для анализа тем")
-            except Exception as e:
-                print(f"⚠️ Не удалось запустить анализ тем: {e}")
             
             # НОВОЕ: Удаляем все сообщения онбординга перед показом отчета
             if initial_message_ids or last_question_id:
@@ -770,11 +763,73 @@ async def process_csv_analysis(
                     except Exception:
                         pass  # Игнорируем ошибки (сообщение могло быть уже удалено)
 
-            # Отправляем НОВОЕ сообщение с отчетом
-            await message.answer(
-                text=report_text + "\n\n🔄 Сейчас анализирую ваши топ-темы... Это займет 2-3 минуты.",
-                reply_markup=get_main_menu_keyboard(user.subscription_type)
+            # Отправляем последовательность сообщений с отчетом
+            # 1. Итоговый отчет
+            msg1 = await message.answer(
+                text=LEXICON_RU['final_analytics_report'].format(
+                    month=report_data['month'],
+                    year=report_data['year'],
+                    sales_count=report_data['sales_count'],
+                    revenue=report_data['revenue'],
+                    avg_price=report_data['avg_price'],
+                    sold_portfolio_percentage=report_data['sold_portfolio_percentage'],
+                    new_works_percentage=report_data['new_works_percentage']
+                )
             )
+            
+            # 2. Заголовок объяснений
+            msg2 = await message.answer(LEXICON_RU['analytics_explanation_title'])
+            
+            # 3. Объяснение % портфеля, который продался
+            await asyncio.sleep(3)
+            msg3 = await message.answer(
+                text=LEXICON_RU['sold_portfolio_report'].format(
+                    sold_portfolio_percentage=report_data['sold_portfolio_percentage'],
+                    sold_portfolio_text=report_data['sold_portfolio_text']
+                )
+            )
+            
+            # 4. Объяснение доли продаж нового контента
+            await asyncio.sleep(3)
+            msg4 = await message.answer(
+                text=LEXICON_RU['new_works_report'].format(
+                    new_works_percentage=report_data['new_works_percentage'],
+                    new_works_text=report_data['new_works_text']
+                )
+            )
+            
+            # 5. Объяснение % лимита
+            await asyncio.sleep(3)
+            msg5 = await message.answer(
+                text=LEXICON_RU['upload_limit_report'].format(
+                    upload_limit_usage=report_data['upload_limit_usage'],
+                    upload_limit_text=report_data['upload_limit_text']
+                )
+            )
+            
+            # 6. Финальное сообщение с кнопкой "Назад в меню"
+            back_to_menu_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text=LEXICON_COMMANDS_RU['back_to_main_menu'], callback_data="analytics_back_to_menu")]
+            ])
+            
+            final_message = await message.answer(
+                text=LEXICON_RU['analytics_closing_message'],
+                reply_markup=back_to_menu_keyboard
+            )
+            
+            # Сохраняем ID всех сообщений аналитики в базе данных для последующего удаления
+            analytics_message_ids = [
+                msg1.message_id,
+                msg2.message_id, 
+                msg3.message_id,
+                msg4.message_id,
+                msg5.message_id,
+                final_message.message_id
+            ]
+            
+            # Сохраняем ID сообщений в CSV analysis для последующего удаления
+            csv_analysis.analytics_message_ids = ','.join(map(str, analytics_message_ids))
+            db.commit()
             
             print(f"✅ Отчет отправлен пользователю")
             
@@ -798,3 +853,46 @@ async def process_csv_analysis(
             print(f"❌ Ошибка обновления статуса: {db_error}")
         
         await message.answer("❌ Произошла ошибка при обработке файла. Попробуй еще раз.")
+
+
+@router.callback_query(F.data == "analytics_back_to_menu")
+async def analytics_back_to_menu_callback(callback: CallbackQuery, user: User):
+    """Handle back to menu button after analytics report."""
+    
+    # Получаем последний анализ пользователя
+    db = SessionLocal()
+    try:
+        # Находим последний завершенный анализ пользователя
+        last_analysis = db.query(CSVAnalysis).filter(
+            CSVAnalysis.user_id == user.id,
+            CSVAnalysis.status == AnalysisStatus.COMPLETED
+        ).order_by(desc(CSVAnalysis.created_at)).first()
+        
+        if last_analysis and hasattr(last_analysis, 'analytics_message_ids') and last_analysis.analytics_message_ids:
+            # Получаем ID сообщений для удаления
+            message_ids = [int(msg_id) for msg_id in last_analysis.analytics_message_ids.split(',')]
+            
+            # Удаляем все сообщения аналитики
+            for msg_id in message_ids:
+                try:
+                    await callback.bot.delete_message(
+                        chat_id=callback.message.chat.id, 
+                        message_id=msg_id
+                    )
+                except Exception:
+                    pass  # Игнорируем ошибки (сообщение могло быть уже удалено)
+            
+            # Очищаем поле с ID сообщений
+            last_analysis.analytics_message_ids = None
+            db.commit()
+        
+        # Показываем главное меню
+        await callback.message.answer(
+            text="🏠 Возвращаемся в главное меню",
+            reply_markup=get_main_menu_keyboard(user.subscription_type)
+        )
+        
+    finally:
+        db.close()
+    
+    await callback.answer()

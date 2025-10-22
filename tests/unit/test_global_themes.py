@@ -1,11 +1,17 @@
-"""Unit tests for GlobalTheme aggregation logic."""
+"""Unit tests for GlobalTheme aggregation logic.
+
+ПРИМЕЧАНИЕ: Этот тест был создан для тестирования функции update_global_themes,
+которая была удалена вместе с модулем workers.theme_actors.py.
+Функция глубокого анализа тем больше недоступна.
+Топ-темы теперь берутся напрямую из CSV-файла.
+"""
 
 import pytest
 from datetime import datetime
 from decimal import Decimal
 from unittest.mock import Mock, patch
 
-from workers.theme_actors import update_global_themes
+# from workers.theme_actors import update_global_themes  # Удален
 from database.models import GlobalTheme, TopTheme, CSVAnalysis, User, AnalysisStatus, SubscriptionType
 
 

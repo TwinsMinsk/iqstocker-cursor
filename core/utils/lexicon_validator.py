@@ -7,6 +7,11 @@ from bot.lexicon.lexicon_ru import LEXICON_RU
 REQUIRED_KEYS = {
     'analytics': [
         'final_analytics_report',
+        'analytics_explanation_title',
+        'sold_portfolio_report',
+        'new_works_report',
+        'upload_limit_report',
+        'analytics_closing_message',
         'upload_csv_prompt',
         'csv_instruction',
         'ask_portfolio_size',
@@ -34,11 +39,7 @@ REQUIRED_KEYS = {
         'upload_limit_61_80',
         'upload_limit_81_95',
         'upload_limit_97_100',
-        'acceptance_rate_0_30',
-        'acceptance_rate_31_50',
-        'acceptance_rate_50_55',
-        'acceptance_rate_55_65',
-        'acceptance_rate_65_plus',
+        # acceptance_rate keys removed - indicator excluded from reports
         'sold_portfolio_0_1_newbie',
         'sold_portfolio_0_1_pro',
         'sold_portfolio_1_2',

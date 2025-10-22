@@ -1,7 +1,8 @@
 """Video Lesson model."""
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, Boolean
+from sqlalchemy import Boolean, DateTime, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column
 
 from config.database import Base
 
@@ -11,15 +12,15 @@ class VideoLesson(Base):
     
     __tablename__ = "video_lessons"
     
-    id = Column(Integer, primary_key=True, index=True)
-    title = Column(String(255), nullable=False)
-    description = Column(String(1000), nullable=True)
-    url = Column(String(500), nullable=False)
-    order = Column(Integer, default=0, nullable=False)
-    is_pro_only = Column(Boolean, default=False, nullable=False)
-    views_count = Column(Integer, default=0, nullable=False)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str] = mapped_column(String(1000), nullable=True)
+    url: Mapped[str] = mapped_column(String(500))
+    order: Mapped[int] = mapped_column(default=0)
+    is_pro_only: Mapped[bool] = mapped_column(Boolean, default=False)
+    views_count: Mapped[int] = mapped_column(default=0)
     
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     
     def increment_views(self):
         """Increment view count."""

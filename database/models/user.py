@@ -2,8 +2,8 @@
 
 from datetime import datetime
 from enum import Enum
-from sqlalchemy import Column, Integer, String, DateTime, Enum as SQLEnum, Index
-from sqlalchemy.orm import relationship
+from sqlalchemy import BigInteger, Boolean, DateTime, Enum as SQLEnum, String, Index
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from config.database import Base
 
@@ -21,29 +21,52 @@ class User(Base):
     
     __tablename__ = "users"
     
-    id = Column(Integer, primary_key=True, index=True)
-    telegram_id = Column(Integer, unique=True, index=True, nullable=False)
-    username = Column(String(255), nullable=True)
-    first_name = Column(String(255), nullable=True)
-    last_name = Column(String(255), nullable=True)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
+    username: Mapped[str] = mapped_column(String(255), nullable=True)
+    first_name: Mapped[str] = mapped_column(String(255), nullable=True)
+    last_name: Mapped[str] = mapped_column(String(255), nullable=True)
     
-    subscription_type = Column(
+    subscription_type: Mapped[SubscriptionType] = mapped_column(
         SQLEnum(SubscriptionType),
-        default=SubscriptionType.TEST_PRO,
-        nullable=False
+        default=SubscriptionType.TEST_PRO
     )
-    subscription_expires_at = Column(DateTime, nullable=True)
-    test_pro_started_at = Column(DateTime, nullable=True)
+    subscription_expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    test_pro_started_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
-    last_activity_at = Column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, 
+        default=datetime.utcnow, 
+        onupdate=datetime.utcnow
+    )
+    last_activity_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     
-    # Relationships
-    subscriptions = relationship("Subscription", back_populates="user")
-    limits = relationship("Limits", back_populates="user", uselist=False)
-    csv_analyses = relationship("CSVAnalysis", back_populates="user")
-    theme_requests = relationship("ThemeRequest", back_populates="user")
+    # Admin flag
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    
+    # Relationships with cascade delete
+    subscriptions: Mapped[list["Subscription"]] = relationship(
+        back_populates="user", 
+        cascade="all, delete-orphan"
+    )
+    limits: Mapped["Limits"] = relationship(
+        back_populates="user", 
+        uselist=False,
+        cascade="all, delete-orphan"
+    )
+    csv_analyses: Mapped[list["CSVAnalysis"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+    theme_requests: Mapped[list["ThemeRequest"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+    issued_themes: Mapped[list["UserIssuedTheme"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
     
     def update_activity(self):
         """Update last activity timestamp."""

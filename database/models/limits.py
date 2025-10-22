@@ -1,8 +1,8 @@
 """Limits model."""
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, DateTime, ForeignKey
-from sqlalchemy.orm import relationship
+from sqlalchemy import DateTime, ForeignKey, Integer
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from config.database import Base
 
@@ -12,29 +12,33 @@ class Limits(Base):
     
     __tablename__ = "limits"
     
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True, index=True)
     
     # Analytics limits
-    analytics_total = Column(Integer, default=0, nullable=False)
-    analytics_used = Column(Integer, default=0, nullable=False)
+    analytics_total: Mapped[int] = mapped_column(default=0)
+    analytics_used: Mapped[int] = mapped_column(default=0)
     
     # Themes limits
-    themes_total = Column(Integer, default=0, nullable=False)
-    themes_used = Column(Integer, default=0, nullable=False)
+    themes_total: Mapped[int] = mapped_column(default=0)
+    themes_used: Mapped[int] = mapped_column(default=0)
     
     # Top themes limits
-    top_themes_total = Column(Integer, default=0, nullable=False)
-    top_themes_used = Column(Integer, default=0, nullable=False)
+    top_themes_total: Mapped[int] = mapped_column(default=0)
+    top_themes_used: Mapped[int] = mapped_column(default=0)
     
     # Last theme request timestamp
-    last_theme_request_at = Column(DateTime, nullable=True)
+    last_theme_request_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, 
+        default=datetime.utcnow, 
+        onupdate=datetime.utcnow
+    )
     
     # Relationships
-    user = relationship("User", back_populates="limits")
+    user: Mapped["User"] = relationship(back_populates="limits")
     
     def __repr__(self):
         return f"<Limits(id={self.id}, user_id={self.user_id})>"

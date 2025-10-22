@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}Управление темами - IQStocker Admin{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Управление темами</h1>
+</div>
+
+<!-- Settings Form -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Настройки тем</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" action="/themes/update">
+                    <div class="mb-3">
+                        <label for="interval_days" class="form-label">Интервал выдачи тем (дни)</label>
+                        <input type="number" class="form-control" id="interval_days" name="interval_days" 
+                               value="{{ settings.interval_days }}" min="1" max="30" required>
+                        <div class="form-text">Количество дней между запросами тем для пользователей</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="cooldown_message" class="form-label">Сообщение о кулдауне</label>
+                        <textarea class="form-control" id="cooldown_message" name="cooldown_message" 
+                                  rows="3" required>{{ settings.messages.get('themes_cooldown_message', 'Вы уже запрашивали темы недавно. Попробуйте позже.') }}</textarea>
+                        <div class="form-text">Сообщение, которое показывается пользователю при попытке запросить темы раньше времени</div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>Сохранить настройки
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Статистика использования</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6">
+                        <div class="border-end">
+                            <h3 class="text-primary">{{ themes_data | length }}</h3>
+                            <small class="text-muted">Всего тем</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <h3 class="text-success">{{ themes_data | sum(attribute='usage_count') }}</h3>
+                        <small class="text-muted">Всего запросов</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Themes Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Список тем</h5>
+                <a href="/admin/globaltheme" class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-plus me-1"></i>Добавить тему
+                </a>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Название темы</th>
+                                <th>Продажи</th>
+                                <th>Доход</th>
+                                <th>Авторы</th>
+                                <th>Запросы</th>
+                                <th>Последнее обновление</th>
+                                <th>Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in themes_data %}
+                            <tr>
+                                <td>{{ item.theme.id }}</td>
+                                <td>
+                                    <strong>{{ item.theme.theme_name }}</strong>
+                                </td>
+                                <td>
+                                    <span class="badge bg-success">{{ item.theme.total_sales or 0 }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-info">${{ item.theme.total_revenue or 0 }}</span>
+                                </td>
+                                <td>{{ item.theme.authors_count or 0 }}</td>
+                                <td>
+                                    <span class="badge bg-warning">{{ item.usage_count }}</span>
+                                </td>
+                                <td>
+                                    {% if item.theme.last_updated %}
+                                        {{ item.theme.last_updated.strftime('%d.%m.%Y') }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="/admin/globaltheme/{{ item.theme.id }}" class="btn btn-outline-primary">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <a href="/admin/globaltheme/{{ item.theme.id }}/delete" class="btn btn-outline-danger">
+                                            <i class="fas fa-trash"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

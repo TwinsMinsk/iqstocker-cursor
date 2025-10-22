@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+
+{% block title %}Дашборд - IQStocker Admin{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Дашборд</h1>
+</div>
+
+{% if stats.error %}
+<div class="alert alert-danger" role="alert">
+    <h4 class="alert-heading">Ошибка!</h4>
+    <p>{{ stats.error }}</p>
+</div>
+{% endif %}
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+    <div class="col-md-3 mb-3">
+        <div class="card stat-card">
+            <div class="card-body text-center">
+                <i class="fas fa-users fa-2x mb-2"></i>
+                <div class="stat-number">{{ stats.total_users }}</div>
+                <div>Всего пользователей</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card stat-card">
+            <div class="card-body text-center">
+                <i class="fas fa-percentage fa-2x mb-2"></i>
+                <div class="stat-number">{{ stats.conversion_rate }}%</div>
+                <div>Конверсия</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card stat-card">
+            <div class="card-body text-center">
+                <i class="fas fa-crown fa-2x mb-2"></i>
+                <div class="stat-number">{{ stats.subscription_counts.get('PRO', 0) }}</div>
+                <div>Pro подписки</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card stat-card">
+            <div class="card-body text-center">
+                <i class="fas fa-gift fa-2x mb-2"></i>
+                <div class="stat-number">{{ stats.subscription_counts.get('FREE', 0) }}</div>
+                <div>Бесплатные</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Subscription Statistics -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Статистика подписок</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="subscriptionChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Последние пользователи</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Пользователь</th>
+                                <th>Дата регистрации</th>
+                                <th>Подписка</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in stats.latest_users %}
+                            <tr>
+                                <td>{{ user.username }}</td>
+                                <td>{{ user.created_at.strftime('%d.%m.%Y') }}</td>
+                                <td>
+                                    {% if user.subscription_type == 'PRO' %}
+                                        <span class="badge bg-primary">Pro</span>
+                                    {% elif user.subscription_type == 'ULTRA' %}
+                                        <span class="badge bg-warning">Ultra</span>
+                                    {% elif user.subscription_type == 'TEST_PRO' %}
+                                        <span class="badge bg-info">Test Pro</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Free</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Быстрые действия</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-2">
+                        <a href="/themes" class="btn btn-primary w-100">
+                            <i class="fas fa-palette me-2"></i>Управление темами
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="/user-management" class="btn btn-success w-100">
+                            <i class="fas fa-users me-2"></i>Пользователи
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="/broadcast" class="btn btn-warning w-100">
+                            <i class="fas fa-bullhorn me-2"></i>Рассылка
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="/admin" class="btn btn-info w-100">
+                            <i class="fas fa-cogs me-2"></i>SQLAdmin
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Subscription Chart
+    const ctx = document.getElementById('subscriptionChart').getContext('2d');
+    const subscriptionData = {{ stats.subscription_counts | tojson }};
+    
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: Object.keys(subscriptionData),
+            datasets: [{
+                data: Object.values(subscriptionData),
+                backgroundColor: [
+                    '#FF6384',
+                    '#36A2EB',
+                    '#FFCE56',
+                    '#4BC0C0'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}

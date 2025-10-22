@@ -17,12 +17,10 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Add new columns to analytics_reports table
-    op.add_column('analytics_reports', sa.Column('report_text_html', sa.Text(), nullable=True))
-    op.add_column('analytics_reports', sa.Column('period_human_ru', sa.String(length=50), nullable=True))
+    # Columns already exist in initial migration
+    pass
 
 
 def downgrade() -> None:
-    # Remove the added columns
-    op.drop_column('analytics_reports', 'period_human_ru')
-    op.drop_column('analytics_reports', 'report_text_html')
+    # Columns already exist in initial migration
+    pass

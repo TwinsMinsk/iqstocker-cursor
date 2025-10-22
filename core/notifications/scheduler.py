@@ -7,6 +7,7 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from core.notifications.notification_manager import get_notification_manager
+from core.notifications.themes_notifications import notify_weekly_themes
 from core.admin.calendar_manager import CalendarManager
 from database.models import CalendarEntry
 from config.settings import settings
@@ -61,6 +62,14 @@ class TaskScheduler:
             CronTrigger(hour=12, minute=0),
             id='test_pro_expiring_notifications',
             name='Send TEST_PRO expiration notifications'
+        )
+
+        # Daily reminder for weekly themes availability (at 12:00 UTC)
+        self.scheduler.add_job(
+            lambda: notify_weekly_themes(self.bot),
+            CronTrigger(hour=12, minute=0),
+            id='daily_weekly_themes_notify',
+            name='Send daily weekly-themes availability notifications'
         )
         
         # Monthly calendar generation (25th day of month at 12:00 UTC)

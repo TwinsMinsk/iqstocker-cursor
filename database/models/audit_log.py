@@ -1,8 +1,8 @@
 """Audit Log model for tracking admin actions."""
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, DateTime, String, Text, JSON
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import DateTime, Integer, JSON, String, Text
+from sqlalchemy.orm import Mapped, mapped_column
 import uuid
 
 from config.database import Base
@@ -13,33 +13,38 @@ class AuditLog(Base):
 
     __tablename__ = "audit_logs"
 
-    id = Column(Integer, primary_key=True, index=True)
-    log_id = Column(String(36), default=lambda: str(uuid.uuid4()), unique=True, index=True)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    log_id: Mapped[str] = mapped_column(
+        String(36), 
+        default=lambda: str(uuid.uuid4()), 
+        unique=True, 
+        index=True
+    )
     
     # Admin user info
-    admin_username = Column(String(100), nullable=False)
-    admin_ip = Column(String(45), nullable=True)  # IPv6 support
+    admin_username: Mapped[str] = mapped_column(String(100))
+    admin_ip: Mapped[str] = mapped_column(String(45), nullable=True)  # IPv6 support
     
     # Action details
-    action = Column(String(100), nullable=False)  # CREATE, UPDATE, DELETE, LOGIN, LOGOUT, etc.
-    resource_type = Column(String(100), nullable=True)  # User, Subscription, etc.
-    resource_id = Column(String(100), nullable=True)  # ID of the affected resource
+    action: Mapped[str] = mapped_column(String(100))  # CREATE, UPDATE, DELETE, LOGIN, LOGOUT, etc.
+    resource_type: Mapped[str] = mapped_column(String(100), nullable=True)  # User, Subscription, etc.
+    resource_id: Mapped[str] = mapped_column(String(100), nullable=True)  # ID of the affected resource
     
     # Request details
-    request_method = Column(String(10), nullable=True)  # GET, POST, PUT, DELETE
-    request_path = Column(String(500), nullable=True)
-    user_agent = Column(Text, nullable=True)
+    request_method: Mapped[str] = mapped_column(String(10), nullable=True)  # GET, POST, PUT, DELETE
+    request_path: Mapped[str] = mapped_column(String(500), nullable=True)
+    user_agent: Mapped[str] = mapped_column(Text, nullable=True)
     
     # Changes tracking
-    old_values = Column(JSON, nullable=True)  # Previous values
-    new_values = Column(JSON, nullable=True)  # New values
+    old_values: Mapped[dict] = mapped_column(JSON, nullable=True)  # Previous values
+    new_values: Mapped[dict] = mapped_column(JSON, nullable=True)  # New values
     
     # Additional context
-    description = Column(Text, nullable=True)
-    extra_data = Column(JSON, nullable=True)  # Additional data (renamed from metadata)
+    description: Mapped[str] = mapped_column(Text, nullable=True)
+    extra_data: Mapped[dict] = mapped_column(JSON, nullable=True)  # Additional data (renamed from metadata)
     
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     
     def __repr__(self):
         return f"<AuditLog(id={self.id}, action={self.action}, admin={self.admin_username})>"

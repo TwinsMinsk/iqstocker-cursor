@@ -1,8 +1,8 @@
 """Top Theme model."""
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Numeric, Index
-from sqlalchemy.orm import relationship
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, Numeric, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from config.database import Base
 
@@ -12,18 +12,18 @@ class TopTheme(Base):
     
     __tablename__ = "top_themes"
     
-    id = Column(Integer, primary_key=True, index=True)
-    csv_analysis_id = Column(Integer, ForeignKey("csv_analyses.id"), nullable=False)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    csv_analysis_id: Mapped[int] = mapped_column(ForeignKey("csv_analyses.id"), index=True)
     
-    theme_name = Column(String(255), nullable=False)
-    sales_count = Column(Integer, nullable=False)
-    revenue = Column(Numeric(10, 2), nullable=False)
-    rank = Column(Integer, nullable=False)
+    theme_name: Mapped[str] = mapped_column(String(255))
+    sales_count: Mapped[int] = mapped_column()
+    revenue: Mapped[float] = mapped_column(Numeric(10, 2))
+    rank: Mapped[int] = mapped_column()
     
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     
     # Relationships
-    csv_analysis = relationship("CSVAnalysis", back_populates="top_themes")
+    csv_analysis: Mapped["CSVAnalysis"] = relationship(back_populates="top_themes")
     
     def __repr__(self):
         return f"<TopTheme(id={self.id}, theme={self.theme_name}, rank={self.rank})>"

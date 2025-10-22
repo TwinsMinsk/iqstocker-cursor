@@ -15,16 +15,24 @@ def start_dramatiq_worker():
     sys.path.insert(0, os.getcwd())
     
     try:
-        # Импортируем акторы для регистрации
-        from workers.theme_actors import scrape_and_categorize_themes, update_global_themes
-        print("✅ Акторы зарегистрированы")
+        # Проверяем наличие акторов
+        print("🔍 Проверка доступных акторов...")
+        
+        # Импортируем акторы для регистрации (если есть)
+        try:
+            from workers.actors import *
+            print("✅ Акторы зарегистрированы")
+        except ImportError:
+            print("⚠️ Акторы не найдены - возможно, они были удалены")
+            print("💡 Фоновые задачи недоступны")
+            return
         
         # Запускаем воркер
         print("🚀 Запуск воркера...")
         print("📝 Для остановки нажмите Ctrl+C")
         
         # Команда для запуска воркера
-        cmd = [sys.executable, "-m", "dramatiq", "workers.theme_actors"]
+        cmd = [sys.executable, "-m", "dramatiq", "workers.actors"]
         
         # Запускаем процесс
         process = subprocess.run(cmd, cwd=os.getcwd())
@@ -34,7 +42,7 @@ def start_dramatiq_worker():
     except Exception as e:
         print(f"❌ Ошибка запуска воркера: {e}")
         print("\n💡 Альтернативный способ запуска:")
-        print("   python -m dramatiq workers.theme_actors")
+        print("   python -m dramatiq workers.actors")
 
 
 def check_redis():

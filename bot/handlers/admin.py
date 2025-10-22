@@ -9,7 +9,10 @@ from aiogram.fsm.state import State, StatesGroup
 from sqlalchemy.orm import Session
 
 from config.database import SessionLocal
-from database.models import User, SubscriptionType
+from database.models import (
+    User, SubscriptionType, ThemeRequest, UserIssuedTheme,
+    AnalyticsReport, TopTheme, CSVAnalysis, Limits
+)
 from core.admin.broadcast_manager import get_broadcast_manager
 from bot.keyboards.main_menu import get_main_menu_keyboard
 
@@ -23,9 +26,13 @@ class AdminStates(StatesGroup):
 
 def is_admin(user_id: int) -> bool:
     """Check if user is admin."""
-    # Admin user ID from settings
-    ADMIN_USER_ID = 811079407
-    return user_id == ADMIN_USER_ID
+    import os
+    # Список ID админов
+    admin_ids = [
+        811079407,  # Основной админ
+        441882529,  # Новый админ
+    ]
+    return user_id in admin_ids
 
 
 @router.message(F.text.startswith("/admin"))
@@ -459,3 +466,93 @@ async def admin_back_callback(callback: CallbackQuery):
             reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
         )
     await callback.answer()
+
+
+@router.message(F.text == "/resetme")
+async def resetme_command(message: Message, state: FSMContext):
+    """Reset admin profile for testing new user flow."""
+    
+    # Silent check - if not admin, do nothing
+    if not is_admin(message.from_user.id):
+        return
+    
+    db = SessionLocal()
+    try:
+        # Get admin user
+        user = db.query(User).filter(User.telegram_id == message.from_user.id).first()
+        if not user:
+            await message.answer("❌ Профиль не найден.")
+            return
+        
+        # Delete all related data
+        # 1. Theme requests (only ISSUED ones, keep READY themes for system)
+        db.query(ThemeRequest).filter(
+            ThemeRequest.user_id == user.id,
+            ThemeRequest.status == "ISSUED"
+        ).delete()
+        
+        # 2. Issued themes
+        db.query(UserIssuedTheme).filter(UserIssuedTheme.user_id == user.id).delete()
+        
+        # 3. CSV analyses (this will cascade to analytics reports and top themes)
+        csv_analyses = db.query(CSVAnalysis).filter(CSVAnalysis.user_id == user.id).all()
+        for csv_analysis in csv_analyses:
+            # Delete related analytics reports
+            db.query(AnalyticsReport).filter(AnalyticsReport.csv_analysis_id == csv_analysis.id).delete()
+            # Delete related top themes
+            db.query(TopTheme).filter(TopTheme.csv_analysis_id == csv_analysis.id).delete()
+            # Delete the CSV analysis itself
+            db.delete(csv_analysis)
+        
+        # Reset user to default state (like new user with trial)
+        now = datetime.now(timezone.utc)
+        test_pro_expires = now + timedelta(days=14)
+        
+        user.subscription_type = SubscriptionType.TEST_PRO
+        user.test_pro_started_at = now
+        user.subscription_expires_at = test_pro_expires
+        user.created_at = now
+        user.updated_at = now
+        
+        # Reset limits to TEST_PRO values
+        limits = db.query(Limits).filter(Limits.user_id == user.id).first()
+        if limits:
+            limits.analytics_total = 1
+            limits.analytics_used = 0
+            limits.themes_total = 5
+            limits.themes_used = 0
+            limits.top_themes_total = 1
+            limits.top_themes_used = 0
+        else:
+            # Create limits if not exist
+            limits = Limits(
+                user_id=user.id,
+                analytics_total=1,
+                analytics_used=0,
+                themes_total=5,
+                themes_used=0,
+                top_themes_total=1,
+                top_themes_used=0
+            )
+            db.add(limits)
+        
+        db.commit()
+        
+        # Success message
+        await message.answer("✅ Профиль успешно сброшен. Перезапускаю онбординг...")
+        
+        # Pause
+        await asyncio.sleep(1)
+        
+        # Clear state
+        await state.clear()
+        
+        # Restart onboarding - call the welcome sequence from start.py
+        from bot.handlers.start import send_welcome_sequence
+        await send_welcome_sequence(message, user)
+        
+    except Exception as e:
+        db.rollback()
+        await message.answer(f"❌ Ошибка при сбросе профиля: {str(e)}")
+    finally:
+        db.close()
