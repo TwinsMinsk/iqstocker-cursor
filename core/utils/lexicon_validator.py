@@ -41,11 +41,16 @@ REQUIRED_KEYS = {
         'upload_limit_97_100',
         # acceptance_rate keys removed - indicator excluded from reports
         'sold_portfolio_0_1_newbie',
-        'sold_portfolio_0_1_pro',
         'sold_portfolio_1_2',
         'sold_portfolio_2_3',
         'sold_portfolio_3_5',
         'sold_portfolio_5_plus',
+        # New works keys (ID-based logic)
+        'new_works_0_10_newbie',
+        'new_works_10_20',
+        'new_works_20_30',
+        'new_works_30_85',
+        'new_works_85_100',
     ]
 }
 
