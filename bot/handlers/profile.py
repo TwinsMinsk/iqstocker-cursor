@@ -10,7 +10,7 @@ from config.database import SessionLocal
 from database.models import User, Limits, SubscriptionType
 from config.settings import settings
 from bot.lexicon import LEXICON_RU
-from bot.keyboards.profile import get_profile_keyboard, get_profile_test_pro_keyboard, get_profile_offer_keyboard
+from bot.keyboards.profile import get_profile_keyboard, get_profile_test_pro_keyboard, get_profile_offer_keyboard, get_profile_limits_help_keyboard
 from bot.keyboards.main_menu import get_main_menu_keyboard
 from bot.keyboards.callbacks import ProfileCallbackData, CommonCallbackData
 from bot.utils.safe_edit import safe_edit_message
@@ -86,8 +86,77 @@ async def profile_callback(callback: CallbackQuery, user: User, limits: Limits):
 
 @router.callback_query(ProfileCallbackData.filter(F.action == "limits_help"))
 async def show_limits_help(callback: CallbackQuery):
-    """Показывает Alert с информацией о лимитах."""
-    await callback.answer(LEXICON_RU['profile_limits_help'], show_alert=True)
+    """Показывает информацию о лимитах в отдельном сообщении."""
+    await safe_edit_message(
+        callback=callback,
+        text=LEXICON_RU['profile_limits_help'],
+        reply_markup=get_profile_limits_help_keyboard()
+    )
+
+
+@router.callback_query(ProfileCallbackData.filter(F.action == "back_to_profile"))
+async def back_to_profile(callback: CallbackQuery, user: User, limits: Limits):
+    """Возвращает в главный экран профиля."""
+    
+    if user.subscription_type == SubscriptionType.TEST_PRO:
+        # Расчет дат
+        now = datetime.utcnow()
+        expires_at = user.subscription_expires_at
+        days_remaining = (expires_at - now).days if expires_at else 0
+        if days_remaining < 0:
+            days_remaining = 0
+        
+        # Форматирование даты на русском
+        months_ru = [
+            "января", "февраля", "марта", "апреля", "мая", "июня",
+            "июля", "августа", "сентября", "октября", "ноября", "декабря"
+        ]
+        expires_at_formatted = f"{expires_at.day} {months_ru[expires_at.month - 1]} {expires_at.year}" if expires_at else "Не указано"
+
+        text = LEXICON_RU['profile_test_pro_main'].format(
+            days_remaining=days_remaining,
+            expires_at_formatted=expires_at_formatted,
+            themes_used=limits.themes_used,
+            themes_total=limits.themes_total,
+            analytics_used=limits.analytics_used,
+            analytics_total=limits.analytics_total
+        )
+        
+        await safe_edit_message(
+            callback=callback,
+            text=text,
+            reply_markup=get_profile_test_pro_keyboard()
+        )
+    else:
+        # Для других типов подписок используем старую логику
+        subscription_info = ""
+        if user.subscription_type == SubscriptionType.FREE:
+            subscription_info = "🆓 <b>FREE</b>"
+        elif user.subscription_type == SubscriptionType.PRO:
+            subscription_info = "🏆 <b>PRO</b>"
+        elif user.subscription_type == SubscriptionType.ULTRA:
+            subscription_info = "🚀 <b>ULTRA</b>"
+        
+        # Limits info
+        limits_text = f"""
+📊 <b>Аналитика:</b> {limits.analytics_used}/{limits.analytics_total}
+🎯 <b>Темы:</b> {limits.themes_used}/{limits.themes_total}
+"""
+        
+        profile_text = f"""👤 <b>Профиль</b>
+
+<b>Подписка:</b> {subscription_info}
+
+<b>Лимиты:</b>
+{limits_text}
+
+Выбери действие:"""
+        
+        await safe_edit_message(
+            callback=callback,
+            text=profile_text,
+            reply_markup=get_profile_keyboard(user.subscription_type)
+        )
 
 
 @router.callback_query(ProfileCallbackData.filter(F.action == "show_offer"))

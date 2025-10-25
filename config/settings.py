@@ -93,6 +93,7 @@ class PaymentSettings(BaseSettings):
     boosty_client_id: Optional[str] = Field(None, env="BOOSTY_CLIENT_ID")
     boosty_client_secret: Optional[str] = Field(None, env="BOOSTY_CLIENT_SECRET")
     boosty_webhook_secret: Optional[str] = Field(None, env="BOOSTY_WEBHOOK_SECRET")
+    webhook_url: str = Field("https://example.com/boosty_webhook", env="WEBHOOK_URL")
 
 
 class Settings:
@@ -119,6 +120,7 @@ class Settings:
         self.boosty_client_id = self.payment.boosty_client_id
         self.boosty_client_secret = self.payment.boosty_client_secret
         self.boosty_webhook_secret = self.payment.boosty_webhook_secret
+        self.webhook_url = self.payment.webhook_url
 
 
 class AppSettings(BaseSettings):
@@ -200,6 +202,7 @@ class Settings:
         self.boosty_client_id = self.payment.boosty_client_id
         self.boosty_client_secret = self.payment.boosty_client_secret
         self.boosty_webhook_secret = self.payment.boosty_webhook_secret
+        self.webhook_url = self.payment.webhook_url
         
         # App settings compatibility
         self.sentry_dsn = self.app.sentry_dsn

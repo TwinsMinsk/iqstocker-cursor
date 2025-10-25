@@ -75,3 +75,15 @@ def get_profile_offer_keyboard() -> InlineKeyboardMarkup:
     )
     builder.adjust(1)
     return builder.as_markup()
+
+
+def get_profile_limits_help_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура для экрана помощи по лимитам."""
+    builder = InlineKeyboardBuilder()
+    
+    builder.button(
+        text="↩️ Назад в профиль",
+        callback_data=ProfileCallbackData(action="back_to_profile").pack()
+    )
+    builder.adjust(1)
+    return builder.as_markup()
