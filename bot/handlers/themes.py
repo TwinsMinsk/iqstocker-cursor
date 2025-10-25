@@ -51,7 +51,7 @@ async def themes_callback(callback: CallbackQuery, user: User, session: AsyncSes
         time_diff = now - last_request_time
         
         if time_diff < timedelta(days=cooldown_days):
-            days_remaining = cooldown_days - time_diff.days
+            days_remaining = (timedelta(days=cooldown_days) - time_diff).days or 1
             await safe_edit_message(
                 callback=callback,
                 text=LEXICON_RU['themes_cooldown'].format(days=days_remaining),

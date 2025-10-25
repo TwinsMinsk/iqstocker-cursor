@@ -10,7 +10,15 @@ from config.database import SessionLocal
 from database.models import User, Limits, SubscriptionType
 from config.settings import settings
 from bot.lexicon import LEXICON_RU
-from bot.keyboards.profile import get_profile_keyboard, get_profile_test_pro_keyboard, get_profile_offer_keyboard, get_profile_limits_help_keyboard
+from bot.keyboards.profile import (
+    get_profile_keyboard,
+    get_profile_test_pro_keyboard,
+    get_profile_offer_keyboard,
+    get_profile_limits_help_keyboard,
+    get_profile_free_keyboard,
+    get_profile_compare_keyboard,
+    get_profile_free_offer_keyboard,
+)
 from bot.keyboards.main_menu import get_main_menu_keyboard
 from bot.keyboards.callbacks import ProfileCallbackData, CommonCallbackData
 from bot.utils.safe_edit import safe_edit_message
@@ -50,6 +58,16 @@ async def profile_callback(callback: CallbackQuery, user: User, limits: Limits):
             callback=callback,
             text=text,
             reply_markup=get_profile_test_pro_keyboard()
+        )
+    elif user.subscription_type == SubscriptionType.FREE:
+        text = LEXICON_RU['profile_free_main'].format(
+            themes_used=limits.themes_used,
+            themes_total=limits.themes_total
+        )
+        await safe_edit_message(
+            callback=callback,
+            text=text,
+            reply_markup=get_profile_free_keyboard()
         )
     else:
         # Используем старую логику для других типов подписок
@@ -127,6 +145,16 @@ async def back_to_profile(callback: CallbackQuery, user: User, limits: Limits):
             text=text,
             reply_markup=get_profile_test_pro_keyboard()
         )
+    elif user.subscription_type == SubscriptionType.FREE:
+        text = LEXICON_RU['profile_free_main'].format(
+            themes_used=limits.themes_used,
+            themes_total=limits.themes_total
+        )
+        await safe_edit_message(
+            callback=callback,
+            text=text,
+            reply_markup=get_profile_free_keyboard()
+        )
     else:
         # Для других типов подписок используем старую логику
         subscription_info = ""
@@ -169,6 +197,27 @@ async def show_payment_offer(callback: CallbackQuery):
     )
 
 
+@router.callback_query(ProfileCallbackData.filter(F.action == "compare_free_pro"))
+async def show_compare_free_pro(callback: CallbackQuery):
+    """Показывает экран сравнения FREE vs PRO."""
+    await safe_edit_message(
+        callback=callback,
+        text=LEXICON_RU['profile_free_compare'],
+        reply_markup=get_profile_compare_keyboard(),
+        parse_mode="HTML"
+    )
+
+
+@router.callback_query(ProfileCallbackData.filter(F.action == "show_free_offer"))
+async def show_free_payment_offer(callback: CallbackQuery):
+    """Показывает сообщение с предложением о покупке для FREE."""
+    await safe_edit_message(
+        callback=callback,
+        text=LEXICON_RU.get('profile_free_offer', "Выберите тариф:"),
+        reply_markup=get_profile_free_offer_keyboard()
+    )
+
+
 @router.callback_query(CommonCallbackData.filter(F.action == "main_menu"))
 async def return_to_main_menu(callback: CallbackQuery, user: User, state: FSMContext):
     """Возвращает в главное меню."""
@@ -189,17 +238,6 @@ async def limits_info_callback(callback: CallbackQuery, user: User):
     await safe_edit_message(
         callback=callback,
         text=LEXICON_RU.get('limits_info', 'Информация о лимитах'),
-        reply_markup=get_profile_keyboard(user.subscription_type)
-    )
-
-
-@router.callback_query(F.data == "compare_free_pro")
-async def compare_free_pro_callback(callback: CallbackQuery, user: User):
-    """Handle compare FREE and PRO callback."""
-    
-    await safe_edit_message(
-        callback=callback,
-        text=LEXICON_RU.get('tariffs_comparison', 'Сравнение тарифов'),
         reply_markup=get_profile_keyboard(user.subscription_type)
     )
 

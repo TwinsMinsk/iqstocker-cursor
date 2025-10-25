@@ -9,6 +9,8 @@ from database.models import User, SubscriptionType, Limits
 from core.payments.boosty_handler import get_payment_handler
 from bot.keyboards.main_menu import get_main_menu_keyboard
 from bot.keyboards.callbacks import PaymentCallbackData
+from bot.lexicon import LEXICON_RU
+from bot.utils.safe_edit import safe_edit_message
 
 router = Router()
 
@@ -29,8 +31,9 @@ async def upgrade_pro_callback(callback: CallbackQuery, user: User):
         )
     
     if not payment_url:
-        await callback.message.edit_text(
-            "❌ Не удалось создать ссылку для оплаты. Попробуй еще раз позже.",
+        await safe_edit_message(
+            callback=callback,
+            text="❌ Не удалось создать ссылку для оплаты. Попробуй еще раз позже.",
             reply_markup=get_main_menu_keyboard(user.subscription_type)
         )
         await callback.answer()
@@ -79,8 +82,9 @@ async def upgrade_pro_callback(callback: CallbackQuery, user: User):
         ]
     ]
     
-    await callback.message.edit_text(
-        payment_text,
+    await safe_edit_message(
+        callback=callback,
+        text=payment_text,
         reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
     )
     await callback.answer()
@@ -102,8 +106,9 @@ async def upgrade_ultra_callback(callback: CallbackQuery, user: User):
         )
     
     if not payment_url:
-        await callback.message.edit_text(
-            "❌ Не удалось создать ссылку для оплаты. Попробуй еще раз позже.",
+        await safe_edit_message(
+            callback=callback,
+            text="❌ Не удалось создать ссылку для оплаты. Попробуй еще раз позже.",
             reply_markup=get_main_menu_keyboard(user.subscription_type)
         )
         await callback.answer()
@@ -152,8 +157,9 @@ async def upgrade_ultra_callback(callback: CallbackQuery, user: User):
         ]
     ]
     
-    await callback.message.edit_text(
-        payment_text,
+    await safe_edit_message(
+        callback=callback,
+        text=payment_text,
         reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
     )
     await callback.answer()
@@ -211,8 +217,9 @@ async def compare_subscriptions_callback(callback: CallbackQuery, user: User):
         ]
     ]
     
-    await callback.message.edit_text(
-        comparison_text,
+    await safe_edit_message(
+        callback=callback,
+        text=comparison_text,
         reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
     )
     await callback.answer()
@@ -261,8 +268,9 @@ async def compare_free_pro_callback(callback: CallbackQuery, user: User):
         ]
     ]
     
-    await callback.message.edit_text(
-        comparison_text,
+    await safe_edit_message(
+        callback=callback,
+        text=comparison_text,
         reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
     )
     await callback.answer()
@@ -310,8 +318,9 @@ async def compare_pro_ultra_callback(callback: CallbackQuery, user: User):
         ]
     ]
     
-    await callback.message.edit_text(
-        comparison_text,
+    await safe_edit_message(
+        callback=callback,
+        text=comparison_text,
         reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
     )
     await callback.answer()
@@ -333,8 +342,9 @@ async def payment_pro_test_discount_callback(callback: CallbackQuery, user: User
         )
     
     if not payment_url:
-        await callback.message.edit_text(
-            "❌ Не удалось создать ссылку для оплаты. Попробуй еще раз позже.",
+        await safe_edit_message(
+            callback=callback,
+            text="❌ Не удалось создать ссылку для оплаты. Попробуй еще раз позже.",
             reply_markup=get_main_menu_keyboard(user.subscription_type)
         )
         await callback.answer()
@@ -366,8 +376,44 @@ async def payment_pro_test_discount_callback(callback: CallbackQuery, user: User
         ]
     ]
     
-    await callback.message.edit_text(
-        payment_text,
+    await safe_edit_message(
+        callback=callback,
+        text=payment_text,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
+    )
+    await callback.answer()
+
+
+@router.callback_query(PaymentCallbackData.filter(F.plan == "pro"))
+async def payment_pro_std_callback(callback: CallbackQuery, user: User):
+    """Handle PRO subscription without discount."""
+
+    payment_handler = get_payment_handler()
+
+    async with payment_handler as handler:
+        payment_url = await handler.create_subscription_link(
+            user.id,
+            SubscriptionType.PRO,
+            0
+        )
+
+    if not payment_url:
+        await safe_edit_message(
+            callback=callback,
+            text="❌ Не удалось создать ссылку для оплаты. Попробуй еще раз позже.",
+            reply_markup=get_main_menu_keyboard(user.subscription_type)
+        )
+        await callback.answer()
+        return
+
+    keyboard = [
+        [InlineKeyboardButton(text="💳 Оплатить PRO", url=payment_url)],
+        [InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")]
+    ]
+
+    await safe_edit_message(
+        callback=callback,
+        text=LEXICON_RU['payment_pro_std_details'],
         reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
     )
     await callback.answer()
@@ -389,8 +435,9 @@ async def payment_ultra_test_discount_callback(callback: CallbackQuery, user: Us
         )
     
     if not payment_url:
-        await callback.message.edit_text(
-            "❌ Не удалось создать ссылку для оплаты. Попробуй еще раз позже.",
+        await safe_edit_message(
+            callback=callback,
+            text="❌ Не удалось создать ссылку для оплаты. Попробуй еще раз позже.",
             reply_markup=get_main_menu_keyboard(user.subscription_type)
         )
         await callback.answer()
@@ -422,8 +469,44 @@ async def payment_ultra_test_discount_callback(callback: CallbackQuery, user: Us
         ]
     ]
     
-    await callback.message.edit_text(
-        payment_text,
+    await safe_edit_message(
+        callback=callback,
+        text=payment_text,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
+    )
+    await callback.answer()
+
+
+@router.callback_query(PaymentCallbackData.filter(F.plan == "ultra"))
+async def payment_ultra_std_callback(callback: CallbackQuery, user: User):
+    """Handle ULTRA subscription without discount."""
+
+    payment_handler = get_payment_handler()
+
+    async with payment_handler as handler:
+        payment_url = await handler.create_subscription_link(
+            user.id,
+            SubscriptionType.ULTRA,
+            0
+        )
+
+    if not payment_url:
+        await safe_edit_message(
+            callback=callback,
+            text="❌ Не удалось создать ссылку для оплаты. Попробуй еще раз позже.",
+            reply_markup=get_main_menu_keyboard(user.subscription_type)
+        )
+        await callback.answer()
+        return
+
+    keyboard = [
+        [InlineKeyboardButton(text="💳 Оплатить ULTRA", url=payment_url)],
+        [InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")]
+    ]
+
+    await safe_edit_message(
+        callback=callback,
+        text=LEXICON_RU['payment_ultra_std_details'],
         reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
     )
     await callback.answer()

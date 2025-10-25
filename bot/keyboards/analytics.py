@@ -73,9 +73,9 @@ def get_analytics_unavailable_keyboard(subscription_type: SubscriptionType) -> I
     # Add subscription buttons for FREE users
     if subscription_type == SubscriptionType.FREE:
         keyboard.extend([
-            [InlineKeyboardButton(text=LEXICON_COMMANDS_RU['subscribe_pro'], callback_data="upgrade_pro")],
+            [InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_subscribe_pro'], callback_data="upgrade_pro")],
             [InlineKeyboardButton(text=LEXICON_COMMANDS_RU['compare_tariffs'], callback_data="compare_free_pro")],
-            [InlineKeyboardButton(text=LEXICON_COMMANDS_RU['how_limits_work'], callback_data="limits_info")]
+            [InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_limits_help'], callback_data="limits_info")]
         ])
     
     # Add back to menu button

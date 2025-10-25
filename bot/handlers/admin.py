@@ -9,12 +9,16 @@ from aiogram.fsm.state import State, StatesGroup
 from sqlalchemy.orm import Session
 
 from config.database import SessionLocal
+from config.settings import settings
 from database.models import (
     User, SubscriptionType, ThemeRequest, UserIssuedTheme,
     AnalyticsReport, CSVAnalysis, Limits
 )
 from core.admin.broadcast_manager import get_broadcast_manager
 from bot.keyboards.main_menu import get_main_menu_keyboard
+from bot.lexicon import LEXICON_RU, LEXICON_COMMANDS_RU
+from bot.keyboards.admin import get_admin_tariff_keyboard
+from bot.keyboards.callbacks import ActionCallback
 
 router = Router()
 
@@ -71,9 +75,10 @@ async def admin_command(message: Message, state: FSMContext):
             InlineKeyboardButton(text="⚙️ Система", callback_data="admin_system")
         ],
         [
-            InlineKeyboardButton(text="📈 Здоровье", callback_data="admin_health"),
-            InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
-        ]
+            InlineKeyboardButton(text=LEXICON_COMMANDS_RU['admin_manage_tariff'], callback_data="admin_manage_tariff"),
+            InlineKeyboardButton(text="📈 Здоровье", callback_data="admin_health")
+        ],
+        [InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")]
     ]
     
     await message.answer(
@@ -450,9 +455,10 @@ async def admin_back_callback(callback: CallbackQuery):
             InlineKeyboardButton(text="⚙️ Система", callback_data="admin_system")
         ],
         [
-            InlineKeyboardButton(text="📈 Здоровье", callback_data="admin_health"),
-            InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
-        ]
+            InlineKeyboardButton(text=LEXICON_COMMANDS_RU['admin_manage_tariff'], callback_data="admin_manage_tariff"),
+            InlineKeyboardButton(text="📈 Здоровье", callback_data="admin_health")
+        ],
+        [InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")]
     ]
     
     try:
@@ -466,6 +472,120 @@ async def admin_back_callback(callback: CallbackQuery):
             reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
         )
     await callback.answer()
+
+
+@router.callback_query(F.data == "admin_manage_tariff")
+async def admin_manage_tariff(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("❌ У вас нет прав администратора.")
+        return
+
+    try:
+        await callback.message.edit_text(
+            LEXICON_RU['admin_tariff_menu'],
+            reply_markup=get_admin_tariff_keyboard()
+        )
+    except Exception:
+        await callback.message.answer(
+            LEXICON_RU['admin_tariff_menu'],
+            reply_markup=get_admin_tariff_keyboard()
+        )
+    await callback.answer()
+
+
+@router.callback_query(ActionCallback.filter(F.action == "admin_set_tariff"))
+async def admin_set_tariff(callback: CallbackQuery, callback_data: ActionCallback):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("❌ У вас нет прав администратора.")
+        return
+
+    target_type = callback_data.param
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.telegram_id == callback.from_user.id).first()
+        if not user:
+            await callback.answer()
+            await callback.message.edit_text(
+                LEXICON_RU['admin_tariff_error_user'],
+                reply_markup=get_admin_tariff_keyboard()
+            )
+            return
+
+        limits = db.query(Limits).filter(Limits.user_id == user.id).first()
+        if not limits:
+            limits = Limits(user_id=user.id)
+            db.add(limits)
+            db.flush()
+
+        set_admin_subscription(user, limits, target_type)
+        db.commit()
+
+        subscription_label = LEXICON_RU.get(f'subscription_label_{target_type}', target_type)
+        expires_at = (
+            user.subscription_expires_at.strftime("%d.%m.%Y")
+            if user.subscription_expires_at
+            else LEXICON_RU['admin_tariff_expires_unlimited']
+        )
+
+        await callback.message.edit_text(
+            LEXICON_RU['admin_tariff_success'].format(
+                subscription=subscription_label,
+                expires_at=expires_at,
+                analytics_used=limits.analytics_used,
+                analytics_total=limits.analytics_total,
+                themes_used=limits.themes_used,
+                themes_total=limits.themes_total,
+            ),
+            reply_markup=get_admin_tariff_keyboard()
+        )
+        await callback.answer("✅ Тариф обновлен")
+    except Exception:
+        db.rollback()
+        await callback.message.edit_text(
+            LEXICON_RU['admin_tariff_error_unknown'],
+            reply_markup=get_admin_tariff_keyboard()
+        )
+        await callback.answer("❌ Ошибка")
+    finally:
+        db.close()
+
+
+def set_admin_subscription(user: User, limits: Limits, target_type: str):
+    from datetime import datetime, timedelta
+
+    now = datetime.utcnow()
+    if target_type == "TEST_PRO":
+        user.subscription_type = SubscriptionType.TEST_PRO
+        user.subscription_expires_at = now + timedelta(days=settings.test_pro_duration_days)
+        limits.analytics_total = settings.test_pro_analytics_limit
+        limits.analytics_used = 0
+        limits.themes_total = settings.test_pro_themes_limit
+        limits.themes_used = 0
+    elif target_type == "FREE":
+        user.subscription_type = SubscriptionType.FREE
+        user.subscription_expires_at = None
+        limits.analytics_total = settings.free_analytics_limit
+        limits.analytics_used = 0
+        limits.themes_total = settings.free_themes_limit
+        limits.themes_used = 0
+    elif target_type == "PRO":
+        user.subscription_type = SubscriptionType.PRO
+        user.subscription_expires_at = now + timedelta(days=30)
+        limits.analytics_total = settings.pro_analytics_limit
+        limits.analytics_used = 0
+        limits.themes_total = settings.pro_themes_limit
+        limits.themes_used = 0
+    elif target_type == "ULTRA":
+        user.subscription_type = SubscriptionType.ULTRA
+        user.subscription_expires_at = now + timedelta(days=30)
+        limits.analytics_total = settings.ultra_analytics_limit
+        limits.analytics_used = 0
+        limits.themes_total = settings.ultra_themes_limit
+        limits.themes_used = 0
+    else:
+        raise ValueError("Unsupported subscription type")
+
+    user.updated_at = now
 
 
 @router.message(F.text == "/resetme")

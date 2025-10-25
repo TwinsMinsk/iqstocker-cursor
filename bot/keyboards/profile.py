@@ -3,7 +3,7 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from database.models import SubscriptionType
-from bot.lexicon.lexicon_ru import LEXICON_COMMANDS_RU
+from bot.lexicon.lexicon_ru import LEXICON_RU, LEXICON_COMMANDS_RU
 from bot.keyboards.callbacks import ProfileCallbackData, CommonCallbackData, PaymentCallbackData
 
 
@@ -82,7 +82,68 @@ def get_profile_limits_help_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     
     builder.button(
-        text="↩️ Назад в профиль",
+        text=LEXICON_COMMANDS_RU['button_back_profile'],
+        callback_data=ProfileCallbackData(action="back_to_profile").pack()
+    )
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_profile_free_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура для главного экрана профиля FREE."""
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text=LEXICON_COMMANDS_RU['button_subscribe'],
+        callback_data=ProfileCallbackData(action="show_free_offer").pack()
+    )
+    builder.button(
+        text=LEXICON_COMMANDS_RU['button_compare_free_pro'],
+        callback_data=ProfileCallbackData(action="compare_free_pro").pack()
+    )
+    builder.button(
+        text=LEXICON_COMMANDS_RU['button_limits_help'],
+        callback_data=ProfileCallbackData(action="limits_help").pack()
+    )
+    builder.button(
+        text=LEXICON_COMMANDS_RU['button_back_to_menu'],
+        callback_data=CommonCallbackData(action="main_menu").pack()
+    )
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_profile_compare_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура для экрана сравнения FREE vs PRO."""
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text=LEXICON_COMMANDS_RU['button_subscribe_pro_compare'],
+        callback_data=PaymentCallbackData(plan="pro").pack()
+    )
+    builder.button(
+        text=LEXICON_COMMANDS_RU['button_back_profile'],
+        callback_data=ProfileCallbackData(action="back_to_profile").pack()
+    )
+    builder.button(
+        text=LEXICON_COMMANDS_RU['button_back_to_menu'],
+        callback_data=CommonCallbackData(action="main_menu").pack()
+    )
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_profile_free_offer_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура для предложения о покупке (из профиля FREE)."""
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text=LEXICON_COMMANDS_RU['button_subscribe_pro_std'],
+        callback_data=PaymentCallbackData(plan="pro").pack()
+    )
+    builder.button(
+        text=LEXICON_COMMANDS_RU['button_subscribe_ultra_std'],
+        callback_data=PaymentCallbackData(plan="ultra").pack()
+    )
+    builder.button(
+        text=LEXICON_COMMANDS_RU['button_back_profile'],
         callback_data=ProfileCallbackData(action="back_to_profile").pack()
     )
     builder.adjust(1)
