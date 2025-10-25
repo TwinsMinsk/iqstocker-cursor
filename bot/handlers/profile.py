@@ -40,7 +40,6 @@ async def profile_callback(callback: CallbackQuery, user: User, limits: Limits):
     limits_text = f"""
 📊 <b>Аналитика:</b> {limits.analytics_used}/{limits.analytics_total}
 🎯 <b>Темы:</b> {limits.themes_used}/{limits.themes_total}
-🏆 <b>Топ тем:</b> {limits.top_themes_used}/{limits.top_themes_total}
 """
     
     profile_text = f"""👤 <b>Профиль</b>

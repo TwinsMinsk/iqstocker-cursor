@@ -62,9 +62,7 @@ async def create_new_user(message: Message, db):
         analytics_total=1,  # 1 аналитика для тестового периода
         analytics_used=0,
         themes_total=5,  # 5 тем в неделю для тестового периода
-        themes_used=0,
-        top_themes_total=1,  # Топ-5 тем для тестового периода
-        top_themes_used=0
+        themes_used=0
     )
     db.add(limits)
     db.commit()
@@ -102,7 +100,6 @@ async def handle_existing_user(message: Message, user: User, db):
             if user.limits:
                 user.limits.analytics_total = 0
                 user.limits.themes_total = 1
-                user.limits.top_themes_total = 0
             
             db.commit()
     

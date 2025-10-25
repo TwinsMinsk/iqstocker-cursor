@@ -93,11 +93,9 @@ class PaymentHandler:
         if subscription_type == SubscriptionType.PRO:
             limits.analytics_total += settings.pro_analytics_limit
             limits.themes_total += settings.pro_themes_limit
-            limits.top_themes_total += settings.pro_top_themes_limit
         elif subscription_type == SubscriptionType.ULTRA:
             limits.analytics_total += settings.ultra_analytics_limit
             limits.themes_total += settings.ultra_themes_limit
-            limits.top_themes_total += settings.ultra_top_themes_limit
     
     def _create_limits_for_subscription(self, user_id: int, subscription_type: SubscriptionType) -> Limits:
         """Create limits for subscription type."""
@@ -106,11 +104,9 @@ class PaymentHandler:
         if subscription_type == SubscriptionType.PRO:
             limits.analytics_total = settings.pro_analytics_limit
             limits.themes_total = settings.pro_themes_limit
-            limits.top_themes_total = settings.pro_top_themes_limit
         elif subscription_type == SubscriptionType.ULTRA:
             limits.analytics_total = settings.ultra_analytics_limit
             limits.themes_total = settings.ultra_themes_limit
-            limits.top_themes_total = settings.ultra_top_themes_limit
         
         return limits
     
@@ -135,7 +131,6 @@ class PaymentHandler:
                 if limits:
                     limits.analytics_total = settings.free_analytics_limit
                     limits.themes_total = settings.free_themes_limit
-                    limits.top_themes_total = 0
                 
                 expired_count += 1
             

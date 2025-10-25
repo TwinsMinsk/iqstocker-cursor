@@ -99,21 +99,6 @@ def create_themes_keyboard(
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
-def get_top_themes_keyboard(subscription_type: SubscriptionType) -> InlineKeyboardMarkup:
-    """Create top themes section keyboard."""
-    keyboard = []
-    
-    # Add refresh button (optional - can be implemented later)
-    # keyboard.append([
-    #     InlineKeyboardButton(text="🔄 Обновить топ тем", callback_data="refresh_top_themes")
-    # ])
-    
-    # Add back to menu button
-    keyboard.append([
-        InlineKeyboardButton(text=LEXICON_COMMANDS_RU['back_to_main_menu'], callback_data="main_menu")
-    ])
-    
-    return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
 def get_calendar_keyboard(subscription_type: SubscriptionType) -> InlineKeyboardMarkup:

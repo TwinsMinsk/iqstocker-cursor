@@ -6,7 +6,6 @@ from .subscription import Subscription
 from .limits import Limits
 from .csv_analysis import CSVAnalysis, ContentType, AnalysisStatus
 from .analytics_report import AnalyticsReport
-from .top_theme import TopTheme
 from .theme_request import ThemeRequest
 from .global_theme import GlobalTheme
 from .user_issued_theme import UserIssuedTheme
@@ -28,7 +27,6 @@ __all__ = [
     "ContentType",
     "AnalysisStatus",
     "AnalyticsReport",
-    "TopTheme",
     "ThemeRequest",
     "GlobalTheme",
     "UserIssuedTheme",

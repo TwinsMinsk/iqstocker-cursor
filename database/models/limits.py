@@ -23,9 +23,6 @@ class Limits(Base):
     themes_total: Mapped[int] = mapped_column(default=0)
     themes_used: Mapped[int] = mapped_column(default=0)
     
-    # Top themes limits
-    top_themes_total: Mapped[int] = mapped_column(default=0)
-    top_themes_used: Mapped[int] = mapped_column(default=0)
     
     # Last theme request timestamp
     last_theme_request_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
@@ -53,7 +50,3 @@ class Limits(Base):
         """Get remaining themes limit."""
         return max(0, self.themes_total - self.themes_used)
     
-    @property
-    def top_themes_remaining(self) -> int:
-        """Get remaining top themes limit."""
-        return max(0, self.top_themes_total - self.top_themes_used)

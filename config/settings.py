@@ -165,11 +165,9 @@ class AppSettings(BaseSettings):
     
     pro_analytics_limit: int = Field(2, env="PRO_ANALYTICS_LIMIT")
     pro_themes_limit: int = Field(5, env="PRO_THEMES_LIMIT")
-    pro_top_themes_limit: int = Field(5, env="PRO_TOP_THEMES_LIMIT")
     
     ultra_analytics_limit: int = Field(4, env="ULTRA_ANALYTICS_LIMIT")
     ultra_themes_limit: int = Field(10, env="ULTRA_THEMES_LIMIT")
-    ultra_top_themes_limit: int = Field(10, env="ULTRA_TOP_THEMES_LIMIT")
     
     # New works definition (ID threshold)
     # Пороговое значение ID для определения "новых" работ (ID >= этого значения считаются новыми)
@@ -223,10 +221,8 @@ class Settings:
         self.test_pro_themes_limit = self.app.test_pro_themes_limit
         self.pro_analytics_limit = self.app.pro_analytics_limit
         self.pro_themes_limit = self.app.pro_themes_limit
-        self.pro_top_themes_limit = self.app.pro_top_themes_limit
         self.ultra_analytics_limit = self.app.ultra_analytics_limit
         self.ultra_themes_limit = self.app.ultra_themes_limit
-        self.ultra_top_themes_limit = self.app.ultra_top_themes_limit
         self.new_works_id_prefix = self.app.new_works_id_prefix
 
 

@@ -14,7 +14,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.database import SessionLocal
-from database.models import User, SubscriptionType, AnalysisStatus, Limits, TopTheme
+from database.models import User, SubscriptionType, AnalysisStatus, Limits
 from database.models.csv_analysis import CSVAnalysis
 from database.models.analytics_report import AnalyticsReport
 from bot.lexicon import LEXICON_RU
@@ -912,16 +912,6 @@ async def process_csv_analysis(
             db.add(analytics_report)
             db.flush()
             
-            # Save top themes
-            for i, (_, row) in enumerate(result.top10_by_revenue.head(10).iterrows()):
-                top_theme = TopTheme(
-                    csv_analysis_id=csv_analysis_id,
-                    theme_name=row['asset_title'],
-                    sales_count=int(row['total_sales']),
-                    revenue=float(row['total_revenue']),
-                    rank=i + 1
-                )
-                db.add(top_theme)
             
             # Update CSV analysis status
             csv_analysis.status = AnalysisStatus.COMPLETED

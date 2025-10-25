@@ -521,8 +521,6 @@ async def resetme_command(message: Message, state: FSMContext):
             limits.analytics_used = 0
             limits.themes_total = 5
             limits.themes_used = 0
-            limits.top_themes_total = 1
-            limits.top_themes_used = 0
         else:
             # Create limits if not exist
             limits = Limits(
@@ -530,9 +528,7 @@ async def resetme_command(message: Message, state: FSMContext):
                 analytics_total=1,
                 analytics_used=0,
                 themes_total=5,
-                themes_used=0,
-                top_themes_total=1,
-                top_themes_used=0
+                themes_used=0
             )
             db.add(limits)
         
