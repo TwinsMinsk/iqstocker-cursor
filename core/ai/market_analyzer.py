@@ -10,7 +10,7 @@ from sklearn.cluster import KMeans
 import pandas as pd
 
 from config.database import SessionLocal
-from database.models import GlobalTheme, TopTheme, CSVAnalysis, AnalyticsReport
+from database.models import GlobalTheme, CSVAnalysis, AnalyticsReport
 
 
 class MarketAnalyzer:

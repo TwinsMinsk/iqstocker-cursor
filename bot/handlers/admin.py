@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from config.database import SessionLocal
 from database.models import (
     User, SubscriptionType, ThemeRequest, UserIssuedTheme,
-    AnalyticsReport, TopTheme, CSVAnalysis, Limits
+    AnalyticsReport, CSVAnalysis, Limits
 )
 from core.admin.broadcast_manager import get_broadcast_manager
 from bot.keyboards.main_menu import get_main_menu_keyboard
@@ -499,8 +499,6 @@ async def resetme_command(message: Message, state: FSMContext):
         for csv_analysis in csv_analyses:
             # Delete related analytics reports
             db.query(AnalyticsReport).filter(AnalyticsReport.csv_analysis_id == csv_analysis.id).delete()
-            # Delete related top themes
-            db.query(TopTheme).filter(TopTheme.csv_analysis_id == csv_analysis.id).delete()
             # Delete the CSV analysis itself
             db.delete(csv_analysis)
         

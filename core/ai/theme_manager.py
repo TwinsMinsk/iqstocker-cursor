@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
 from config.database import SessionLocal
-from database.models import GlobalTheme, TopTheme, User, SubscriptionType
+from database.models import GlobalTheme, User, SubscriptionType
 from core.ai.categorizer import ThemeCategorizer
 
 
@@ -22,39 +22,10 @@ class ThemeManager:
         if hasattr(self, 'db'):
             self.db.close()
     
-    def update_global_themes(self, top_themes: List[TopTheme]):
-        """Update global themes database with new top themes."""
-        
-        try:
-            for top_theme in top_themes:
-                # Check if theme already exists
-                existing_theme = self.db.query(GlobalTheme).filter(
-                    GlobalTheme.theme_name == top_theme.theme_name
-                ).first()
-                
-                if existing_theme:
-                    # Update existing theme
-                    existing_theme.total_sales += top_theme.sales_count
-                    existing_theme.total_revenue += top_theme.revenue
-                    existing_theme.authors_count += 1
-                    existing_theme.last_updated = datetime.utcnow()
-                else:
-                    # Create new theme
-                    new_theme = GlobalTheme(
-                        theme_name=top_theme.theme_name,
-                        total_sales=top_theme.sales_count,
-                        total_revenue=top_theme.revenue,
-                        authors_count=1,
-                        last_updated=datetime.utcnow()
-                    )
-                    self.db.add(new_theme)
-            
-            self.db.commit()
-            print(f"Updated global themes with {len(top_themes)} themes")
-            
-        except Exception as e:
-            print(f"Error updating global themes: {e}")
-            self.db.rollback()
+    # def update_global_themes(self, top_themes: List[TopTheme]):
+    #     """Update global themes database with new top themes."""
+    #     # TopTheme functionality removed
+    #     pass
     
     def get_trending_themes(self, limit: int = 20) -> List[GlobalTheme]:
         """Get trending themes from global database."""
@@ -72,22 +43,8 @@ class ThemeManager:
     
     def get_user_top_themes(self, user_id: int, limit: int = 10) -> List[str]:
         """Get user's top themes from their analytics."""
-        
-        try:
-            # Get user's top themes from their CSV analyses
-            top_themes = self.db.query(TopTheme).join(
-                TopTheme.csv_analysis
-            ).filter(
-                TopTheme.csv_analysis.has(user_id=user_id)
-            ).order_by(
-                desc(TopTheme.revenue)
-            ).limit(limit).all()
-            
-            return [theme.theme_name for theme in top_themes]
-            
-        except Exception as e:
-            print(f"Error getting user top themes: {e}")
-            return []
+        # TopTheme functionality removed - return empty list
+        return []
     
     async def generate_personal_themes(
         self, 

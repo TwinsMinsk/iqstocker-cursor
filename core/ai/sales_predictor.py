@@ -10,7 +10,7 @@ from sklearn.preprocessing import PolynomialFeatures
 import pandas as pd
 
 from config.database import SessionLocal
-from database.models import User, CSVAnalysis, AnalyticsReport, TopTheme
+from database.models import User, CSVAnalysis, AnalyticsReport
 
 
 class SalesPredictor:

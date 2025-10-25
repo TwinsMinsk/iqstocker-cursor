@@ -1,8 +1,10 @@
 """Profile keyboard."""
 
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from database.models import SubscriptionType
 from bot.lexicon.lexicon_ru import LEXICON_COMMANDS_RU
+from bot.keyboards.callbacks import ProfileCallbackData, CommonCallbackData, PaymentCallbackData
 
 
 def get_profile_keyboard(subscription_type: SubscriptionType) -> InlineKeyboardMarkup:
@@ -33,3 +35,43 @@ def get_profile_keyboard(subscription_type: SubscriptionType) -> InlineKeyboardM
         ])
     
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+def get_profile_test_pro_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура для профиля TEST_PRO."""
+    builder = InlineKeyboardBuilder()
+    
+    builder.button(
+        text="🔓 Оформить подписку",
+        callback_data=ProfileCallbackData(action="show_offer").pack()
+    )
+    builder.button(
+        text="📎 Как работают лимиты?",
+        callback_data=ProfileCallbackData(action="limits_help").pack()
+    )
+    builder.button(
+        text="🔙 Назад в меню",
+        callback_data=CommonCallbackData(action="main_menu").pack()
+    )
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_profile_offer_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура для предложения о покупке (из профиля TEST_PRO)."""
+    builder = InlineKeyboardBuilder()
+    
+    builder.button(
+        text="🔘 Оформить PRO (50% скидка)",
+        callback_data=PaymentCallbackData(plan="pro_test_discount").pack()
+    )
+    builder.button(
+        text="🔘 Оформить ULTRA (50% скидка)",
+        callback_data=PaymentCallbackData(plan="ultra_test_discount").pack()
+    )
+    builder.button(
+        text="↩️ Назад в меню",
+        callback_data=CommonCallbackData(action="main_menu").pack()
+    )
+    builder.adjust(1)
+    return builder.as_markup()

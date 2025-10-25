@@ -8,7 +8,7 @@ from sqlalchemy import func, desc, and_, or_
 import pandas as pd
 
 from config.database import SessionLocal
-from database.models import User, CSVAnalysis, AnalyticsReport, TopTheme, Subscription, SubscriptionType
+from database.models import User, CSVAnalysis, AnalyticsReport, Subscription, SubscriptionType
 
 
 class BenchmarkEngine:

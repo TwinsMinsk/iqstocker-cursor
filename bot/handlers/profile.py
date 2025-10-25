@@ -2,15 +2,17 @@
 
 from datetime import datetime, timedelta
 from aiogram import Router, F
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, Message
+from aiogram.fsm.context import FSMContext
 from sqlalchemy.orm import Session
 
 from config.database import SessionLocal
 from database.models import User, Limits, SubscriptionType
 from config.settings import settings
 from bot.lexicon import LEXICON_RU
-from bot.keyboards.profile import get_profile_keyboard
+from bot.keyboards.profile import get_profile_keyboard, get_profile_test_pro_keyboard, get_profile_offer_keyboard
 from bot.keyboards.main_menu import get_main_menu_keyboard
+from bot.keyboards.callbacks import ProfileCallbackData, CommonCallbackData
 from bot.utils.safe_edit import safe_edit_message
 
 router = Router()
@@ -18,31 +20,55 @@ router = Router()
 
 @router.callback_query(F.data == "profile")
 async def profile_callback(callback: CallbackQuery, user: User, limits: Limits):
-    """Handle profile callback."""
+    """Handle profile callback - основной вход в профиль."""
     
-    # Calculate subscription info
-    subscription_info = ""
     if user.subscription_type == SubscriptionType.TEST_PRO:
-        if user.test_pro_started_at:
-            expires_at = user.test_pro_started_at + timedelta(days=settings.test_pro_duration_days)
-            days_left = (expires_at - datetime.utcnow()).days
-            subscription_info = f"🎯 <b>TEST PRO</b> (осталось {days_left} дней)"
-        else:
-            subscription_info = "🎯 <b>TEST PRO</b>"
-    elif user.subscription_type == SubscriptionType.FREE:
-        subscription_info = "🆓 <b>FREE</b>"
-    elif user.subscription_type == SubscriptionType.PRO:
-        subscription_info = "🏆 <b>PRO</b>"
-    elif user.subscription_type == SubscriptionType.ULTRA:
-        subscription_info = "🚀 <b>ULTRA</b>"
-    
-    # Limits info
-    limits_text = f"""
+        # Расчет дат
+        now = datetime.utcnow()
+        expires_at = user.subscription_expires_at
+        days_remaining = (expires_at - now).days if expires_at else 0
+        if days_remaining < 0:
+            days_remaining = 0
+        
+        # Форматирование даты на русском
+        months_ru = [
+            "января", "февраля", "марта", "апреля", "мая", "июня",
+            "июля", "августа", "сентября", "октября", "ноября", "декабря"
+        ]
+        expires_at_formatted = f"{expires_at.day} {months_ru[expires_at.month - 1]} {expires_at.year}" if expires_at else "Не указано"
+
+        text = LEXICON_RU['profile_test_pro_main'].format(
+            days_remaining=days_remaining,
+            expires_at_formatted=expires_at_formatted,
+            themes_used=limits.themes_used,
+            themes_total=limits.themes_total,
+            analytics_used=limits.analytics_used,
+            analytics_total=limits.analytics_total
+        )
+        
+        await safe_edit_message(
+            callback=callback,
+            text=text,
+            reply_markup=get_profile_test_pro_keyboard()
+        )
+    else:
+        # Используем старую логику для других типов подписок
+        # Calculate subscription info
+        subscription_info = ""
+        if user.subscription_type == SubscriptionType.FREE:
+            subscription_info = "🆓 <b>FREE</b>"
+        elif user.subscription_type == SubscriptionType.PRO:
+            subscription_info = "🏆 <b>PRO</b>"
+        elif user.subscription_type == SubscriptionType.ULTRA:
+            subscription_info = "🚀 <b>ULTRA</b>"
+        
+        # Limits info
+        limits_text = f"""
 📊 <b>Аналитика:</b> {limits.analytics_used}/{limits.analytics_total}
 🎯 <b>Темы:</b> {limits.themes_used}/{limits.themes_total}
 """
-    
-    profile_text = f"""👤 <b>Профиль</b>
+        
+        profile_text = f"""👤 <b>Профиль</b>
 
 <b>Подписка:</b> {subscription_info}
 
@@ -50,21 +76,50 @@ async def profile_callback(callback: CallbackQuery, user: User, limits: Limits):
 {limits_text}
 
 Выбери действие:"""
-    
+        
+        await safe_edit_message(
+            callback=callback,
+            text=profile_text,
+            reply_markup=get_profile_keyboard(user.subscription_type)
+        )
+
+
+@router.callback_query(ProfileCallbackData.filter(F.action == "limits_help"))
+async def show_limits_help(callback: CallbackQuery):
+    """Показывает Alert с информацией о лимитах."""
+    await callback.answer(LEXICON_RU['profile_limits_help'], show_alert=True)
+
+
+@router.callback_query(ProfileCallbackData.filter(F.action == "show_offer"))
+async def show_payment_offer(callback: CallbackQuery):
+    """Показывает сообщение с предложением о покупке."""
     await safe_edit_message(
         callback=callback,
-        text=profile_text,
-        reply_markup=get_profile_keyboard(user.subscription_type)
+        text=LEXICON_RU['profile_test_pro_offer'],
+        reply_markup=get_profile_offer_keyboard()
     )
 
 
+@router.callback_query(CommonCallbackData.filter(F.action == "main_menu"))
+async def return_to_main_menu(callback: CallbackQuery, user: User, state: FSMContext):
+    """Возвращает в главное меню."""
+    await state.clear()
+    
+    await safe_edit_message(
+        callback=callback,
+        text=LEXICON_RU['main_menu_message'],
+        reply_markup=get_main_menu_keyboard(user.subscription_type)
+    )
+
+
+# Старые хэндлеры для обратной совместимости
 @router.callback_query(F.data == "limits_info")
 async def limits_info_callback(callback: CallbackQuery, user: User):
     """Handle limits info callback."""
     
     await safe_edit_message(
         callback=callback,
-        text=LEXICON_RU['limits_info'],
+        text=LEXICON_RU.get('limits_info', 'Информация о лимитах'),
         reply_markup=get_profile_keyboard(user.subscription_type)
     )
 
@@ -75,7 +130,7 @@ async def compare_free_pro_callback(callback: CallbackQuery, user: User):
     
     await safe_edit_message(
         callback=callback,
-        text=LEXICON_RU['tariffs_comparison'],
+        text=LEXICON_RU.get('tariffs_comparison', 'Сравнение тарифов'),
         reply_markup=get_profile_keyboard(user.subscription_type)
     )
 
@@ -88,9 +143,8 @@ async def compare_pro_ultra_callback(callback: CallbackQuery, user: User):
 
 <b>Функция</b> | <b>PRO</b> | <b>ULTRA</b>
 ─────────|───────|────────
-Аналитика портфеля | 2/мес | 4/мес
+Аналитика портфеля | 1/мес | 2/мес
 Темы для генерации/съёмок | 5 тем/неделя | 10 тем/неделя
-Топ-темы по продажам и доходу | Топ-5 | Топ-10
 Календарь стокера | Расширенный | Расширенный
 Видеоуроки | Все | Все
 
@@ -125,9 +179,8 @@ async def upgrade_pro_callback(callback: CallbackQuery, user: User):
     upgrade_text = f"""🏆 <b>Переход на PRO</b>
 
 PRO подписка включает:
-• 2 аналитики в месяц
+• 1 аналитика в месяц
 • 5 тем в неделю
-• Топ-5 тем по продажам
 • Расширенный календарь стокера
 • Все видеоуроки
 
@@ -164,9 +217,8 @@ async def upgrade_ultra_callback(callback: CallbackQuery, user: User):
     upgrade_text = f"""🚀 <b>Переход на ULTRA</b>
 
 ULTRA подписка включает:
-• 4 аналитики в месяц
+• 2 аналитики в месяц
 • 10 тем в неделю
-• Топ-10 тем по продажам
 • Расширенный календарь стокера
 • Все видеоуроки
 

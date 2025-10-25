@@ -8,7 +8,7 @@ from sqlalchemy import func, desc, and_, or_
 import pandas as pd
 
 from config.database import SessionLocal
-from database.models import User, CSVAnalysis, AnalyticsReport, TopTheme, Subscription
+from database.models import User, CSVAnalysis, AnalyticsReport, Subscription
 
 
 class AdvancedMetrics:
@@ -24,62 +24,13 @@ class AdvancedMetrics:
     
     def calculate_roi_by_themes(self, user_id: int) -> Dict[str, Any]:
         """Calculate ROI (Return on Investment) by themes."""
-        try:
-            # Get user's top themes with revenue data
-            top_themes = self.db.query(TopTheme).join(CSVAnalysis).filter(
-                and_(
-                    CSVAnalysis.user_id == user_id,
-                    TopTheme.revenue > 0
-                )
-            ).order_by(desc(TopTheme.revenue)).all()
-            
-            if not top_themes:
-                return {
-                    "roi_by_themes": [],
-                    "avg_roi": 0,
-                    "best_performing_theme": None,
-                    "message": "Недостаточно данных для расчета ROI по темам"
-                }
-            
-            roi_data = []
-            total_investment = 0
-            total_return = 0
-            
-            for theme in top_themes:
-                # Estimate investment (simplified - could be based on upload time/cost)
-                estimated_investment = theme.sales_count * 0.5  # $0.5 per upload
-                revenue = float(theme.revenue)
-                roi = ((revenue - estimated_investment) / estimated_investment * 100) if estimated_investment > 0 else 0
-                
-                roi_data.append({
-                    "theme_name": theme.theme_name,
-                    "sales_count": theme.sales_count,
-                    "revenue": revenue,
-                    "estimated_investment": estimated_investment,
-                    "roi_percent": round(roi, 2),
-                    "rank": theme.rank
-                })
-                
-                total_investment += estimated_investment
-                total_return += revenue
-            
-            # Calculate overall metrics
-            avg_roi = ((total_return - total_investment) / total_investment * 100) if total_investment > 0 else 0
-            best_theme = max(roi_data, key=lambda x: x["roi_percent"]) if roi_data else None
-            
-            return {
-                "roi_by_themes": roi_data,
-                "avg_roi": round(avg_roi, 2),
-                "total_investment": round(total_investment, 2),
-                "total_return": round(total_return, 2),
-                "best_performing_theme": best_theme["theme_name"] if best_theme else None,
-                "best_roi": best_theme["roi_percent"] if best_theme else 0,
-                "themes_analyzed": len(roi_data)
-            }
-            
-        except Exception as e:
-            print(f"Error calculating ROI by themes: {e}")
-            return {"error": str(e)}
+        # TopTheme functionality removed
+        return {
+            "roi_by_themes": [],
+            "avg_roi": 0,
+            "best_performing_theme": None,
+            "worst_performing_theme": None
+        }
     
     def calculate_conversion_rates(self, user_id: int) -> Dict[str, Any]:
         """Calculate conversion rates for new vs old works."""
@@ -145,62 +96,13 @@ class AdvancedMetrics:
     
     def calculate_portfolio_diversity_index(self, user_id: int) -> Dict[str, Any]:
         """Calculate portfolio diversity index."""
-        try:
-            # Get user's themes
-            themes = self.db.query(TopTheme).join(CSVAnalysis).filter(
-                CSVAnalysis.user_id == user_id
-            ).all()
-            
-            if not themes:
-                return {
-                    "diversity_index": 0,
-                    "theme_count": 0,
-                    "category_distribution": {},
-                    "message": "Недостаточно тем для анализа разнообразия"
-                }
-            
-            # Calculate theme distribution
-            theme_revenues = {}
-            total_revenue = 0
-            
-            for theme in themes:
-                revenue = float(theme.revenue) if theme.revenue else 0
-                theme_revenues[theme.theme_name] = revenue
-                total_revenue += revenue
-            
-            # Calculate diversity using Shannon entropy
-            diversity_index = 0
-            if total_revenue > 0:
-                for revenue in theme_revenues.values():
-                    if revenue > 0:
-                        proportion = revenue / total_revenue
-                        diversity_index -= proportion * np.log2(proportion)
-            
-            # Normalize diversity index (0-1 scale)
-            max_diversity = np.log2(len(theme_revenues)) if len(theme_revenues) > 1 else 1
-            normalized_diversity = diversity_index / max_diversity if max_diversity > 0 else 0
-            
-            # Analyze category distribution
-            category_distribution = {}
-            for theme in themes:
-                category = theme.csv_analysis.content_type or "General"
-                if category not in category_distribution:
-                    category_distribution[category] = {"count": 0, "revenue": 0}
-                category_distribution[category]["count"] += 1
-                category_distribution[category]["revenue"] += float(theme.revenue) if theme.revenue else 0
-            
-            return {
-                "diversity_index": round(normalized_diversity, 3),
-                "raw_diversity": round(diversity_index, 3),
-                "theme_count": len(theme_revenues),
-                "category_distribution": category_distribution,
-                "diversity_level": self._get_diversity_level(normalized_diversity),
-                "message": f"Индекс разнообразия: {normalized_diversity:.3f} ({self._get_diversity_level(normalized_diversity)})"
-            }
-            
-        except Exception as e:
-            print(f"Error calculating portfolio diversity: {e}")
-            return {"error": str(e)}
+        # TopTheme functionality removed
+        return {
+            "diversity_index": 0,
+            "theme_count": 0,
+            "category_distribution": {},
+            "message": "TopTheme functionality removed"
+        }
     
     def calculate_time_to_sale_metrics(self, user_id: int) -> Dict[str, Any]:
         """Calculate time-to-sale metrics."""

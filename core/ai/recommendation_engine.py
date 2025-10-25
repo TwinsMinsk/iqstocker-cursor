@@ -11,7 +11,7 @@ from sklearn.cluster import KMeans
 import pandas as pd
 
 from config.database import SessionLocal
-from database.models import User, CSVAnalysis, AnalyticsReport, TopTheme, GlobalTheme, ThemeRequest
+from database.models import User, CSVAnalysis, AnalyticsReport, GlobalTheme, ThemeRequest
 
 
 class RecommendationEngine:

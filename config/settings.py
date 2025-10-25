@@ -161,12 +161,12 @@ class AppSettings(BaseSettings):
     free_themes_limit: int = Field(1, env="FREE_THEMES_LIMIT")
     
     test_pro_analytics_limit: int = Field(1, env="TEST_PRO_ANALYTICS_LIMIT")
-    test_pro_themes_limit: int = Field(5, env="TEST_PRO_THEMES_LIMIT")
+    test_pro_themes_limit: int = Field(4, env="TEST_PRO_THEMES_LIMIT")
     
-    pro_analytics_limit: int = Field(2, env="PRO_ANALYTICS_LIMIT")
+    pro_analytics_limit: int = Field(1, env="PRO_ANALYTICS_LIMIT")
     pro_themes_limit: int = Field(5, env="PRO_THEMES_LIMIT")
     
-    ultra_analytics_limit: int = Field(4, env="ULTRA_ANALYTICS_LIMIT")
+    ultra_analytics_limit: int = Field(2, env="ULTRA_ANALYTICS_LIMIT")
     ultra_themes_limit: int = Field(10, env="ULTRA_THEMES_LIMIT")
     
     # New works definition (ID threshold)

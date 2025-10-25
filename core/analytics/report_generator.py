@@ -5,7 +5,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from config.database import SessionLocal
-from database.models import CSVAnalysis, AnalyticsReport, TopTheme, User
+from database.models import CSVAnalysis, AnalyticsReport, User
 from core.analytics.metrics_calculator import MetricsCalculator
 from core.ai.categorizer import ThemeCategorizer
 from core.ai.sales_predictor import SalesPredictor
@@ -81,13 +81,7 @@ class ReportGenerator:
             from core.ai.theme_manager import ThemeManager
             theme_manager = ThemeManager()
             
-            # Get generated top themes
-            top_themes = self.db.query(TopTheme).filter(
-                TopTheme.csv_analysis_id == csv_analysis_id
-            ).all()
-            
-            if top_themes:
-                theme_manager.update_global_themes(top_themes)
+            # TopTheme functionality removed
             
             # Update CSV analysis status
             csv_analysis.status = "COMPLETED"
@@ -146,22 +140,7 @@ class ReportGenerator:
                 print(f"Error processing work {work_id}: {e}")
                 continue
         
-        # Sort themes by revenue and create TopTheme records
-        sorted_themes = sorted(
-            theme_sales.items(), 
-            key=lambda x: x[1]["revenue"], 
-            reverse=True
-        )
-        
-        for rank, (theme_name, theme_data) in enumerate(sorted_themes[:10], 1):
-            top_theme = TopTheme(
-                csv_analysis_id=csv_analysis_id,
-                theme_name=theme_name,
-                sales_count=theme_data["sales"],
-                revenue=theme_data["revenue"],
-                rank=rank
-            )
-            self.db.add(top_theme)
+        # TopTheme functionality removed - themes are no longer saved to database
         
         self.db.commit()
     

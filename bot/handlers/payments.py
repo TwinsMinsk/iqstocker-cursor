@@ -8,6 +8,7 @@ from config.database import SessionLocal
 from database.models import User, SubscriptionType, Limits
 from core.payments.boosty_handler import get_payment_handler
 from bot.keyboards.main_menu import get_main_menu_keyboard
+from bot.keyboards.callbacks import PaymentCallbackData
 
 router = Router()
 
@@ -311,6 +312,118 @@ async def compare_pro_ultra_callback(callback: CallbackQuery, user: User):
     
     await callback.message.edit_text(
         comparison_text,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
+    )
+    await callback.answer()
+
+
+@router.callback_query(PaymentCallbackData.filter(F.plan == "pro_test_discount"))
+async def payment_pro_test_discount_callback(callback: CallbackQuery, user: User):
+    """Handle PRO subscription with TEST_PRO 50% discount."""
+    
+    payment_handler = get_payment_handler()
+    discount_percent = 50  # Фиксированная скидка 50% для TEST_PRO
+    
+    # Create payment link
+    async with payment_handler as handler:
+        payment_url = await handler.create_subscription_link(
+            user.id, 
+            SubscriptionType.PRO, 
+            discount_percent
+        )
+    
+    if not payment_url:
+        await callback.message.edit_text(
+            "❌ Не удалось создать ссылку для оплаты. Попробуй еще раз позже.",
+            reply_markup=get_main_menu_keyboard(user.subscription_type)
+        )
+        await callback.answer()
+        return
+    
+    # Show payment information with 50% discount
+    base_price = 990
+    discounted_price = base_price * 0.5
+    
+    payment_text = f"""🏆 <b>Переход на PRO</b>
+
+<b>Тариф PRO включает:</b>
+• 1 аналитика в месяц
+• 5 тем в неделю
+• Расширенный календарь стокера
+• Все видеоуроки
+
+<b>Цена:</b> ~~{base_price}₽~~ <b>{discounted_price:.0f}₽/месяц</b>
+🎉 <b>Скидка 50% для тестового периода!</b>
+
+Для оформления подписки перейди по ссылке ниже:"""
+    
+    keyboard = [
+        [
+            InlineKeyboardButton(text="💳 Оплатить PRO", url=payment_url)
+        ],
+        [
+            InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
+        ]
+    ]
+    
+    await callback.message.edit_text(
+        payment_text,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
+    )
+    await callback.answer()
+
+
+@router.callback_query(PaymentCallbackData.filter(F.plan == "ultra_test_discount"))
+async def payment_ultra_test_discount_callback(callback: CallbackQuery, user: User):
+    """Handle ULTRA subscription with TEST_PRO 50% discount."""
+    
+    payment_handler = get_payment_handler()
+    discount_percent = 50  # Фиксированная скидка 50% для TEST_PRO
+    
+    # Create payment link
+    async with payment_handler as handler:
+        payment_url = await handler.create_subscription_link(
+            user.id, 
+            SubscriptionType.ULTRA, 
+            discount_percent
+        )
+    
+    if not payment_url:
+        await callback.message.edit_text(
+            "❌ Не удалось создать ссылку для оплаты. Попробуй еще раз позже.",
+            reply_markup=get_main_menu_keyboard(user.subscription_type)
+        )
+        await callback.answer()
+        return
+    
+    # Show payment information with 50% discount
+    base_price = 1990
+    discounted_price = base_price * 0.5
+    
+    payment_text = f"""🚀 <b>Переход на ULTRA</b>
+
+<b>Тариф ULTRA включает:</b>
+• 2 аналитики в месяц
+• 10 тем в неделю
+• Расширенный календарь стокера
+• Все видеоуроки
+
+<b>Цена:</b> ~~{base_price}₽~~ <b>{discounted_price:.0f}₽/месяц</b>
+🎉 <b>Скидка 50% для тестового периода!</b>
+
+Для оформления подписки перейди по ссылке ниже:"""
+    
+    keyboard = [
+        [
+            InlineKeyboardButton(text="💳 Оплатить ULTRA", url=payment_url)
+        ],
+        [
+            InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
+        ]
+    ]
+    
+    await callback.message.edit_text(
+        payment_text,
         reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
     )
     await callback.answer()

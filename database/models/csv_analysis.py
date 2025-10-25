@@ -63,10 +63,6 @@ class CSVAnalysis(Base):
         back_populates="csv_analysis", 
         uselist=False
     )
-    top_themes: Mapped[list["TopTheme"]] = relationship(
-        back_populates="csv_analysis",
-        cascade="all, delete-orphan"
-    )
     
     def __repr__(self):
         return f"<CSVAnalysis(id={self.id}, user_id={self.user_id}, status={self.status})>"

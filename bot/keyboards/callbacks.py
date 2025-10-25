@@ -52,3 +52,18 @@ class ProfileCallback(CallbackData, prefix="profile"):
     """Callback data for profile actions."""
     action: str
     subscription_type: str = None
+
+
+class ProfileCallbackData(CallbackData, prefix="prof"):
+    """Callback data for profile section actions."""
+    action: str
+
+
+class CommonCallbackData(CallbackData, prefix="common"):
+    """Callback data for common actions like main_menu."""
+    action: str
+
+
+class PaymentCallbackData(CallbackData, prefix="payment"):
+    """Callback data for payment actions."""
+    plan: str  # "pro", "ultra", "pro_test_discount", "ultra_test_discount"

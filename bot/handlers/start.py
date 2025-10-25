@@ -7,6 +7,7 @@ from aiogram.fsm.context import FSMContext
 from datetime import datetime, timezone, timedelta
 
 from config.database import SessionLocal
+from config.settings import settings
 from database.models import User, SubscriptionType, Limits
 from bot.lexicon import LEXICON_RU
 from bot.lexicon.lexicon_ru import LEXICON_COMMANDS_RU
@@ -59,9 +60,9 @@ async def create_new_user(message: Message, db):
     # Create limits for new user with TEST_PRO benefits
     limits = Limits(
         user_id=user.id,
-        analytics_total=1,  # 1 аналитика для тестового периода
+        analytics_total=settings.test_pro_analytics_limit,  # 1 аналитика для тестового периода
         analytics_used=0,
-        themes_total=5,  # 5 тем в неделю для тестового периода
+        themes_total=settings.test_pro_themes_limit,  # 4 темы для тестового периода
         themes_used=0
     )
     db.add(limits)
