@@ -171,9 +171,10 @@ class AppSettings(BaseSettings):
     ultra_themes_limit: int = Field(10, env="ULTRA_THEMES_LIMIT")
     ultra_top_themes_limit: int = Field(10, env="ULTRA_TOP_THEMES_LIMIT")
     
-    # New works definition (ID prefix)
-    # Префикс ID для определения "новых" работ (10 цифр, начинаются с этого префикса)
-    new_works_id_prefix: str = Field("150", env="NEW_WORKS_ID_PREFIX")
+    # New works definition (ID threshold)
+    # Пороговое значение ID для определения "новых" работ (ID >= этого значения считаются новыми)
+    # Например: "1490000000" означает, что все работы с ID >= 1490000000 - новые
+    new_works_id_prefix: str = Field("1490000000", env="NEW_WORKS_ID_PREFIX")
 
 
 class Settings:

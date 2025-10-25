@@ -1,6 +1,13 @@
 """Callback data factories for structured navigation."""
 
+from typing import Optional
 from aiogram.filters.callback_data import CallbackData
+
+
+class ThemesCallback(CallbackData, prefix="themes"):
+    """Callback data for themes actions."""
+    action: str
+    page: Optional[int] = None
 
 
 class NavigationCallback(CallbackData, prefix="nav"):

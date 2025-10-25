@@ -36,7 +36,7 @@ class FixedReportGenerator:
             'year': year,
             'sales_count': result.rows_used,
             'revenue': f"{result.total_revenue_usd:.2f}",
-            'avg_price': f"{result.avg_revenue_per_sale:.4f}",
+            'avg_revenue_per_sale': f"{result.avg_revenue_per_sale:.2f}",
             'sold_portfolio_percentage': f"{result.portfolio_sold_percent:.2f}",
             'new_works_percentage': f"{result.new_works_sales_percent:.2f}",
             'upload_limit_usage': f"{result.upload_limit_usage:.0f}",
@@ -72,7 +72,7 @@ class FixedReportGenerator:
 
 Продаж - {result.rows_used}
 Доход - ${result.total_revenue_usd:.2f}
-Средняя цена продажи - ${result.avg_revenue_per_sale:.4f}
+Средняя цена продажи - ${result.avg_revenue_per_sale:.2f}
 % портфеля, который продался за месяц - {result.portfolio_sold_percent:.2f}%
 доля продаж новых работ - {result.new_works_sales_percent:.2f}%
 

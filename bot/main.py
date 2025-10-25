@@ -9,7 +9,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 from core.notifications.scheduler import get_scheduler
 from config.settings import settings
-from bot.handlers import start, menu, profile, analytics, themes, top_themes, lessons, calendar, faq, channel, payments, admin, invite
+from bot.handlers import start, menu, profile, analytics, themes, lessons, calendar, faq, channel, payments, admin, invite
 from bot.middlewares.database import DatabaseMiddleware
 from bot.middlewares.subscription import SubscriptionMiddleware
 from bot.middlewares.limits import LimitsMiddleware
@@ -69,7 +69,6 @@ async def main():
     dp.include_router(profile.router)
     dp.include_router(analytics.router)
     dp.include_router(themes.router)
-    dp.include_router(top_themes.router)
     dp.include_router(lessons.router)
     dp.include_router(calendar.router)
     dp.include_router(faq.router)

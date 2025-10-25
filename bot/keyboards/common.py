@@ -1,41 +1,35 @@
 """Common keyboard utilities."""
 
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from database.models import SubscriptionType, Limits
 from bot.lexicon.lexicon_ru import LEXICON_COMMANDS_RU
+from bot.keyboards.callbacks import ThemesCallback
 
 
 
 
 def create_cooldown_keyboard(subscription_type: SubscriptionType) -> InlineKeyboardMarkup:
     """Create keyboard for cooldown screen with limited options."""
-    keyboard = []
+    builder = InlineKeyboardBuilder()
     
-    # Archive themes button
-    keyboard.append([
-        InlineKeyboardButton(
-            text=LEXICON_COMMANDS_RU['archive_themes'], 
-            callback_data="archive_themes"
-        )
-    ])
+    builder.button(
+        text=LEXICON_COMMANDS_RU['archive_themes'],
+        callback_data=ThemesCallback(action="archive").pack()
+    )
     
-    # Profile button
-    keyboard.append([
-        InlineKeyboardButton(
-            text=LEXICON_COMMANDS_RU['profile'], 
-            callback_data="profile"
-        )
-    ])
+    builder.button(
+        text=LEXICON_COMMANDS_RU['profile'],
+        callback_data="profile"
+    )
     
-    # Back to main menu button
-    keyboard.append([
-        InlineKeyboardButton(
-            text=LEXICON_COMMANDS_RU['back_to_main_menu'], 
-            callback_data="main_menu"
-        )
-    ])
+    builder.button(
+        text=LEXICON_COMMANDS_RU['back_to_main_menu'],
+        callback_data="main_menu"
+    )
     
-    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+    builder.adjust(1)
+    return builder.as_markup()
 
 
 def create_themes_keyboard(
@@ -159,44 +153,37 @@ def create_archive_navigation_keyboard(
     subscription_type: SubscriptionType
 ) -> InlineKeyboardMarkup:
     """Create archive navigation keyboard with pagination."""
-    from bot.keyboards.callback_data import ThemesArchiveCallback
-    
-    keyboard = []
-    
-    # Navigation row
-    nav_row = []
+    builder = InlineKeyboardBuilder()
     
     # Back button (only if not on first page)
     if page > 0:
-        nav_row.append(InlineKeyboardButton(
+        builder.button(
             text=LEXICON_COMMANDS_RU['themes_back'],
-            callback_data=ThemesArchiveCallback(page=page-1).pack()
-        ))
+            callback_data=ThemesCallback(action="archive_page", page=page-1).pack()
+        )
     
     # Page indicator (non-clickable)
-    nav_row.append(InlineKeyboardButton(
+    builder.button(
         text=f"{page + 1} / {total_pages}",
         callback_data="noop"
-    ))
+    )
     
     # Forward button (only if not on last page)
     if page < total_pages - 1:
-        nav_row.append(InlineKeyboardButton(
+        builder.button(
             text=LEXICON_COMMANDS_RU['themes_forward'],
-            callback_data=ThemesArchiveCallback(page=page+1).pack()
-        ))
-    
-    keyboard.append(nav_row)
-    
-    # Back to themes menu button
-    keyboard.append([
-        InlineKeyboardButton(
-            text=LEXICON_COMMANDS_RU['back'],
-            callback_data="themes"
+            callback_data=ThemesCallback(action="archive_page", page=page+1).pack()
         )
-    ])
     
-    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+    builder.adjust(3)
+    
+    # Back to main menu button
+    builder.button(
+        text=LEXICON_COMMANDS_RU['back_to_main_menu'],
+        callback_data="main_menu"
+    )
+    
+    return builder.as_markup()
 
 
 def get_faq_menu_keyboard() -> InlineKeyboardMarkup:

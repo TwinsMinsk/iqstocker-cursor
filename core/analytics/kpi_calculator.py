@@ -10,16 +10,16 @@ class KPICalculator:
     
     def __init__(self):
         """Initialize KPI Calculator with settings."""
-        self.new_works_prefix = settings.new_works_id_prefix
+        self.new_works_id_threshold = int(settings.new_works_id_prefix)
     
-    def calculate_portfolio_sold_percent(self, unique_assets_sold: int, portfolio_size: int) -> float:
+    def calculate_portfolio_sold_percent(self, total_sales: int, portfolio_size: int) -> float:
         """
         Calculate % of portfolio that sold.
         
-        Formula: (Количество уникальных проданных работ / Общий размер портфолио) * 100
+        Formula: (Общее количество продаж / Общий размер портфолио) * 100
         
         Args:
-            unique_assets_sold: Number of unique assets sold
+            total_sales: Total number of sales (NOT unique assets)
             portfolio_size: Total portfolio size
             
         Returns:
@@ -27,15 +27,16 @@ class KPICalculator:
         """
         if portfolio_size <= 0:
             return 0.0
-        return round((unique_assets_sold / portfolio_size) * 100, 2)
+        # Используем total_sales, как требует ТЗ
+        return round((total_sales / portfolio_size) * 100, 2)
     
     def calculate_new_works_sales_percent(self, df: pd.DataFrame) -> float:
         """
-        Calculate percentage of sales from new works based on ID prefix.
+        Calculate percentage of sales from new works based on ID threshold.
         
         Logic: New works are determined by:
         1. ID length must be exactly 10 digits
-        2. ID must start with the configured prefix (e.g., "150")
+        2. ID must be greater than or equal to the configured threshold (e.g., 1500000000)
         
         Formula: (Количество продаж новых работ / Общее количество продаж) * 100
         
@@ -48,9 +49,9 @@ class KPICalculator:
         if len(df) == 0 or 'asset_id' not in df.columns:
             return 0.0
         
-        # Convert asset_id to string for pattern matching
+        # Convert asset_id to numeric for comparison
         df_copy = df.copy()
-        df_copy['asset_id_str'] = df_copy['asset_id'].astype(str)
+        df_copy['asset_id_num'] = pd.to_numeric(df_copy['asset_id'], errors='coerce')
         
         # Total sales count
         total_sales = len(df_copy)
@@ -59,11 +60,12 @@ class KPICalculator:
             return 0.0
         
         # Count sales of "new" works:
-        # - ID length must be 10 digits
-        # - ID must start with the configured prefix
+        # - ID length must be 10 digits (1000000000 <= ID <= 9999999999)
+        # - ID must be >= threshold (e.g., >= 1500000000)
         new_sales_count = df_copy[
-            (df_copy['asset_id_str'].str.len() == 10) &
-            (df_copy['asset_id_str'].str.startswith(self.new_works_prefix))
+            (df_copy['asset_id_num'] >= 1000000000) &
+            (df_copy['asset_id_num'] <= 9999999999) &
+            (df_copy['asset_id_num'] >= self.new_works_id_threshold)
         ].shape[0]
         
         return round((new_sales_count / total_sales) * 100, 2)
@@ -120,10 +122,10 @@ class KPICalculator:
         Returns:
             Dictionary with all calculated KPIs
         """
-        unique_assets_sold = df['asset_id'].nunique() if 'asset_id' in df.columns else 0
+        total_sales = len(df)
         
         return {
-            'portfolio_sold_percent': self.calculate_portfolio_sold_percent(unique_assets_sold, portfolio_size),
+            'portfolio_sold_percent': self.calculate_portfolio_sold_percent(total_sales, portfolio_size),
             'new_works_sales_percent': self.calculate_new_works_sales_percent(df),
             'upload_limit_usage': self.calculate_upload_limit_usage(monthly_uploads, upload_limit),
             'acceptance_rate': self.get_acceptance_rate(acceptance_rate)

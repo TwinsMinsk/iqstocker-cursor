@@ -315,7 +315,8 @@ class AdvancedCSVProcessor:
         from core.analytics.kpi_calculator import KPICalculator
         kpi_calc = KPICalculator()
         
-        portfolio_sold_percent = kpi_calc.calculate_portfolio_sold_percent(unique_assets_sold, portfolio_size)
+        # Используем total_sales_count вместо unique_assets_sold для расчета % портфеля
+        portfolio_sold_percent = kpi_calc.calculate_portfolio_sold_percent(total_sales_count, portfolio_size)
         new_works_sales_percent = kpi_calc.calculate_new_works_sales_percent(df_clean)
         upload_limit_usage = kpi_calc.calculate_upload_limit_usage(monthly_uploads, upload_limit)
         

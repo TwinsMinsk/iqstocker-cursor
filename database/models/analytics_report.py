@@ -18,6 +18,7 @@ class AnalyticsReport(Base):
     # Main metrics
     total_sales: Mapped[int] = mapped_column()
     total_revenue: Mapped[float] = mapped_column(Numeric(10, 2))
+    avg_revenue_per_sale: Mapped[float] = mapped_column(Numeric(10, 2), nullable=True)
     
     # Calculated percentages
     portfolio_sold_percent: Mapped[float] = mapped_column(Numeric(5, 2))

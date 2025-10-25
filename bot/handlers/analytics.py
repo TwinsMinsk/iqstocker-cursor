@@ -901,6 +901,7 @@ async def process_csv_analysis(
                 csv_analysis_id=csv_analysis_id,
                 total_sales=result.rows_used,
                 total_revenue=result.total_revenue_usd,
+                avg_revenue_per_sale=result.avg_revenue_per_sale,
                 portfolio_sold_percent=result.portfolio_sold_percent,
                 new_works_sales_percent=result.new_works_sales_percent,
                 acceptance_rate_calc=result.acceptance_rate,
@@ -945,7 +946,7 @@ async def process_csv_analysis(
                     year=report_data['year'],
                     sales_count=report_data['sales_count'],
                     revenue=report_data['revenue'],
-                    avg_price=report_data['avg_price'],
+                    avg_revenue_per_sale=report_data['avg_revenue_per_sale'],
                     sold_portfolio_percentage=report_data['sold_portfolio_percentage'],
                     new_works_percentage=report_data['new_works_percentage']
                 )
