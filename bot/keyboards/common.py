@@ -174,24 +174,28 @@ def create_archive_navigation_keyboard(
 def get_faq_menu_keyboard() -> InlineKeyboardMarkup:
     """Create FAQ menu keyboard with list of questions."""
     keyboard = []
-    
-    # Add 10 question buttons (1 per row)
-    for i in range(1, 11):
+
+    faq_keys = sorted(
+        (key for key in LEXICON_COMMANDS_RU.keys() if key.startswith('faq_btn_')),
+        key=lambda key: int(key.split('_')[-1])
+    )
+
+    for key in faq_keys:
+        index = key.split('_')[-1]
         keyboard.append([
             InlineKeyboardButton(
-                text=LEXICON_COMMANDS_RU[f'faq_btn_{i}'],
-                callback_data=f'faq_{i}'
+                text=LEXICON_COMMANDS_RU[key],
+                callback_data=f'faq_{index}'
             )
         ])
-    
-    # Add back to main menu button
+
     keyboard.append([
         InlineKeyboardButton(
             text=LEXICON_COMMANDS_RU['back_to_main_menu'],
             callback_data='main_menu'
         )
     ])
-    
+
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 

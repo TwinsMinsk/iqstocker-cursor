@@ -148,3 +148,60 @@ def get_profile_free_offer_keyboard() -> InlineKeyboardMarkup:
     )
     builder.adjust(1)
     return builder.as_markup()
+
+
+def get_profile_pro_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура для главного экрана профиля PRO."""
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text=LEXICON_COMMANDS_RU['button_go_to_ultra'],
+        callback_data=PaymentCallbackData(plan="ultra").pack()
+    )
+    builder.button(
+        text=LEXICON_COMMANDS_RU['button_compare_pro_ultra'],
+        callback_data=ProfileCallbackData(action="compare_pro_ultra").pack()
+    )
+    builder.button(
+        text=LEXICON_COMMANDS_RU['button_limits_help'],
+        callback_data=ProfileCallbackData(action="limits_help").pack()
+    )
+    builder.button(
+        text=LEXICON_COMMANDS_RU['button_back_to_menu'],
+        callback_data=CommonCallbackData(action="main_menu").pack()
+    )
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_profile_pro_compare_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура для сравнения тарифов PRO и ULTRA."""
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text=LEXICON_COMMANDS_RU['button_go_to_ultra'],
+        callback_data=PaymentCallbackData(plan="ultra").pack()
+    )
+    builder.button(
+        text=LEXICON_COMMANDS_RU['button_back_profile'],
+        callback_data=ProfileCallbackData(action="back_to_profile").pack()
+    )
+    builder.button(
+        text=LEXICON_COMMANDS_RU['button_back_to_menu'],
+        callback_data=CommonCallbackData(action="main_menu").pack()
+    )
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_profile_ultra_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура для главного экрана профиля ULTRA."""
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text=LEXICON_COMMANDS_RU['button_limits_help'],
+        callback_data=ProfileCallbackData(action="limits_help").pack()
+    )
+    builder.button(
+        text=LEXICON_COMMANDS_RU['button_back_to_menu'],
+        callback_data=CommonCallbackData(action="main_menu").pack()
+    )
+    builder.adjust(1)
+    return builder.as_markup()

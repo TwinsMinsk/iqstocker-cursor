@@ -66,7 +66,7 @@ class TaskScheduler:
 
         # Daily reminder for weekly themes availability (at 12:00 UTC)
         self.scheduler.add_job(
-            lambda: notify_weekly_themes(self.bot),
+            lambda: asyncio.create_task(notify_weekly_themes(self.bot)),
             CronTrigger(hour=12, minute=0),
             id='daily_weekly_themes_notify',
             name='Send daily weekly-themes availability notifications'
