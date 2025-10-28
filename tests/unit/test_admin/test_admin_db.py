@@ -43,7 +43,6 @@ def test_admin_panel_db():
             # Test subscription stats
             print("   Testing subscription stats...")
             from database.models import SubscriptionType
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
             subscription_stats = {}
             for subscription_type in SubscriptionType:
                 count = db.query(User).filter(User.subscription_type == subscription_type).count()

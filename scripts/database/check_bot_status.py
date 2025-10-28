@@ -186,7 +186,6 @@ def create_test_user():
     except Exception as e:
         print(f"❌ Ошибка создания пользователя: {e}")
         import traceback
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
         traceback.print_exc()
         return False
 

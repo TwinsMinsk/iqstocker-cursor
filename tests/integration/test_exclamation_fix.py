@@ -106,7 +106,6 @@ def test_problematic_characters():
     except Exception as e:
         print(f"❌ Ошибка тестирования символов: {e}")
         import traceback
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
         traceback.print_exc()
         return False
 

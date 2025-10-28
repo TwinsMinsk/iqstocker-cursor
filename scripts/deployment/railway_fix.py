@@ -45,7 +45,6 @@ def main():
     except Exception as e:
         print(f"❌ Error: {e}")
         import traceback
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
         traceback.print_exc()
         sys.exit(1)
 

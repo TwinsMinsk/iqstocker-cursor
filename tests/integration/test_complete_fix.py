@@ -180,7 +180,6 @@ def test_imports_complete():
     except Exception as e:
         print(f"❌ Ошибка тестирования импортов: {e}")
         import traceback
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
         traceback.print_exc()
         return False
 

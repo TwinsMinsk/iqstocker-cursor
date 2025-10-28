@@ -190,8 +190,7 @@ class TestAdminPanelEnhanced:
         
         try:
             from admin.utils.quick_actions import QuickActions
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
-            
+
             quick_actions = QuickActions()
             
             # Test user statistics

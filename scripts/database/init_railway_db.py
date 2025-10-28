@@ -85,7 +85,6 @@ def init_db():
 def check_environment():
     """Check if required environment variables are set."""
     from config.settings import validate_required_settings
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
     
     if not validate_required_settings():
         print("⚠️  Some required variables are missing, but continuing with defaults...")

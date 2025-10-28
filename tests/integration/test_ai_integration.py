@@ -254,7 +254,6 @@ class TestPerformanceIntegration:
         from core.ai.sales_predictor import SalesPredictor
         from core.ai.recommendation_engine import RecommendationEngine
         from core.ai.market_analyzer import MarketAnalyzer
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
         
         start_time = time.time()
         

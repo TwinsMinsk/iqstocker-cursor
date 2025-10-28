@@ -44,7 +44,6 @@ def test_imports():
     except Exception as e:
         print(f"❌ Import error: {e}")
         import traceback
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
         traceback.print_exc()
         return False
 

@@ -96,13 +96,13 @@ async def generate_themes_callback(callback: CallbackQuery, callback_data: Theme
         last_request = result.scalar_one_or_none()
         
         if last_request:
-            cooldown_days = get_theme_cooldown_days_sync()
+            cooldown_days = get_theme_cooldown_days_sync(user.id)
             last_request_time = last_request.created_at.replace(tzinfo=timezone.utc)
             now = datetime.now(timezone.utc)
             time_diff = now - last_request_time
             
             if time_diff < timedelta(days=cooldown_days):
-                days_remaining = cooldown_days - time_diff.days
+                days_remaining = (timedelta(days=cooldown_days) - time_diff).days or 1
                 await safe_edit_message(
                     callback=callback,
                     text=LEXICON_RU['themes_cooldown'].format(days=days_remaining),

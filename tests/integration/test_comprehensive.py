@@ -333,7 +333,6 @@ class TestRunner:
             self.log("Testing health check...")
             
             from healthcheck import check_health
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
             
             health_status = check_health()
             assert isinstance(health_status, dict)

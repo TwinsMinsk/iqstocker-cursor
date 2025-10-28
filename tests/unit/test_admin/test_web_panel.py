@@ -100,10 +100,9 @@ def test_template_files():
     """Test if all template files exist."""
     
     print("\n📁 Testing template files...")
-    
+
     import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
-    
+
     templates = [
         "templates/admin/login.html",
         "templates/admin/dashboard.html", 

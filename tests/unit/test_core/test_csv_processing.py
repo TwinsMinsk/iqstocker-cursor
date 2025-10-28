@@ -159,11 +159,10 @@ def test_bot_handler():
     
     print("\n🤖 Тестируем обработчик бота...")
     print("=" * 50)
-    
+
     try:
         # Импортируем обработчик
         from bot.handlers.analytics import process_csv_analysis
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
         print("✅ Обработчик импортирован успешно")
         
         # Проверяем, что функция существует

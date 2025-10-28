@@ -205,7 +205,6 @@ class BotTester:
             
             from admin_fastapi import app
             from admin_fastapi import AdminAuth
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
             
             self.log("✅ Admin panel imported successfully")
             return True

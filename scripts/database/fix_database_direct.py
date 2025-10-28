@@ -73,7 +73,6 @@ def fix_database_direct():
     except Exception as e:
         print(f"❌ Ошибка при исправлении: {e}")
         import traceback
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
         traceback.print_exc()
         conn.rollback()
     

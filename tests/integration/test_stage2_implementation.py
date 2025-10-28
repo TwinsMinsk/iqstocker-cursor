@@ -149,7 +149,6 @@ async def test_payment_webhooks():
     
     try:
         from core.payments.boosty_handler import get_payment_handler
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
         
         payment_handler = get_payment_handler()
         

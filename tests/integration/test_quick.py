@@ -173,7 +173,6 @@ class QuickTester:
             self.log("Testing environment variables...")
             
             from config.settings import settings
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
             
             # Check critical settings exist
             assert hasattr(settings, 'database_url')

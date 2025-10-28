@@ -127,7 +127,6 @@ async def process_pending_analyses():
     except Exception as e:
         print(f"❌ Ошибка обработки анализов: {e}")
         import traceback
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
         traceback.print_exc()
         return False
 

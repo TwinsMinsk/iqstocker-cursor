@@ -54,7 +54,6 @@ def create_initial_data():
         # Создаем видеоуроки
         try:
             from init_video_lessons import create_video_lessons
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
             create_video_lessons()
             print("✅ Видеоуроки созданы!")
         except Exception as e:

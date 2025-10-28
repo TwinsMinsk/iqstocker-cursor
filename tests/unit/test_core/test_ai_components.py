@@ -296,7 +296,6 @@ class TestBenchmarkEngine:
     def test_get_subscription_benchmarks(self):
         """Test subscription benchmarks."""
         from database.models import SubscriptionType
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
         benchmarks = self.benchmark.get_subscription_benchmarks(SubscriptionType.FREE)
         assert isinstance(benchmarks, dict)
         assert "subscription_type" in benchmarks

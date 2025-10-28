@@ -42,7 +42,6 @@ def main():
     try:
         from bot.main import main as bot_main
         import asyncio
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
         asyncio.run(bot_main())
     except KeyboardInterrupt:
         print("\n👋 Бот остановлен пользователем")

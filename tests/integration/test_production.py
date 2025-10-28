@@ -254,7 +254,6 @@ class ProductionTester:
             
             # Check railway.json
             import json
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
             with open("railway.json", "r") as f:
                 railway_config = json.load(f)
             

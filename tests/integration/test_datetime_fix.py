@@ -91,7 +91,6 @@ def test_all_handlers_import():
     except Exception as e:
         print(f"❌ Ошибка импорта: {e}")
         import traceback
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
         traceback.print_exc()
         return False
 
