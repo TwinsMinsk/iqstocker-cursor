@@ -34,8 +34,9 @@ class LLMSettings(Base):
     requests_count: Mapped[int] = mapped_column(default=0)
     last_used_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     
-    # Theme settings
+    # Theme settings (cooldown in minutes for flexibility)
     theme_request_interval_days: Mapped[int] = mapped_column(Integer, server_default="7")
+    theme_cooldown_minutes: Mapped[int] = mapped_column(Integer, server_default="10080", nullable=True)  # 7 days = 10080 minutes
     
     def encrypt_api_key(self, api_key: str):
         """Encrypt API key before storing."""

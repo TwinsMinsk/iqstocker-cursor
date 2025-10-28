@@ -45,7 +45,7 @@ async def themes_callback(callback: CallbackQuery, user: User, session: AsyncSes
     last_request = result.scalar_one_or_none()
     
     if last_request:
-        cooldown_days = get_theme_cooldown_days_sync()
+        cooldown_days = get_theme_cooldown_days_sync(user.id)
         last_request_time = last_request.created_at.replace(tzinfo=timezone.utc)
         now = datetime.now(timezone.utc)
         time_diff = now - last_request_time
@@ -81,7 +81,7 @@ async def generate_themes_callback(callback: CallbackQuery, callback_data: Theme
     if limits.themes_remaining <= 0:
         await safe_edit_message(
             callback=callback,
-            text="🚫 У тебя закончились лимиты на темы.\n\nПроверь свои лимиты в разделе 👤 Профиль или оформи подписку для получения дополнительных лимитов.",
+            text=LEXICON_RU['limits_themes_exhausted'],
             reply_markup=get_main_menu_keyboard(user.subscription_type)
         )
         return
@@ -191,11 +191,19 @@ async def generate_themes_callback(callback: CallbackQuery, callback_data: Theme
         )
         session.add(new_theme_request)
         
+        # Обновляем лимиты тем
+        limits_query = select(Limits).where(Limits.user_id == user.id)
+        limits_result = await session.execute(limits_query)
+        user_limits = limits_result.scalar_one_or_none()
+        
+        if user_limits:
+            user_limits.themes_used += 1
+            user_limits.last_theme_request_at = datetime.utcnow()
+            session.add(user_limits)
+        
         await session.commit()
         
-        limits.themes_used += 1
-        
-        logger.info(f"Successfully generated themes for user {user.id}")
+        logger.info(f"Successfully generated themes for user {user.id}, themes_used: {user_limits.themes_used}/{user_limits.themes_total}")
         
         await safe_edit_message(
             callback=callback,

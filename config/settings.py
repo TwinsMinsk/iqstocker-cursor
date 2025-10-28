@@ -160,16 +160,16 @@ class AppSettings(BaseSettings):
     
     # Limits per subscription
     free_analytics_limit: int = Field(0, env="FREE_ANALYTICS_LIMIT")
-    free_themes_limit: int = Field(1, env="FREE_THEMES_LIMIT")
+    free_themes_limit: int = Field(4, env="FREE_THEMES_LIMIT")  # 4 генерации в месяц для всех
     
     test_pro_analytics_limit: int = Field(1, env="TEST_PRO_ANALYTICS_LIMIT")
-    test_pro_themes_limit: int = Field(4, env="TEST_PRO_THEMES_LIMIT")
+    test_pro_themes_limit: int = Field(2, env="TEST_PRO_THEMES_LIMIT")  # 2 генерации за 2 недели
     
     pro_analytics_limit: int = Field(1, env="PRO_ANALYTICS_LIMIT")
-    pro_themes_limit: int = Field(5, env="PRO_THEMES_LIMIT")
+    pro_themes_limit: int = Field(4, env="PRO_THEMES_LIMIT")  # 4 генерации в месяц
     
     ultra_analytics_limit: int = Field(2, env="ULTRA_ANALYTICS_LIMIT")
-    ultra_themes_limit: int = Field(10, env="ULTRA_THEMES_LIMIT")
+    ultra_themes_limit: int = Field(4, env="ULTRA_THEMES_LIMIT")  # 4 генерации в месяц
     
     # New works definition (ID threshold)
     # Пороговое значение ID для определения "новых" работ (ID >= этого значения считаются новыми)

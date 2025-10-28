@@ -89,7 +89,11 @@ class PaymentHandler:
         return mapping.get(subscription_str)
     
     def _update_limits_for_subscription(self, limits: Limits, subscription_type: SubscriptionType):
-        """Update limits based on subscription type."""
+        """Update limits based on subscription type.
+        
+        При продлении подписки лимиты ДОБАВЛЯЮТСЯ к существующим.
+        Это позволяет накапливать неиспользованные лимиты.
+        """
         if subscription_type == SubscriptionType.PRO:
             limits.analytics_total += settings.pro_analytics_limit
             limits.themes_total += settings.pro_themes_limit
@@ -111,13 +115,19 @@ class PaymentHandler:
         return limits
     
     def check_subscription_expiry(self) -> int:
-        """Check and update expired subscriptions."""
+        """Check and update expired subscriptions.
+        
+        При истечении PRO/ULTRA подписки:
+        - Пользователь переходит на FREE
+        - analytics_used и themes_used остаются (история использования)
+        - analytics_total и themes_total устанавливаются в FREE-значения
+        """
         expired_count = 0
         
         try:
-            # Find expired PRO/ULTRA subscriptions
+            # Find expired TEST_PRO/PRO/ULTRA subscriptions
             expired_users = self.db.query(User).filter(
-                User.subscription_type.in_([SubscriptionType.PRO, SubscriptionType.ULTRA]),
+                User.subscription_type.in_([SubscriptionType.TEST_PRO, SubscriptionType.PRO, SubscriptionType.ULTRA]),
                 User.subscription_expires_at < datetime.utcnow()
             ).all()
             
@@ -126,11 +136,12 @@ class PaymentHandler:
                 user.subscription_type = SubscriptionType.FREE
                 user.subscription_expires_at = None
                 
-                # Update limits
+                # Update limits to FREE tier (не обнуляем used - это история)
                 limits = self.db.query(Limits).filter(Limits.user_id == user.id).first()
                 if limits:
                     limits.analytics_total = settings.free_analytics_limit
                     limits.themes_total = settings.free_themes_limit
+                    # analytics_used и themes_used НЕ трогаем - это история
                 
                 expired_count += 1
             

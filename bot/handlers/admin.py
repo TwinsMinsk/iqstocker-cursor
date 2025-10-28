@@ -47,7 +47,7 @@ async def admin_command(message: Message, state: FSMContext):
         await message.answer("❌ У вас нет прав администратора.")
         return
     
-    admin_text = """🔧 **Админ-панель IQStocker**
+    admin_text = """🔧 <b>Админ-панель IQStocker</b>
 
 Выберите действие:
 

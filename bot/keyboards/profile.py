@@ -42,15 +42,15 @@ def get_profile_test_pro_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     
     builder.button(
-        text="🔓 Оформить подписку",
+        text=LEXICON_COMMANDS_RU['button_subscribe'],
         callback_data=ProfileCallbackData(action="show_offer").pack()
     )
     builder.button(
-        text="📎 Как работают лимиты?",
+        text=LEXICON_COMMANDS_RU['button_limits_help'],
         callback_data=ProfileCallbackData(action="limits_help").pack()
     )
     builder.button(
-        text="🔙 Назад в меню",
+        text=LEXICON_COMMANDS_RU['button_back_to_menu'],
         callback_data=CommonCallbackData(action="main_menu").pack()
     )
     builder.adjust(1)
@@ -70,7 +70,7 @@ def get_profile_offer_keyboard() -> InlineKeyboardMarkup:
         callback_data=PaymentCallbackData(plan="ultra_test_discount").pack()
     )
     builder.button(
-        text="↩️ Назад в меню",
+        text=LEXICON_COMMANDS_RU['button_back_to_menu'],
         callback_data=CommonCallbackData(action="main_menu").pack()
     )
     builder.adjust(1)

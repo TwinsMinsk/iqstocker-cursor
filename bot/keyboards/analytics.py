@@ -68,13 +68,14 @@ def get_analytics_report_view_keyboard(reports: list, current_report_id: int, su
 
 def get_analytics_unavailable_keyboard(subscription_type: SubscriptionType) -> InlineKeyboardMarkup:
     """Create keyboard for FREE users when analytics is unavailable."""
+    from bot.keyboards.callbacks import ProfileCallbackData
     keyboard = []
     
     # Add subscription buttons for FREE users
     if subscription_type == SubscriptionType.FREE:
         keyboard.extend([
             [InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_subscribe_pro'], callback_data="upgrade_pro")],
-            [InlineKeyboardButton(text=LEXICON_COMMANDS_RU['compare_tariffs'], callback_data="compare_free_pro")],
+            [InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_compare_free_pro'], callback_data=ProfileCallbackData(action="compare_free_pro").pack())],
             [InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_limits_help'], callback_data="limits_info")]
         ])
     

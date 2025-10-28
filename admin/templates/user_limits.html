@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Управление лимитами пользователей - IQStocker Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .container {
+            max-width: 1200px;
+            margin-top: 30px;
+        }
+        .card {
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .card-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px 10px 0 0 !important;
+            padding: 20px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+        }
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+        }
+        .limits-display {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .limit-item {
+            padding: 10px;
+            margin-bottom: 10px;
+            background: white;
+            border-radius: 5px;
+            border-left: 4px solid #667eea;
+        }
+        .badge-custom {
+            font-size: 0.9em;
+            padding: 5px 10px;
+        }
+        .alert-custom {
+            border-radius: 8px;
+            padding: 15px;
+        }
+        #userInfo {
+            display: none;
+        }
+        .form-label {
+            font-weight: 600;
+            color: #495057;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid #28a745;
+        }
+        .stat-card.warning {
+            border-left-color: #ffc107;
+        }
+        .stat-card.danger {
+            border-left-color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/admin">
+                <i class="fas fa-chart-line"></i> IQStocker Admin Panel
+            </a>
+            <div class="d-flex">
+                <a href="/admin" class="btn btn-outline-light btn-sm me-2">
+                    <i class="fas fa-home"></i> Главная
+                </a>
+                <a href="/dashboard" class="btn btn-outline-light btn-sm">
+                    <i class="fas fa-chart-bar"></i> Dashboard
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="row">
+            <div class="col-12">
+                <h1 class="mb-4">
+                    <i class="fas fa-user-cog"></i> Управление лимитами пользователей
+                </h1>
+            </div>
+        </div>
+
+        <!-- User Search Card -->
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-search"></i> Поиск пользователя</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label for="userIdInput" class="form-label">User ID (из базы данных)</label>
+                                <input type="number" class="form-control" id="userIdInput" placeholder="Введите User ID">
+                                <small class="text-muted">Внимание: это внутренний ID из базы, не Telegram ID</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">&nbsp;</label>
+                                <button class="btn btn-primary w-100" onclick="searchUser()">
+                                    <i class="fas fa-search"></i> Найти пользователя
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Error/Success Messages -->
+                        <div id="messageContainer" class="mt-3"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- User Info and Limits Card (Hidden by default) -->
+        <div class="row" id="userInfo">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-user"></i> Информация о пользователе</h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- User Details -->
+                        <div class="row mb-4">
+                            <div class="col-md-4">
+                                <div class="stat-card">
+                                    <strong>Username:</strong> <span id="userUsername">-</span>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="stat-card">
+                                    <strong>Telegram ID:</strong> <span id="userTelegramId">-</span>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="stat-card">
+                                    <strong>Тариф:</strong> <span id="userSubscription" class="badge bg-info">-</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Current Limits Display -->
+                        <h6 class="mb-3"><i class="fas fa-chart-pie"></i> Текущие лимиты</h6>
+                        <div class="limits-display">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="limit-item">
+                                        <h6><i class="fas fa-chart-bar"></i> Аналитика</h6>
+                                        <div class="d-flex justify-content-between">
+                                            <span>Всего: <strong id="currentAnalyticsTotal">0</strong></span>
+                                            <span>Использовано: <strong id="currentAnalyticsUsed">0</strong></span>
+                                            <span>Осталось: <strong id="currentAnalyticsRemaining" class="text-success">0</strong></span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="limit-item">
+                                        <h6><i class="fas fa-lightbulb"></i> Темы</h6>
+                                        <div class="d-flex justify-content-between">
+                                            <span>Всего: <strong id="currentThemesTotal">0</strong></span>
+                                            <span>Использовано: <strong id="currentThemesUsed">0</strong></span>
+                                            <span>Осталось: <strong id="currentThemesRemaining" class="text-success">0</strong></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Edit Limits Form -->
+                        <h6 class="mb-3 mt-4"><i class="fas fa-edit"></i> Изменить лимиты</h6>
+                        <form id="limitsForm">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <label for="analyticsTotal" class="form-label">Аналитика (Всего)</label>
+                                    <input type="number" class="form-control" id="analyticsTotal" min="0" required>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="analyticsUsed" class="form-label">Аналитика (Использовано)</label>
+                                    <input type="number" class="form-control" id="analyticsUsed" min="0" required>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="themesTotal" class="form-label">Темы (Всего)</label>
+                                    <input type="number" class="form-control" id="themesTotal" min="0" required>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="themesUsed" class="form-label">Темы (Использовано)</label>
+                                    <input type="number" class="form-control" id="themesUsed" min="0" required>
+                                </div>
+                            </div>
+                            <div class="row mt-4">
+                                <div class="col-md-12">
+                                    <button type="submit" class="btn btn-primary btn-lg">
+                                        <i class="fas fa-save"></i> Сохранить изменения
+                                    </button>
+                                    <button type="button" class="btn btn-secondary btn-lg ms-2" onclick="resetForm()">
+                                        <i class="fas fa-undo"></i> Сбросить
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentUserId = null;
+        let originalLimits = {};
+
+        function showMessage(message, type = 'info') {
+            const container = document.getElementById('messageContainer');
+            container.innerHTML = `
+                <div class="alert alert-${type} alert-dismissible fade show alert-custom" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+        }
+
+        async function searchUser() {
+            const userId = document.getElementById('userIdInput').value;
+            
+            if (!userId) {
+                showMessage('Пожалуйста, введите User ID', 'warning');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/admin/users/${userId}/limits`);
+                const data = await response.json();
+
+                if (data.success) {
+                    currentUserId = userId;
+                    displayUserInfo(data.data);
+                    document.getElementById('userInfo').style.display = 'block';
+                    showMessage('Пользователь найден успешно!', 'success');
+                } else {
+                    showMessage(data.error || 'Пользователь не найден', 'danger');
+                    document.getElementById('userInfo').style.display = 'none';
+                }
+            } catch (error) {
+                showMessage('Ошибка при поиске пользователя: ' + error.message, 'danger');
+                document.getElementById('userInfo').style.display = 'none';
+            }
+        }
+
+        function displayUserInfo(data) {
+            // Display user details
+            document.getElementById('userUsername').textContent = data.username || 'N/A';
+            document.getElementById('userTelegramId').textContent = data.telegram_id || 'N/A';
+            document.getElementById('userSubscription').textContent = data.subscription_type || 'FREE';
+
+            // Display current limits
+            const limits = data.limits;
+            document.getElementById('currentAnalyticsTotal').textContent = limits.analytics_total;
+            document.getElementById('currentAnalyticsUsed').textContent = limits.analytics_used;
+            document.getElementById('currentAnalyticsRemaining').textContent = limits.analytics_remaining;
+            
+            document.getElementById('currentThemesTotal').textContent = limits.themes_total;
+            document.getElementById('currentThemesUsed').textContent = limits.themes_used;
+            document.getElementById('currentThemesRemaining').textContent = limits.themes_remaining;
+
+            // Populate form with current values
+            document.getElementById('analyticsTotal').value = limits.analytics_total;
+            document.getElementById('analyticsUsed').value = limits.analytics_used;
+            document.getElementById('themesTotal').value = limits.themes_total;
+            document.getElementById('themesUsed').value = limits.themes_used;
+
+            // Store original limits
+            originalLimits = { ...limits };
+        }
+
+        function resetForm() {
+            if (Object.keys(originalLimits).length > 0) {
+                document.getElementById('analyticsTotal').value = originalLimits.analytics_total;
+                document.getElementById('analyticsUsed').value = originalLimits.analytics_used;
+                document.getElementById('themesTotal').value = originalLimits.themes_total;
+                document.getElementById('themesUsed').value = originalLimits.themes_used;
+                showMessage('Форма сброшена к исходным значениям', 'info');
+            }
+        }
+
+        document.getElementById('limitsForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            if (!currentUserId) {
+                showMessage('Пожалуйста, сначала найдите пользователя', 'warning');
+                return;
+            }
+
+            const limitsData = {
+                analytics_total: parseInt(document.getElementById('analyticsTotal').value),
+                analytics_used: parseInt(document.getElementById('analyticsUsed').value),
+                themes_total: parseInt(document.getElementById('themesTotal').value),
+                themes_used: parseInt(document.getElementById('themesUsed').value)
+            };
+
+            try {
+                const response = await fetch(`/api/admin/users/${currentUserId}/limits`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(limitsData)
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showMessage('Лимиты успешно обновлены! Изменения зафиксированы в Audit Log.', 'success');
+                    // Refresh user data
+                    searchUser();
+                } else {
+                    showMessage('Ошибка при обновлении лимитов: ' + (data.error || 'Unknown error'), 'danger');
+                }
+            } catch (error) {
+                showMessage('Ошибка при обновлении лимитов: ' + error.message, 'danger');
+            }
+        });
+
+        // Allow Enter key to search
+        document.getElementById('userIdInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchUser();
+            }
+        });
+    </script>
+</body>
+</html>
+
