@@ -66,7 +66,7 @@ class TaskScheduler:
 
         # Daily reminder for weekly themes availability (at 12:00 UTC)
         self.scheduler.add_job(
-            lambda: asyncio.create_task(notify_weekly_themes(self.bot)),
+            self.send_daily_weekly_themes_notify,
             CronTrigger(hour=12, minute=0),
             id='daily_weekly_themes_notify',
             name='Send daily weekly-themes availability notifications'
@@ -118,6 +118,12 @@ class TaskScheduler:
         print("Sending TEST_PRO expiration notifications...")
         sent_count = await self.notification_manager.send_test_pro_expiring_notifications()
         print(f"Sent {sent_count} TEST_PRO expiration notifications")
+    
+    async def send_daily_weekly_themes_notify(self):
+        """Send daily reminder about weekly themes availability."""
+        print("Sending daily weekly themes availability notifications...")
+        sent_count = await notify_weekly_themes(self.bot)
+        print(f"Sent {sent_count} weekly themes availability notifications")
     
     async def create_monthly_calendar(self):
         """Create calendar for next month automatically."""

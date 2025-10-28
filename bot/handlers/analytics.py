@@ -70,7 +70,7 @@ async def analytics_start_callback(callback: CallbackQuery, user: User):
 
 
 @router.callback_query(F.data == "analytics")
-async def analytics_callback(callback: CallbackQuery, user: User, limits: Limits, session: AsyncSession):
+async def analytics_callback(callback: CallbackQuery, user: User, limits: Limits, session: AsyncSession, state: FSMContext):
     """Handle analytics callback from main menu."""
     
     if user.subscription_type == SubscriptionType.FREE:
@@ -97,6 +97,8 @@ async def analytics_callback(callback: CallbackQuery, user: User, limits: Limits
                 text=LEXICON_RU['analytics_intro'],
                 reply_markup=get_analytics_intro_keyboard(has_reports=False)
             )
+            # Сохраняем ID сообщения intro для последующего удаления
+            await state.update_data(analytics_intro_message_id=callback.message.message_id)
         else:
             # Has reports - show list of reports
             reports = []
@@ -128,7 +130,7 @@ async def show_csv_guide_callback(callback: CallbackQuery):
 
 
 @router.callback_query(F.data == "analytics_show_intro")
-async def show_intro_callback(callback: CallbackQuery, user: User, session: AsyncSession):
+async def show_intro_callback(callback: CallbackQuery, user: User, session: AsyncSession, state: FSMContext):
     """Handle back to analytics intro."""
     # Re-check if user has reports
     user_id = callback.from_user.id
@@ -146,6 +148,8 @@ async def show_intro_callback(callback: CallbackQuery, user: User, session: Asyn
         text=LEXICON_RU['analytics_intro'],
         reply_markup=get_analytics_intro_keyboard(has_reports=has_reports)
     )
+    # Сохраняем ID сообщения intro для последующего удаления
+    await state.update_data(analytics_intro_message_id=callback.message.message_id)
 
 
 @router.callback_query(F.data == "analytics_show_reports")
@@ -197,7 +201,14 @@ async def handle_csv_upload(message: Message, state: FSMContext, user: User, lim
         return
     
     if limits.analytics_remaining <= 0:
-        await message.answer("У тебя закончились лимиты на аналитику.")
+        # Отправляем сообщение об исчерпании лимитов и удаляем оба сообщения через 15 секунд
+        limit_msg = await message.answer(LEXICON_RU['limits_analytics_exhausted'])
+        await asyncio.sleep(15)
+        try:
+            await message.delete()
+            await limit_msg.delete()
+        except Exception:
+            pass  # Игнорируем ошибки удаления (например, если сообщение уже удалено)
         return
     
     document: Document = message.document
@@ -561,12 +572,13 @@ async def handle_content_type_callback(callback: CallbackQuery, state: FSMContex
             
             db.commit()
         
-        # Decrease analytics limit
-        limits.analytics_used += 1
-        db.commit()
+        # NOTE: Лимит будет списан ПОСЛЕ успешной обработки CSV в process_csv_analysis()
         
     finally:
         db.close()
+    
+    # Get intro_message_id before clearing state
+    intro_message_id = data.get('analytics_intro_message_id')
     
     # Clear state
     await state.clear()
@@ -582,7 +594,8 @@ async def handle_content_type_callback(callback: CallbackQuery, state: FSMContex
         process_csv_analysis(
             data["csv_analysis_id"], 
             callback.message,
-            processing_msg_id=processing_msg.message_id
+            processing_msg_id=processing_msg.message_id,
+            intro_message_id=intro_message_id
         )
     )
 
@@ -649,12 +662,13 @@ async def handle_content_type_text(message: Message, state: FSMContext, user: Us
             
             db.commit()
         
-        # Decrease analytics limit
-        limits.analytics_used += 1
-        db.commit()
+        # NOTE: Лимит будет списан ПОСЛЕ успешной обработки CSV в process_csv_analysis()
         
     finally:
         db.close()
+    
+    # Get intro_message_id before clearing state
+    intro_message_id = data.get('analytics_intro_message_id')
     
     # Clear state
     await state.clear()
@@ -667,7 +681,8 @@ async def handle_content_type_text(message: Message, state: FSMContext, user: Us
         process_csv_analysis(
             data["csv_analysis_id"], 
             message,
-            processing_msg_id=processing_msg.message_id
+            processing_msg_id=processing_msg.message_id,
+            intro_message_id=intro_message_id
         )
     )
 
@@ -831,11 +846,11 @@ async def view_report_callback(callback: CallbackQuery, user: User):
 
 
 @router.callback_query(F.data == "new_analysis")
-async def new_analysis_callback(callback: CallbackQuery, user: User, limits: Limits):
+async def new_analysis_callback(callback: CallbackQuery, user: User, limits: Limits, state: FSMContext):
     """Handle request for new analysis - show intro screen for CSV upload."""
     
     if limits.analytics_remaining <= 0:
-        await callback.answer("У тебя закончились лимиты на аналитику", show_alert=True)
+        await callback.answer(LEXICON_RU['limits_analytics_exhausted'], show_alert=True)
         return
     
     # Show intro screen with CSV guide
@@ -844,6 +859,8 @@ async def new_analysis_callback(callback: CallbackQuery, user: User, limits: Lim
         text=LEXICON_RU['analytics_intro'],
         reply_markup=get_analytics_intro_keyboard(has_reports=True)
     )
+    # Сохраняем ID сообщения intro для последующего удаления
+    await state.update_data(analytics_intro_message_id=callback.message.message_id)
     
     await callback.answer()
 
@@ -851,7 +868,8 @@ async def new_analysis_callback(callback: CallbackQuery, user: User, limits: Lim
 async def process_csv_analysis(
     csv_analysis_id: int, 
     message: Message,
-    processing_msg_id: int = None
+    processing_msg_id: int = None,
+    intro_message_id: int = None
 ):
     """Process CSV analysis in background using advanced processor."""
     
@@ -917,16 +935,48 @@ async def process_csv_analysis(
             csv_analysis.status = AnalysisStatus.COMPLETED
             csv_analysis.processed_at = datetime.now(timezone.utc)
             
+            # СПИСЫВАЕМ ЛИМИТ ТОЛЬКО ПОСЛЕ УСПЕШНОЙ ОБРАБОТКИ
+            user_limits = db.query(Limits).filter(Limits.user_id == user.id).first()
+            if user_limits:
+                user_limits.analytics_used += 1
+            
             db.commit()
             
-            print(f"✅ Результаты сохранены в базу данных")
+            print(f"✅ Результаты сохранены в базу данных, лимит списан")
             
-            # Delete processing message before showing report
+            # Delete processing message and intro message before showing report
             if processing_msg_id:
                 try:
                     await message.bot.delete_message(chat_id=message.chat.id, message_id=processing_msg_id)
                 except TelegramBadRequest:
                     pass  # Message already deleted
+            
+            if intro_message_id:
+                try:
+                    await message.bot.delete_message(chat_id=message.chat.id, message_id=intro_message_id)
+                except TelegramBadRequest:
+                    pass  # Message already deleted
+            
+            # Удаляем предыдущие сообщения аналитики этого пользователя, если они есть
+            try:
+                prev_analyses = db.query(CSVAnalysis).filter(
+                    CSVAnalysis.user_id == user.id,
+                    CSVAnalysis.id != csv_analysis_id,
+                    CSVAnalysis.analytics_message_ids.isnot(None)
+                ).all()
+                
+                for prev_analysis in prev_analyses:
+                    if prev_analysis.analytics_message_ids:
+                        prev_message_ids = [int(msg_id) for msg_id in prev_analysis.analytics_message_ids.split(',')]
+                        for msg_id in prev_message_ids:
+                            try:
+                                await message.bot.delete_message(chat_id=message.chat.id, message_id=msg_id)
+                            except TelegramBadRequest:
+                                pass  # Игнорируем ошибки (сообщение может быть уже удалено)
+                        prev_analysis.analytics_message_ids = None
+                db.commit()
+            except Exception as e:
+                print(f"⚠️ Ошибка удаления предыдущих сообщений: {e}")
 
             # Отправляем последовательность сообщений с отчетом
             # 1. Итоговый отчет
