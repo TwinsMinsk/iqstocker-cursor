@@ -12,7 +12,7 @@ from decimal import Decimal
 from unittest.mock import Mock, patch
 
 # from workers.theme_actors import update_global_themes  # Удален
-from database.models import GlobalTheme, TopTheme, CSVAnalysis, User, AnalysisStatus, SubscriptionType
+from database.models import GlobalTheme, CSVAnalysis, User, AnalysisStatus, SubscriptionType
 
 
 def test_global_theme_aggregation_logic():

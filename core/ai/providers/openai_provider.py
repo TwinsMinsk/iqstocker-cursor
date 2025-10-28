@@ -3,6 +3,7 @@
 import json
 import time
 from typing import List, Dict, Any
+import httpx
 from openai import AsyncOpenAI
 from .base import AbstractLLMProvider, ThemeCategorizationResult
 from ..prompts import THEME_CATEGORIZATION_PROMPT, PERSONAL_THEMES_PROMPT
@@ -13,7 +14,8 @@ class OpenAIProvider(AbstractLLMProvider):
     
     def __init__(self, api_key: str):
         super().__init__(api_key, "gpt-4o")
-        self.client = AsyncOpenAI(api_key=api_key)
+        self._http_client = httpx.AsyncClient(timeout=httpx.Timeout(60.0))
+        self.client = AsyncOpenAI(api_key=api_key, http_client=self._http_client)
     
     async def categorize_themes(
         self, 
@@ -68,7 +70,7 @@ class OpenAIProvider(AbstractLLMProvider):
                 }
                 validated_themes.append(validated_theme)
             
-            processing_time_ms = int((time.time() - start_time) * 1000)
+            processing_time_ms = max(1, int((time.time() - start_time) * 1000))
             
             return ThemeCategorizationResult(
                 themes=validated_themes,

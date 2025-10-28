@@ -13,7 +13,7 @@ os.environ["ADMIN_PASSWORD"] = "admin123"
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from config.database import SessionLocal
-from database.models import User, CSVAnalysis, AnalyticsReport, TopTheme
+from database.models import User, CSVAnalysis, AnalyticsReport
 
 def test_bot_final():
     """Final bot test."""
@@ -49,11 +49,8 @@ def test_bot_final():
         for report in analytics_reports:
             print(f"   - ID {report.id}: {report.total_sales} продаж, ${report.total_revenue}")
         
-        # Check top themes
-        top_themes = db.query(TopTheme).all()
-        print(f"🏆 Топ тем: {len(top_themes)}")
-        for theme in top_themes[:5]:  # Show first 5
-            print(f"   - {theme.theme_name}: {theme.sales_count} продаж, ${theme.revenue}")
+        # TopTheme model was removed - skip theme checking
+        print(f"🏆 Топ тем: N/A (модель TopTheme удалена)")
         
         # Check test files
         test_files = [

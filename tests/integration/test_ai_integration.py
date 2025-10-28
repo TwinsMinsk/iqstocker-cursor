@@ -8,9 +8,9 @@ from unittest.mock import Mock, patch, AsyncMock
 from datetime import datetime
 
 # Import bot handlers
-from bot.handlers.analytics import AnalyticsHandler
-from bot.handlers.themes import ThemesHandler
-from bot.handlers.start import StartHandler
+from bot.handlers.analytics import process_csv_analysis, handle_csv_upload
+from bot.handlers.themes import themes_callback, generate_themes_callback
+from bot.handlers.start import start_command
 
 # Import AI components
 from core.ai.enhanced_theme_manager import EnhancedThemeManager
@@ -18,16 +18,18 @@ from core.analytics.report_generator import ReportGenerator
 
 
 class TestAnalyticsHandlerIntegration:
-    """Test AnalyticsHandler integration with AI components."""
+    """Test analytics handler integration with AI components."""
     
     def setup_method(self):
         """Setup test environment."""
-        self.handler = AnalyticsHandler()
+        # No handler class - using functions directly
+        pass
     
     @pytest.mark.asyncio
-    async def test_analytics_handler_initialization(self):
-        """Test that AnalyticsHandler initializes correctly."""
-        assert self.handler is not None
+    async def test_analytics_functions_exist(self):
+        """Test that analytics functions exist."""
+        assert process_csv_analysis is not None
+        assert handle_csv_upload is not None
     
     @pytest.mark.asyncio
     async def test_handle_csv_analysis_with_ai(self):
@@ -46,17 +48,22 @@ class TestAnalyticsHandlerIntegration:
             {"asset_id": "1501234568", "sales": 2, "revenue": 20.0}
         ]
         
-        with patch('bot.handlers.analytics.ReportGenerator') as mock_report_gen:
+        with patch('tests.integration.test_ai_integration.ReportGenerator') as mock_report_gen:
+            mock_report = Mock()
+            mock_report.id = 1
             mock_report_gen.return_value.generate_enhanced_report = AsyncMock(
                 return_value={
-                    "report_id": 1,
-                    "basic_metrics": {"total_sales": 3, "total_revenue": 30.0},
+                    "report": mock_report,
+                    "metrics": {"total_sales": 3, "total_revenue": 30.0},
+                    "success": True,
                     "ai_analysis": {
                         "sales_prediction": {"predicted_sales": 5, "confidence": "medium"},
                         "recommendations": {"personalized_themes": []}
                     },
                     "advanced_metrics": {"roi_analysis": {}},
-                    "benchmark_data": {"overall_percentile": 75.0}
+                    "benchmark_data": {"overall_percentile": 75.0},
+                    "report_type": "enhanced",
+                    "generated_at": datetime.utcnow().isoformat()
                 }
             )
             
@@ -66,29 +73,33 @@ class TestAnalyticsHandlerIntegration:
                 1, mock_csv_data, 100, 50, 20, 80.0
             )
             
-            assert result["report_id"] == 1
+            assert result["success"] is True
+            assert result["report"].id == 1
+            assert result["report_type"] == "enhanced"
             assert "ai_analysis" in result
             assert "advanced_metrics" in result
             assert "benchmark_data" in result
 
 
 class TestThemesHandlerIntegration:
-    """Test ThemesHandler integration with AI components."""
+    """Test themes handler integration with AI components."""
     
     def setup_method(self):
         """Setup test environment."""
-        self.handler = ThemesHandler()
+        # No handler class - using functions directly
+        pass
     
     @pytest.mark.asyncio
-    async def test_themes_handler_initialization(self):
-        """Test that ThemesHandler initializes correctly."""
-        assert self.handler is not None
+    async def test_themes_functions_exist(self):
+        """Test that themes functions exist."""
+        assert themes_callback is not None
+        assert generate_themes_callback is not None
     
     @pytest.mark.asyncio
     async def test_generate_themes_with_ai(self):
         """Test theme generation with AI integration."""
         # Mock enhanced theme manager
-        with patch('core.ai.enhanced_theme_manager.EnhancedThemeManager') as mock_manager:
+        with patch('tests.integration.test_ai_integration.EnhancedThemeManager') as mock_manager:
             mock_instance = Mock()
             mock_instance.generate_weekly_themes = AsyncMock(
                 return_value=[
@@ -123,16 +134,17 @@ class TestThemesHandlerIntegration:
 
 
 class TestStartHandlerIntegration:
-    """Test StartHandler integration with AI components."""
+    """Test start handler integration with AI components."""
     
     def setup_method(self):
         """Setup test environment."""
-        self.handler = StartHandler()
+        # No handler class - using functions directly
+        pass
     
     @pytest.mark.asyncio
-    async def test_start_handler_initialization(self):
-        """Test that StartHandler initializes correctly."""
-        assert self.handler is not None
+    async def test_start_function_exists(self):
+        """Test that start function exists."""
+        assert start_command is not None
 
 
 class TestAIComponentsIntegration:

@@ -29,7 +29,7 @@ def test_fsm_flow_simulation():
         ("waiting_for_portfolio_size", "100", "Размер портфеля: 100 файлов"),
         ("waiting_for_upload_limit", "50", "Лимит загрузки: 50 файлов в месяц"),
         ("waiting_for_monthly_uploads", "30", "Обычно загружаю: 30 файлов в месяц"),
-        ("waiting_for_profit_margin", "25.5", "Процент прибыли: 25.5%"),
+        ("waiting_for_acceptance_rate", "25.5", "Процент принятия: 25.5%"),
         ("waiting_for_content_type", "AI", "Тип контента: AI")
     ]
     
@@ -72,13 +72,13 @@ def test_fsm_flow_simulation():
                 logger.error(f"❌ Ошибка валидации: '{input_value}' не является числом")
                 return False
                 
-        elif state == "waiting_for_profit_margin":
+        elif state == "waiting_for_acceptance_rate":
             try:
-                profit_margin = float(input_value)
-                if profit_margin < 0 or profit_margin > 100:
-                    logger.error(f"❌ Ошибка валидации: {profit_margin} не в диапазоне 0-100")
+                acceptance_rate = float(input_value)
+                if acceptance_rate < 0 or acceptance_rate > 100:
+                    logger.error(f"❌ Ошибка валидации: {acceptance_rate} не в диапазоне 0-100")
                     return False
-                logger.info(f"✅ Валидация пройдена: profit_margin = {profit_margin}")
+                logger.info(f"✅ Валидация пройдена: acceptance_rate = {acceptance_rate}")
             except ValueError:
                 logger.error(f"❌ Ошибка валидации: '{input_value}' не является числом")
                 return False
@@ -114,9 +114,9 @@ def test_error_scenarios():
         ("waiting_for_upload_limit", "xyz", "Нечисловой ввод"),
         ("waiting_for_upload_limit", "-10", "Отрицательное число"),
         ("waiting_for_monthly_uploads", "test", "Нечисловой ввод"),
-        ("waiting_for_profit_margin", "150", "Больше 100%"),
-        ("waiting_for_profit_margin", "-5", "Отрицательный процент"),
-        ("waiting_for_profit_margin", "invalid", "Нечисловой ввод")
+        ("waiting_for_acceptance_rate", "150", "Больше 100%"),
+        ("waiting_for_acceptance_rate", "-5", "Отрицательный процент"),
+        ("waiting_for_acceptance_rate", "invalid", "Нечисловой ввод")
     ]
     
     for state, input_value, description in error_cases:
@@ -137,7 +137,7 @@ def test_error_scenarios():
             except ValueError:
                 is_error = True
                 
-        elif state == "waiting_for_profit_margin":
+        elif state == "waiting_for_acceptance_rate":
             try:
                 value = float(input_value)
                 if value < 0 or value > 100:
@@ -196,7 +196,7 @@ def test_cancel_command():
         AnalyticsStates.waiting_for_portfolio_size,
         AnalyticsStates.waiting_for_upload_limit,
         AnalyticsStates.waiting_for_monthly_uploads,
-        AnalyticsStates.waiting_for_profit_margin,
+        AnalyticsStates.waiting_for_acceptance_rate,
         AnalyticsStates.waiting_for_content_type
     ]
     

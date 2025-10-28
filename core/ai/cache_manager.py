@@ -119,7 +119,13 @@ class AICacheManager:
             
         except Exception as e:
             print(f"Error getting cache statistics: {e}")
-            return {"error": str(e)}
+            return {
+                "total_cached_items": 0,
+                "cache_types": {},
+                "memory_usage": 0,
+                "hit_rate": 0.0,
+                "error": str(e),
+            }
     
     def clear_expired_cache(self) -> int:
         """Clear expired cache entries."""

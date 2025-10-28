@@ -51,7 +51,7 @@ class TestGeminiProvider:
         }
         '''
         
-        with patch.object(provider.model, 'generate_content_async', return_value=mock_response):
+        with patch.object(provider.model, 'generate_content_async', AsyncMock(return_value=mock_response)):
             result = await provider.categorize_themes(tags_by_asset, sales_data)
             
             assert isinstance(result, ThemeCategorizationResult)
@@ -75,7 +75,7 @@ class TestGeminiProvider:
         mock_response = Mock()
         mock_response.text = "Invalid JSON response"
         
-        with patch.object(provider.model, 'generate_content_async', return_value=mock_response):
+        with patch.object(provider.model, 'generate_content_async', AsyncMock(return_value=mock_response)):
             with pytest.raises(ValueError, match="Failed to parse JSON response"):
                 await provider.categorize_themes(tags_by_asset, sales_data)
     
@@ -140,7 +140,7 @@ class TestOpenAIProvider:
         }
         '''
         
-        with patch.object(provider.client.chat.completions, 'create', return_value=mock_response):
+        with patch.object(provider.client.chat.completions, 'create', AsyncMock(return_value=mock_response)):
             result = await provider.categorize_themes(tags_by_asset, sales_data)
             
             assert isinstance(result, ThemeCategorizationResult)
@@ -184,7 +184,7 @@ class TestClaudeProvider:
         }
         '''
         
-        with patch.object(provider.client.messages, 'create', return_value=mock_response):
+        with patch.object(provider.client.messages, 'create', AsyncMock(return_value=mock_response)):
             result = await provider.categorize_themes(tags_by_asset, sales_data)
             
             assert isinstance(result, ThemeCategorizationResult)

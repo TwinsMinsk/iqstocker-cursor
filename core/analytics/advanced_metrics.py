@@ -29,7 +29,8 @@ class AdvancedMetrics:
             "roi_by_themes": [],
             "avg_roi": 0,
             "best_performing_theme": None,
-            "worst_performing_theme": None
+            "worst_performing_theme": None,
+            "message": "Недостаточно данных: модель TopTheme удалена"
         }
     
     def calculate_conversion_rates(self, user_id: int) -> Dict[str, Any]:
@@ -101,7 +102,7 @@ class AdvancedMetrics:
             "diversity_index": 0,
             "theme_count": 0,
             "category_distribution": {},
-            "message": "TopTheme functionality removed"
+            "message": "Недостаточно данных: модель TopTheme удалена"
         }
     
     def calculate_time_to_sale_metrics(self, user_id: int) -> Dict[str, Any]:

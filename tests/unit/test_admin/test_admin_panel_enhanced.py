@@ -190,7 +190,7 @@ class TestAdminPanelEnhanced:
         
         try:
             from admin.utils.quick_actions import QuickActions
-
+            
             quick_actions = QuickActions()
             
             # Test user statistics

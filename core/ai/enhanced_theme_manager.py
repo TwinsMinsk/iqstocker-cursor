@@ -7,7 +7,12 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
 from config.database import SessionLocal
-from database.models import GlobalTheme, TopTheme, User, SubscriptionType, ThemeRequest
+from database.models import (
+    GlobalTheme,
+    User,
+    SubscriptionType,
+    ThemeRequest,
+)
 from core.ai.categorizer import ThemeCategorizer
 from core.ai.sales_predictor import SalesPredictor
 from core.ai.recommendation_engine import RecommendationEngine
@@ -157,22 +162,12 @@ class EnhancedThemeManager:
             return self._get_fallback_themes(count)
     
     def get_user_top_themes(self, user_id: int, limit: int = 10) -> List[str]:
-        """Get user's top themes from their analytics."""
+        """Get user's top themes from their analytics.
         
-        try:
-            top_themes = self.db.query(TopTheme).join(
-                TopTheme.csv_analysis
-            ).filter(
-                TopTheme.csv_analysis.has(user_id=user_id)
-            ).order_by(
-                desc(TopTheme.revenue)
-            ).limit(limit).all()
-            
-            return [theme.theme_name for theme in top_themes]
-            
-        except Exception as e:
-            print(f"Error getting user top themes: {e}")
-            return []
+        NOTE: TopTheme model was removed. This method returns fallback themes.
+        """
+        # TopTheme model removed - return fallback themes
+        return ["Бизнес", "Люди", "Природа", "Технологии", "Спорт"][:limit]
     
     def get_trending_themes(self, limit: int = 20) -> List[GlobalTheme]:
         """Get trending themes from global database."""
@@ -299,28 +294,34 @@ class EnhancedThemeManager:
         else:
             return 1
     
-    def update_global_themes(self, top_themes: List[TopTheme]):
-        """Update global themes database with new top themes."""
+    def update_global_themes(self, top_themes: List[Dict[str, Any]]):
+        """Update global themes database with new top themes.
         
+        NOTE: This method now accepts a list of dicts instead of TopTheme objects.
+        """
         try:
-            for top_theme in top_themes:
+            for top_theme_data in top_themes:
+                theme_name = top_theme_data.get("theme_name", "")
+                sales_count = top_theme_data.get("sales_count", 0)
+                revenue = top_theme_data.get("revenue", 0)
+                
                 # Check if theme already exists
                 existing_theme = self.db.query(GlobalTheme).filter(
-                    GlobalTheme.theme_name == top_theme.theme_name
+                    GlobalTheme.theme_name == theme_name
                 ).first()
                 
                 if existing_theme:
                     # Update existing theme
-                    existing_theme.total_sales += top_theme.sales_count
-                    existing_theme.total_revenue += top_theme.revenue
+                    existing_theme.total_sales += sales_count
+                    existing_theme.total_revenue += revenue
                     existing_theme.authors_count += 1
                     existing_theme.last_updated = datetime.now(timezone.utc)
                 else:
                     # Create new theme
                     new_theme = GlobalTheme(
-                        theme_name=top_theme.theme_name,
-                        total_sales=top_theme.sales_count,
-                        total_revenue=top_theme.revenue,
+                        theme_name=theme_name,
+                        total_sales=sales_count,
+                        total_revenue=revenue,
                         authors_count=1,
                         last_updated=datetime.now(timezone.utc)
                     )

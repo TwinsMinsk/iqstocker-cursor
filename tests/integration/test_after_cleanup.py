@@ -13,7 +13,7 @@ os.environ["ADMIN_PASSWORD"] = "admin123"
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from config.database import SessionLocal
-from database.models import User, CSVAnalysis, AnalyticsReport, TopTheme, AnalysisStatus
+from database.models import User, CSVAnalysis, AnalyticsReport, AnalysisStatus
 
 def test_after_cleanup():
     """Test after complete cleanup."""
@@ -69,17 +69,8 @@ def test_after_cleanup():
                 else:
                     print("   ❌ Отчет не найден")
                 
-                # Check top themes
-                themes = db.query(TopTheme).filter(
-                    TopTheme.csv_analysis_id == analysis.id
-                ).all()
-                
-                print(f"   🏆 Топ тем: {len(themes)}")
-                
-                if themes:
-                    print("   Топ-3 темы:")
-                    for i, theme in enumerate(themes[:3], 1):
-                        print(f"     {i}. {theme.theme_name}: {theme.sales_count} продаж, ${theme.revenue}")
+                # TopTheme model was removed - skip theme checking
+                print(f"   🏆 Топ тем: N/A (модель TopTheme удалена)")
         
         print(f"\n📊 ИТОГОВАЯ СТАТИСТИКА:")
         print(f"✅ Завершенных анализов: {completed_count}")

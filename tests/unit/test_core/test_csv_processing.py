@@ -159,7 +159,7 @@ def test_bot_handler():
     
     print("\n🤖 Тестируем обработчик бота...")
     print("=" * 50)
-
+    
     try:
         # Импортируем обработчик
         from bot.handlers.analytics import process_csv_analysis

@@ -89,20 +89,45 @@ class ThemeManager:
         
         try:
             from database.models import ThemeRequest
+            import json
             
-            requests = self.db.query(ThemeRequest).filter(
-                ThemeRequest.user_id == user_id
-            ).order_by(
-                desc(ThemeRequest.requested_at)
-            ).limit(10).all()
+            requests = (
+                self.db.query(ThemeRequest)
+                .filter(ThemeRequest.user_id == user_id)
+                .order_by(desc(getattr(ThemeRequest, "requested_at", ThemeRequest.created_at)))
+                .limit(10)
+                .all()
+            )
             
-            return [
-                {
-                    "themes": request.themes,
-                    "requested_at": request.requested_at
-                }
-                for request in requests
-            ]
+            history: List[Dict[str, Any]] = []
+            for request in requests:
+                requested_at = getattr(request, "requested_at", None) or getattr(request, "created_at", None)
+                
+                raw_themes = getattr(request, "themes", None)
+                themes_list: List[str] = []
+                if raw_themes:
+                    if isinstance(raw_themes, list):
+                        themes_list = raw_themes
+                    elif isinstance(raw_themes, str):
+                        try:
+                            parsed = json.loads(raw_themes)
+                            if isinstance(parsed, list):
+                                themes_list = parsed
+                        except json.JSONDecodeError:
+                            pass
+                
+                if not themes_list and getattr(request, "theme_name", None):
+                    themes_list = [request.theme_name]
+                
+                history.append(
+                    {
+                        "themes": themes_list,
+                        "requested_at": requested_at,
+                        "status": getattr(request, "status", None),
+                    }
+                )
+            
+            return history
             
         except Exception as e:
             print(f"Error getting theme request history: {e}")
@@ -112,21 +137,19 @@ class ThemeManager:
         """Check if user can request new themes (weekly limit)."""
         
         try:
-            from database.models import ThemeRequest
+            history = self.get_theme_request_history(user_id)
+            if not history:
+                return True
             
-            # Get last theme request
-            last_request = self.db.query(ThemeRequest).filter(
-                ThemeRequest.user_id == user_id
-            ).order_by(
-                desc(ThemeRequest.requested_at)
-            ).first()
+            last_request = history[0]
+            requested_at = last_request.get("requested_at")
             
-            if not last_request:
-                return True  # First request
+            if requested_at is None:
+                return True
             
-            # Check if week has passed
+            # Allow new request if a week has passed since the last one
             week_ago = datetime.utcnow() - timedelta(days=7)
-            return last_request.requested_at < week_ago
+            return requested_at <= week_ago
             
         except Exception as e:
             print(f"Error checking theme request eligibility: {e}")
@@ -138,11 +161,23 @@ class ThemeManager:
         try:
             from database.models import ThemeRequest
             
+            primary_theme = themes[0] if themes else "custom_theme"
+            
             request = ThemeRequest(
                 user_id=user_id,
-                themes=themes,
-                requested_at=datetime.utcnow()
+                theme_name=primary_theme,
+                status="PENDING"
             )
+            
+            if hasattr(request, "themes"):
+                request.themes = themes
+            if hasattr(request, "requested_at"):
+                request.requested_at = datetime.utcnow()
+            else:
+                if hasattr(request, "created_at"):
+                    request.created_at = datetime.utcnow()
+                if hasattr(request, "updated_at"):
+                    request.updated_at = datetime.utcnow()
             
             self.db.add(request)
             self.db.commit()

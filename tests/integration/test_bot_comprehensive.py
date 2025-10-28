@@ -16,7 +16,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from bot.lexicon import LEXICON_RU
 from bot.lexicon.lexicon_ru import LEXICON_COMMANDS_RU
 from bot.keyboards.main_menu import get_main_menu_keyboard
-from bot.keyboards.common import add_back_to_menu_button, create_subscription_buttons, create_themes_keyboard
+from bot.keyboards.common import create_themes_keyboard, create_cooldown_keyboard, get_faq_menu_keyboard
 from bot.keyboards.profile import get_profile_keyboard
 from database.models import SubscriptionType
 
@@ -72,19 +72,8 @@ def test_keyboard_creation():
             return False
         logger.info(f"✅ Клавиатура профиля создана ({len(profile_keyboard.inline_keyboard)} рядов)")
         
-        # Тестируем общие функции
-        test_keyboard = []
-        test_keyboard = add_back_to_menu_button(test_keyboard, SubscriptionType.FREE)
-        if not test_keyboard:
-            logger.error("❌ Ошибка добавления кнопки 'Назад в меню'")
-            return False
-        logger.info("✅ Кнопка 'Назад в меню' добавлена")
-        
-        subscription_buttons = create_subscription_buttons(SubscriptionType.FREE)
-        if not subscription_buttons:
-            logger.error("❌ Ошибка создания кнопок подписки")
-            return False
-        logger.info(f"✅ Кнопки подписки созданы ({len(subscription_buttons)} кнопок)")
+        # Тестируем общие функции (функции add_back_to_menu_button и create_subscription_buttons удалены)
+        logger.info("✅ Общие функции клавиатур (пропущены - функции удалены)")
         
         themes_keyboard = create_themes_keyboard(SubscriptionType.FREE, True)
         if not themes_keyboard or not themes_keyboard.inline_keyboard:
@@ -138,14 +127,8 @@ def test_subscription_buttons():
         ]
         
         for sub_type, name in subscription_types:
-            buttons = create_subscription_buttons(sub_type)
-            logger.info(f"📋 {name}: {len(buttons)} кнопок подписки")
-            
-            # Проверяем, что кнопки созданы корректно
-            for button_row in buttons:
-                for button in button_row:
-                    if button.text not in LEXICON_COMMANDS_RU.values():
-                        logger.warning(f"⚠️ Кнопка '{button.text}' не найдена в словаре")
+            # create_subscription_buttons функция удалена - пропускаем тест
+            logger.info(f"📋 {name}: тест кнопок подписки пропущен (функция удалена)")
         
         logger.info("✅ Кнопки подписки протестированы")
         return True

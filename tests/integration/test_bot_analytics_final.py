@@ -13,7 +13,7 @@ os.environ["ADMIN_PASSWORD"] = "admin123"
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from config.database import SessionLocal
-from database.models import User, CSVAnalysis, AnalyticsReport, TopTheme
+from database.models import User, CSVAnalysis, AnalyticsReport
 from core.analytics.report_generator_fixed import FixedReportGenerator
 from core.analytics.advanced_csv_processor import AdvancedCSVProcessor
 
@@ -60,17 +60,8 @@ def test_bot_analytics_final():
             else:
                 print("   ❌ Отчет не найден")
             
-            # Check top themes
-            themes = db.query(TopTheme).filter(
-                TopTheme.csv_analysis_id == analysis.id
-            ).all()
-            
-            print(f"   🏆 Топ тем: {len(themes)}")
-            
-            if themes:
-                print("   Топ-3 темы:")
-                for i, theme in enumerate(themes[:3], 1):
-                    print(f"     {i}. {theme.theme_name}: {theme.sales_count} продаж, ${theme.revenue}")
+            # TopTheme model was removed - skip theme checking
+            print(f"   🏆 Топ тем: N/A (модель TopTheme удалена)")
         
         # Test report generation
         print(f"\n🧪 Тестирование генерации отчетов...")

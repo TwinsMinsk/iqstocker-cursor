@@ -1,0 +1,7 @@
+[flake8]
+max-line-length = 127
+statistics = True
+count = True
+# Игнорировать F821 (undefined name) только в папке models
+per-file-ignores =
+    database/models/*.py: F821

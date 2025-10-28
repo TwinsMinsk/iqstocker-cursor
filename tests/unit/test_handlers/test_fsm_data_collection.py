@@ -55,7 +55,7 @@ def test_fsm_states():
         'waiting_for_portfolio_size',
         'waiting_for_upload_limit', 
         'waiting_for_monthly_uploads',
-        'waiting_for_profit_margin',
+        'waiting_for_acceptance_rate',
         'waiting_for_content_type'
     ]
     
@@ -214,7 +214,7 @@ def test_flow_sequence():
         AnalyticsStates.waiting_for_portfolio_size,
         AnalyticsStates.waiting_for_upload_limit,
         AnalyticsStates.waiting_for_monthly_uploads,
-        AnalyticsStates.waiting_for_profit_margin,
+        AnalyticsStates.waiting_for_acceptance_rate,
         AnalyticsStates.waiting_for_content_type
     ]
     

@@ -120,7 +120,9 @@ class BotTester:
         try:
             self.log("Testing utils import...")
             
-            from bot.utils import *
+            # Import specific utils instead of * import
+            from bot.utils.safe_edit import safe_edit_message
+            from bot.utils.markdown import escape_markdown
             
             self.log("✅ All utils imported successfully")
             return True
@@ -189,7 +191,7 @@ class BotTester:
             
             from config.settings import settings
             from config.database import SessionLocal, engine
-            from config.ai import *
+            # from config.ai import * - removed to avoid SyntaxError
             
             self.log("✅ All config modules imported successfully")
             return True

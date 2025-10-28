@@ -39,7 +39,7 @@ class TestCSVParser:
         """Test parsing empty CSV."""
         parser = CSVParser()
         
-        mock_df = pd.DataFrame()
+        mock_df = pd.DataFrame(columns=['Title', 'Asset ID', 'Sales', 'Revenue'])
         
         with patch('pandas.read_csv', return_value=mock_df):
             result = parser.parse_csv('empty.csv')

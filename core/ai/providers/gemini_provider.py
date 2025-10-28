@@ -71,7 +71,7 @@ class GeminiProvider(AbstractLLMProvider):
                 }
                 validated_themes.append(validated_theme)
             
-            processing_time_ms = int((time.time() - start_time) * 1000)
+            processing_time_ms = max(1, int((time.time() - start_time) * 1000))
             
             return ThemeCategorizationResult(
                 themes=validated_themes,
