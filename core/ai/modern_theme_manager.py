@@ -106,35 +106,38 @@ class ModernThemeManager:
             return []
     
     def can_request_themes(self, user_id: int) -> bool:
-        """Проверить, может ли пользователь запросить новые темы (недельный лимит)."""
-        
+        """Check if user can request new themes (weekly limit)."""
         try:
-            # Получаем последний запрос тем
-            last_request = self.db.query(ThemeRequest).filter(
-                ThemeRequest.user_id == user_id
-            ).order_by(
-                desc(ThemeRequest.requested_at)
-            ).first()
-            
+            order_column = (
+                ThemeRequest.requested_at
+                if hasattr(ThemeRequest, "requested_at")
+                else ThemeRequest.created_at
+            )
+            last_request = (
+                self.db.query(ThemeRequest)
+                .filter(ThemeRequest.user_id == user_id)
+                .order_by(desc(order_column))
+                .first()
+            )
             if not last_request:
-                return True  # Первый запрос
-            
-            # Проверяем, прошла ли неделя
-            week_ago = datetime.now(timezone.utc) - timedelta(days=7)
-            # Убеждаемся, что оба datetime имеют timezone
-            if last_request.requested_at.tzinfo is None:
-                last_request_time = last_request.requested_at.replace(tzinfo=timezone.utc)
+                logger.info("First theme request allowed", user_id=user_id)
+                return True
+            requested_at = getattr(last_request, "requested_at", None) or getattr(last_request, "created_at", None)
+            if requested_at is None:
+                logger.info("Theme request allowed due to missing timestamp", user_id=user_id)
+                return True
+            if requested_at.tzinfo is None:
+                requested_time = requested_at.replace(tzinfo=timezone.utc)
             else:
-                last_request_time = last_request.requested_at
-            
-            can_request = last_request_time < week_ago
+                requested_time = requested_at.astimezone(timezone.utc)
+            week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+            can_request = requested_time <= week_ago
             logger.info("Theme request eligibility checked", user_id=user_id, can_request=can_request)
             return can_request
-            
         except Exception as e:
             logger.error("Error checking theme request eligibility", error=str(e))
             return False
-    
+
     def save_theme_request(self, user_id: int, themes: List[Dict[str, Any]]) -> bool:
         """Сохранить запрос тем в базу данных."""
         
