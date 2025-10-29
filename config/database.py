@@ -126,6 +126,8 @@ if is_postgresql:
     )
 
     async_engine_kwargs.setdefault("connect_args", {})
+    async_engine_kwargs["connect_args"].setdefault("server_settings", {})
+    async_engine_kwargs["connect_args"]["server_settings"]["statement_cache_size"] = "0"
 
     parsed_async_url = urlparse(async_database_url)
     is_supabase = parsed_async_url.hostname and "supabase.com" in parsed_async_url.hostname
