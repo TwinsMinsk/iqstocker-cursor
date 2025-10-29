@@ -60,6 +60,8 @@ async def create_new_user(message: Message, session: AsyncSession) -> User:
         first_name=message.from_user.first_name,
         last_name=message.from_user.last_name,
         subscription_type=SubscriptionType.TEST_PRO,
+        created_at=now,
+        updated_at=now,
         test_pro_started_at=now,
         subscription_expires_at=test_pro_expires
     )
@@ -101,9 +103,14 @@ async def send_welcome_sequence(message: Message, user: User):
 async def handle_existing_user(message: Message, user: User, session: AsyncSession):
     """Handle existing user login."""
     
+    now_utc = datetime.now(timezone.utc)
+    
     # Check if TEST_PRO subscription expired
     if user.subscription_type == SubscriptionType.TEST_PRO and user.subscription_expires_at:
-        if datetime.now(timezone.utc) > user.subscription_expires_at.replace(tzinfo=timezone.utc):
+        expires_at = user.subscription_expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if now_utc > expires_at:
             # Convert to FREE subscription
             user.subscription_type = SubscriptionType.FREE
             user.subscription_expires_at = None
@@ -116,12 +123,15 @@ async def handle_existing_user(message: Message, user: User, session: AsyncSessi
             await session.commit()  # Сохраняем изменения
     
     # Можно обновить last_activity_at
-    user.last_activity_at = datetime.now(timezone.utc)
+    user.last_activity_at = now_utc
     await session.commit()
     
     # Determine subscription status
     if user.subscription_type == SubscriptionType.TEST_PRO:
-        days_left = (user.subscription_expires_at.replace(tzinfo=timezone.utc) - datetime.now(timezone.utc)).days if user.subscription_expires_at else 0
+        expires_at = user.subscription_expires_at
+        if expires_at and expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        days_left = (expires_at - now_utc).days if expires_at else 0
         status_text = f"Тестовый PRO (осталось {days_left} дней)"
     elif user.subscription_type == SubscriptionType.FREE:
         status_text = "Бесплатный"
