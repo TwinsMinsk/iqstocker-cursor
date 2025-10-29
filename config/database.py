@@ -126,17 +126,21 @@ if is_postgresql:
     )
 
     async_engine_kwargs.setdefault("connect_args", {})
-    async_engine_kwargs["connect_args"].setdefault("server_settings", {})
-    async_engine_kwargs["connect_args"]["server_settings"]["statement_cache_size"] = "0"
-
+    
     parsed_async_url = urlparse(async_database_url)
     is_supabase = parsed_async_url.hostname and "supabase.com" in parsed_async_url.hostname
+    
+    # Disable statement cache for pgbouncer (Supabase pooler) compatibility
+    # pgbouncer with pool_mode="transaction" or "statement" doesn't support prepared statements
     if is_supabase:
+        # For Supabase/pgbouncer: disable statement caching
+        async_engine_kwargs["connect_args"]["statement_cache_size"] = 0
         supabase_ssl_context = ssl.create_default_context()
         supabase_ssl_context.check_hostname = False
         supabase_ssl_context.verify_mode = ssl.CERT_NONE
         async_engine_kwargs["connect_args"]["ssl"] = supabase_ssl_context
         db_logger.info("Configured SSL context with disabled verification for Supabase pooler host")
+        db_logger.info("Disabled statement cache for pgbouncer compatibility")
     else:
         async_engine_kwargs["connect_args"].setdefault("ssl", True)
 

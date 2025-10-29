@@ -13,6 +13,9 @@
       "name": "bot",
       "deploy": {
         "startCommand": "python scripts/deployment/start_bot.py",
+        "replicas": 1,
+        "restartPolicyType": "ON_FAILURE",
+        "restartPolicyMaxRetries": 3,
         "environment": {
           "SERVICE_TYPE": "bot"
         }

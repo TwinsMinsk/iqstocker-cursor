@@ -85,10 +85,17 @@ async def main():
     logger.info("Task scheduler started")
     
     try:
-        # Start polling
-        await dp.start_polling(bot)
+        # Start polling with automatic retry on conflicts
+        # aiogram automatically handles TelegramConflictError and retries
+        await dp.start_polling(
+            bot,
+            allowed_updates=["message", "callback_query", "inline_query"]
+        )
+    except KeyboardInterrupt:
+        logger.info("Bot stopped by user")
     except Exception as e:
-        logger.error(f"Bot error: {e}")
+        logger.error(f"Bot error: {e}", exc_info=True)
+        raise
     finally:
         # Stop scheduler
         scheduler.stop()
