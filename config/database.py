@@ -1,141 +1,142 @@
 """Database configuration and session management."""
 
+import logging
+import os
+from typing import Generator
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+
+import asyncpg  # noqa: F401 - imported for side effects in asyncpg URL handling
+import redis
 from sqlalchemy import create_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from urllib.parse import urlparse, parse_qs, parse_qsl, urlunparse, urlencode
-import asyncpg
-import redis
-import os
-from typing import Generator, Callable, Any
 
 from config.settings import settings
 
-# SQLAlchemy setup
-# КРИТИЧЕСКИ ВАЖНО: Сначала проверяем переменную окружения DATABASE_URL напрямую
-# Это гарантирует, что мы получим правильный URL даже в форкнутых процессах
-import logging
+# Prefer DATABASE_URL from the environment so the runtime (Railway) can override it
+
 db_logger = logging.getLogger(__name__)
+
 
 database_url_env = os.getenv("DATABASE_URL")
 if database_url_env:
     database_url = database_url_env
-    db_logger.info(f"Database URL from DATABASE_URL environment variable: {database_url[:50]}...")
+    db_logger.info(
+        f"Database URL from DATABASE_URL environment variable: {database_url[:50]}..."
+    )
 else:
-    # Fallback на settings.database_url, если переменная окружения не установлена
+    # Fallback to the value from application settings (local development, tests)
     database_url = settings.database_url
-    db_logger.warning(f"DATABASE_URL environment variable not found, using settings.database_url: {database_url[:50]}...")
+    db_logger.warning(
+        f"DATABASE_URL environment variable not found, using settings.database_url: {database_url[:50]}..."
+    )
 
-# Detect database type - проверяем начало URL для надежности
-is_postgresql = database_url.startswith('postgresql://') or database_url.startswith('postgresql+')
+# Detect database type so we know which engine configuration to apply
+is_postgresql = database_url.startswith("postgresql://") or database_url.startswith("postgresql+")
 
-# Логируем для отладки
-db_logger.info(f"Database URL detected: {database_url[:50]}... (is_postgresql: {is_postgresql})")
+db_logger.info(
+    f"Database URL detected: {database_url[:50]}... (is_postgresql: {is_postgresql})"
+)
 
-if not is_postgresql and not database_url.startswith('sqlite://'):
-    db_logger.warning(f"Unknown database URL format: {database_url[:50]}... - treating as SQLite")
+if not is_postgresql and not database_url.startswith("sqlite://"):
+    db_logger.warning(
+        f"Unknown database URL format: {database_url[:50]}... - treating as SQLite"
+    )
 
 engine_kwargs = {
-    'pool_pre_ping': True,
-    'echo': settings.debug
+    "pool_pre_ping": True,
+    "echo": settings.debug,
 }
 
 if is_postgresql:
     # PostgreSQL specific settings
-    engine_kwargs.update({
-        'pool_size': 10,
-        'max_overflow': 20,
-        'pool_recycle': 3600,
-        'pool_timeout': 30
-    })
+    engine_kwargs.update(
+        {
+            "pool_size": 10,
+            "max_overflow": 20,
+            "pool_recycle": 3600,
+            "pool_timeout": 30,
+        }
+    )
     db_logger.info("Using PostgreSQL engine configuration")
 else:
     # SQLite specific settings
-    engine_kwargs['poolclass'] = StaticPool
+    engine_kwargs["poolclass"] = StaticPool
     db_logger.info("Using SQLite engine configuration")
 
 engine = create_engine(database_url, **engine_kwargs)
 
-# Async engine - КРИТИЧЕСКИ ВАЖНО: правильно формируем URL для async
+# Build async URL compatible with asyncpg / aiosqlite
 if is_postgresql:
-    # PostgreSQL: заменяем postgresql:// или postgresql+psycopg2:// на postgresql+asyncpg://
-    if database_url.startswith('postgresql+psycopg2://'):
-        async_database_url = database_url.replace('postgresql+psycopg2://', 'postgresql+asyncpg://')
-    elif database_url.startswith('postgresql+asyncpg://'):
-        async_database_url = database_url  # Уже правильный формат
-    elif database_url.startswith('postgresql://'):
-        async_database_url = database_url.replace('postgresql://', 'postgresql+asyncpg://', 1)
+    if database_url.startswith("postgresql+psycopg2://"):
+        async_database_url = database_url.replace("postgresql+psycopg2://", "postgresql+asyncpg://")
+    elif database_url.startswith("postgresql+asyncpg://"):
+        async_database_url = database_url
+    elif database_url.startswith("postgresql://"):
+        async_database_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
     else:
-        # Fallback: пытаемся заменить первый postgresql://
-        async_database_url = database_url.replace('postgresql://', 'postgresql+asyncpg://', 1)
-    
-    # КРИТИЧЕСКИ ВАЖНО для Supabase: добавляем SSL параметры ПРЯМО В URL
-    # asyncpg может требовать SSL параметры в URL для правильной работы
-    # Парсим URL и добавляем ssl=require в query string
+        async_database_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+    # Supabase connection pooling requires sslmode=require while Railway lacks IPv6
     parsed = urlparse(async_database_url)
     query_params = dict(parse_qsl(parsed.query))
-    
-    # Добавляем SSL параметр в URL, если его еще нет
-    if 'ssl' not in query_params and 'sslmode' not in query_params:
-        query_params['ssl'] = 'require'
+
+    if "ssl" not in query_params and "sslmode" not in query_params:
+        query_params["sslmode"] = "require"
         new_query = urlencode(query_params)
-        async_database_url = urlunparse((
-            parsed.scheme,
-            parsed.netloc,
-            parsed.path,
-            parsed.params,
-            new_query,
-            parsed.fragment
-        ))
-        db_logger.info("Added ssl=require parameter to database URL for asyncpg")
-    
+        async_database_url = urlunparse(
+            (
+                parsed.scheme,
+                parsed.netloc,
+                parsed.path,
+                parsed.params,
+                new_query,
+                parsed.fragment,
+            )
+        )
+        db_logger.info("Added sslmode=require parameter to database URL for Supabase")
+
     db_logger.info(f"Async PostgreSQL URL: {async_database_url[:50]}...")
 else:
-    # SQLite: заменяем sqlite:// на sqlite+aiosqlite://
-    if database_url.startswith('sqlite:///'):
-        async_database_url = database_url.replace('sqlite:///', 'sqlite+aiosqlite:///', 1)
-    elif database_url.startswith('sqlite://'):
-        async_database_url = database_url.replace('sqlite://', 'sqlite+aiosqlite://', 1)
+    if database_url.startswith("sqlite:///"):
+        async_database_url = database_url.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
+    elif database_url.startswith("sqlite://"):
+        async_database_url = database_url.replace("sqlite://", "sqlite+aiosqlite://", 1)
     else:
         async_database_url = database_url
     db_logger.info(f"Async SQLite URL: {async_database_url[:50]}...")
 
-# Создаем async engine - КРИТИЧЕСКИ ВАЖНО: используем правильные kwargs для async
-async_engine_kwargs = {'pool_pre_ping': True, 'echo': settings.debug}
+# Configure async engine
+async_engine_kwargs = {"pool_pre_ping": True, "echo": settings.debug}
 if is_postgresql:
-    async_engine_kwargs.update({
-        'pool_size': 10,
-        'max_overflow': 20,
-        'pool_recycle': 3600,
-        'pool_timeout': 30
-    })
-    
-    # КРИТИЧЕСКИ ВАЖНО для Supabase: используем ОБА способа - URL И connect_args
-    # Это гарантирует максимальную совместимость и правильную передачу SSL параметров
-    # 1. SSL в URL уже добавлен выше
-    # 2. Теперь добавляем ssl=True в connect_args для явного указания
-    
-    async_engine_kwargs.setdefault('connect_args', {})
-    
-    # КРИТИЧЕСКИ ВАЖНО: Для Supabase требуется SSL соединение
-    # asyncpg использует ssl=True (boolean) в connect_args
-    # Это гарантирует, что SSL будет применен при создании подключения
-    async_engine_kwargs['connect_args']['ssl'] = True
-    
-    db_logger.info("Added SSL requirement via BOTH URL (ssl=require) and connect_args (ssl=True) for Supabase")
+    async_engine_kwargs.update(
+        {
+            "pool_size": 10,
+            "max_overflow": 20,
+            "pool_recycle": 3600,
+            "pool_timeout": 30,
+        }
+    )
+
+    async_engine_kwargs.setdefault("connect_args", {})
+    db_logger.info("Relying on URL-provided sslmode for Supabase connection pooling")
     db_logger.info(f"Connect args: {async_engine_kwargs.get('connect_args', {})}")
-    
-    # Дополнительно логируем информацию о подключении для отладки
+
     try:
         parsed_url = urlparse(async_database_url)
-        db_logger.info(f"Async connection details: host={parsed_url.hostname}, port={parsed_url.port or 5432}, db={parsed_url.path[1:] if parsed_url.path else 'N/A'}")
-        db_logger.info(f"URL contains SSL: {'ssl' in parsed_url.query.lower()}")
-    except Exception as e:
-        db_logger.warning(f"Could not parse async database URL for logging: {e}")
+        db_logger.info(
+            "Async connection details: host=%s, port=%s, db=%s",
+            parsed_url.hostname,
+            parsed_url.port or 5432,
+            parsed_url.path[1:] if parsed_url.path else "N/A",
+        )
+        db_logger.info("URL contains SSL: %s", "ssl" in parsed_url.query.lower())
+    except Exception as exc:  # pragma: no cover - defensive logging only
+        db_logger.warning(f"Could not parse async database URL for logging: {exc}")
 else:
-    async_engine_kwargs['poolclass'] = StaticPool
+    async_engine_kwargs["poolclass"] = StaticPool
 
 async_engine = create_async_engine(async_database_url, **async_engine_kwargs)
 db_logger.info(f"Async engine created successfully with URL: {async_database_url[:50]}...")
@@ -146,7 +147,8 @@ Base = declarative_base()
 
 
 def get_db() -> Generator:
-    """Get database session."""
+    """Get a synchronous database session."""
+
     db = SessionLocal()
     try:
         yield db
@@ -155,7 +157,8 @@ def get_db() -> Generator:
 
 
 async def get_async_session() -> AsyncSession:
-    """Get async database session."""
+    """Get an asynchronous database session."""
+
     async with AsyncSessionLocal() as session:
         yield session
 
@@ -166,4 +169,5 @@ redis_client = redis.from_url(settings.redis_url, decode_responses=True)
 
 def get_redis() -> redis.Redis:
     """Get Redis client."""
+
     return redis_client
