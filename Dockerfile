@@ -38,9 +38,11 @@ COPY . .
 RUN chmod +x /app/entrypoint.sh
 
 # 2. Устанавливаем его как точку входа для контейнера
+# Railway управляет запуском через railway.json, entrypoint.sh просто передает управление
 ENTRYPOINT ["/app/entrypoint.sh"]
 
-# 3. Старая команда CMD удалена. Теперь команда будет браться из railway.json
+# 3. Default command - будет переопределяться Railway через startCommand в railway.json
+CMD []
 # -------------------------
 
 # Создание необходимых директорий

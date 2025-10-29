@@ -1,20 +1,26 @@
 #!/usr/bin/env python3
 """
-Simple worker startup script for Railway.
+Start worker service with migrations.
 """
 
 import os
 import sys
 import subprocess
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+# Add project root to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 def main():
-    """Start dramatiq worker."""
-    print("🚀 Starting Dramatiq Worker...")
+    """Start worker with migrations."""
+    print("⚙️ Starting Worker Service...")
+    
+    # Run migrations first
+    from scripts.deployment.run_migrations import run_migrations
+    run_migrations()
     
     # Set environment variables if needed
     redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    print(f"📡 Redis URL: {redis_url}")
+    print(f"📡 Redis URL: {redis_url[:50]}...")
     
     # Start dramatiq worker
     cmd = [

@@ -31,7 +31,7 @@ class DBSettings(BaseSettings):
         extra='ignore'
     )
     
-    url: str = Field("sqlite:///iqstocker.db", env="DATABASE_URL")
+    url: str = Field(default="sqlite:///iqstocker.db", env="DATABASE_URL")
 
 
 class RedisSettings(BaseSettings):
@@ -44,7 +44,7 @@ class RedisSettings(BaseSettings):
         extra='ignore'
     )
     
-    url: str = Field("redis://localhost:6379/0", env="REDIS_URL")
+    url: str = Field(default="redis://localhost:6379/0", env="REDIS_URL")
 
 
 class AdminSettings(BaseSettings):

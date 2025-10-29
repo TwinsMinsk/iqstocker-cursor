@@ -10,18 +10,18 @@
   },
   "services": [
     {
-      "name": "iqstocker-bot",
+      "name": "bot",
       "deploy": {
-        "startCommand": "python -m bot.main",
+        "startCommand": "python scripts/deployment/start_bot.py",
         "environment": {
           "SERVICE_TYPE": "bot"
         }
       }
     },
     {
-      "name": "admin-panel",
+      "name": "web",
       "deploy": {
-        "startCommand": "python run_admin_fastapi.py",
+        "startCommand": "python scripts/deployment/start_web.py",
         "healthcheckPath": "/health",
         "healthcheckTimeout": 300,
         "environment": {
@@ -32,10 +32,10 @@
     {
       "name": "worker",
       "deploy": {
-          "startCommand": "python start_worker.py",
-          "environment": {
-              "SERVICE_TYPE": "worker"
-          }
+        "startCommand": "python scripts/deployment/start_worker.py",
+        "environment": {
+          "SERVICE_TYPE": "worker"
+        }
       }
     }
   ]
