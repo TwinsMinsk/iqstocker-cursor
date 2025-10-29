@@ -1,11 +1,12 @@
-"""Database configuration and session management."""
+﻿"""Database configuration and session management."""
 
 import logging
 import os
+import ssl
 from typing import Generator
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
-import asyncpg  # noqa: F401 - imported for side effects in asyncpg URL handling
+import asyncpg  # noqa: F401 - imported for its side effects in asyncpg URL handling
 import redis
 from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -60,6 +61,8 @@ if is_postgresql:
             "pool_timeout": 30,
         }
     )
+    engine_kwargs.setdefault("connect_args", {})
+    engine_kwargs["connect_args"].setdefault("sslmode", "require")
     db_logger.info("Using PostgreSQL engine configuration")
 else:
     # SQLite specific settings
@@ -79,24 +82,26 @@ if is_postgresql:
     else:
         async_database_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
-    # Supabase connection pooling requires sslmode=require while Railway lacks IPv6
     parsed = urlparse(async_database_url)
     query_params = dict(parse_qsl(parsed.query))
 
-    if "ssl" not in query_params and "sslmode" not in query_params:
-        query_params["sslmode"] = "require"
-        new_query = urlencode(query_params)
-        async_database_url = urlunparse(
-            (
-                parsed.scheme,
-                parsed.netloc,
-                parsed.path,
-                parsed.params,
-                new_query,
-                parsed.fragment,
-            )
+    # asyncpg does not understand libpq-style sslmode parameters passed via the URL; use connect_args instead
+    if "sslmode" in query_params:
+        query_params.pop("sslmode")
+
+    if "ssl" in query_params:
+        query_params.pop("ssl")
+
+    async_database_url = urlunparse(
+        (
+            parsed.scheme,
+            parsed.netloc,
+            parsed.path,
+            parsed.params,
+            urlencode(query_params),
+            parsed.fragment,
         )
-        db_logger.info("Added sslmode=require parameter to database URL for Supabase")
+    )
 
     db_logger.info(f"Async PostgreSQL URL: {async_database_url[:50]}...")
 else:
@@ -121,18 +126,26 @@ if is_postgresql:
     )
 
     async_engine_kwargs.setdefault("connect_args", {})
-    db_logger.info("Relying on URL-provided sslmode for Supabase connection pooling")
-    db_logger.info(f"Connect args: {async_engine_kwargs.get('connect_args', {})}")
+
+    parsed_async_url = urlparse(async_database_url)
+    is_supabase = parsed_async_url.hostname and "supabase.com" in parsed_async_url.hostname
+    if is_supabase:
+        supabase_ssl_context = ssl.create_default_context()
+        supabase_ssl_context.check_hostname = False
+        supabase_ssl_context.verify_mode = ssl.CERT_NONE
+        async_engine_kwargs["connect_args"]["ssl"] = supabase_ssl_context
+        db_logger.info("Configured SSL context with disabled verification for Supabase pooler host")
+    else:
+        async_engine_kwargs["connect_args"].setdefault("ssl", True)
 
     try:
-        parsed_url = urlparse(async_database_url)
         db_logger.info(
             "Async connection details: host=%s, port=%s, db=%s",
-            parsed_url.hostname,
-            parsed_url.port or 5432,
-            parsed_url.path[1:] if parsed_url.path else "N/A",
+            parsed_async_url.hostname,
+            parsed_async_url.port or 5432,
+            parsed_async_url.path[1:] if parsed_async_url.path else "N/A",
         )
-        db_logger.info("URL contains SSL: %s", "ssl" in parsed_url.query.lower())
+        db_logger.info("Using SSL for async connections: %s", bool(async_engine_kwargs["connect_args"].get("ssl")))
     except Exception as exc:  # pragma: no cover - defensive logging only
         db_logger.warning(f"Could not parse async database URL for logging: {exc}")
 else:
