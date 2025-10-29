@@ -3,9 +3,9 @@
 from typing import Callable, Dict, Any, Awaitable
 from aiogram import BaseMiddleware
 from aiogram.types import TelegramObject
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
-from config.database import SessionLocal
 from database.models import Limits
 
 
@@ -24,13 +24,14 @@ class LimitsMiddleware(BaseMiddleware):
         user = data.get('user')
         
         if user:
-            # Get user limits
-            db = SessionLocal()
-            try:
-                limits = db.query(Limits).filter(Limits.user_id == user.id).first()
+            # Получаем async сессию из data (должна быть установлена DatabaseMiddleware)
+            session: AsyncSession = data.get("session")
+            if session:
+                # Создаем асинхронный запрос для получения лимитов пользователя
+                stmt = select(Limits).where(Limits.user_id == user.id)
+                result = await session.execute(stmt)
+                limits = result.scalar_one_or_none()
                 if limits:
                     data['limits'] = limits
-            finally:
-                db.close()
         
         return await handler(event, data)
