@@ -20,6 +20,9 @@ if env_path.exists():
 
 # Импортируем нашу Base из database.models
 # Это нужно, чтобы Alembic в режиме autogenerate видел наши модели
+# ВАЖНО: Этот файл предназначен ТОЛЬКО для миграций Alembic.
+# НЕ ИМПОРТИРУЙТЕ здесь код воркеров (workers), брокеров (broker), бота или других сервисов!
+# Это вызовет проблемы при выполнении миграций на Railway.
 from database.models import Base
 
 # Это конфигурация Alembic, взятая из alembic.ini

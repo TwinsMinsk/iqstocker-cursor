@@ -1,6 +1,12 @@
 """
 Dramatiq actors for background tasks.
 This file defines the actors that will be processed by the worker service.
+
+ВАЖНО:
+- Этот проект использует Dramatiq, НЕ Celery!
+- НЕ ИМПОРТИРУЙТЕ celery_app здесь
+- НЕ создавайте круговых импортов (например: from workers.actors import ...)
+- Используйте только @dramatiq.actor декораторы
 """
 
 import dramatiq
