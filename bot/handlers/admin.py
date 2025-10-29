@@ -623,7 +623,8 @@ async def resetme_command(message: Message, state: FSMContext):
             db.delete(csv_analysis)
         
         # Reset user to default state (like new user with trial)
-        now = datetime.now(timezone.utc)
+        # Use naive datetime for database compatibility (TIMESTAMP WITHOUT TIME ZONE)
+        now = datetime.utcnow()
         test_pro_expires = now + timedelta(days=14)
         
         user.subscription_type = SubscriptionType.TEST_PRO

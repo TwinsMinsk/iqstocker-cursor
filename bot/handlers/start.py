@@ -51,8 +51,10 @@ async def start_command(message: Message, state: FSMContext, session: AsyncSessi
 
 async def create_new_user(message: Message, session: AsyncSession) -> User:
     """Create new user with TEST_PRO subscription."""
-    now = datetime.now(timezone.utc)
-    test_pro_expires = now + timedelta(days=14)
+    now_aware = datetime.now(timezone.utc)
+    # Convert to naive datetime for database (TIMESTAMP WITHOUT TIME ZONE)
+    now = now_aware.replace(tzinfo=None)
+    test_pro_expires = (now_aware + timedelta(days=14)).replace(tzinfo=None)
     
     user = User(
         telegram_id=message.from_user.id,
@@ -103,14 +105,15 @@ async def send_welcome_sequence(message: Message, user: User):
 async def handle_existing_user(message: Message, user: User, session: AsyncSession):
     """Handle existing user login."""
     
-    now_utc = datetime.now(timezone.utc)
+    now_utc_aware = datetime.now(timezone.utc)
+    # Convert to naive datetime for database (TIMESTAMP WITHOUT TIME ZONE)
+    now_utc = now_utc_aware.replace(tzinfo=None)
     
     # Check if TEST_PRO subscription expired
     if user.subscription_type == SubscriptionType.TEST_PRO and user.subscription_expires_at:
         expires_at = user.subscription_expires_at
-        if expires_at.tzinfo is None:
-            expires_at = expires_at.replace(tzinfo=timezone.utc)
-        if now_utc > expires_at:
+        # expires_at is naive from database, compare with naive datetime
+        if expires_at and now_utc > expires_at:
             # Convert to FREE subscription
             user.subscription_type = SubscriptionType.FREE
             user.subscription_expires_at = None
@@ -129,8 +132,7 @@ async def handle_existing_user(message: Message, user: User, session: AsyncSessi
     # Determine subscription status
     if user.subscription_type == SubscriptionType.TEST_PRO:
         expires_at = user.subscription_expires_at
-        if expires_at and expires_at.tzinfo is None:
-            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        # Both are naive datetimes from database
         days_left = (expires_at - now_utc).days if expires_at else 0
         status_text = f"Тестовый PRO (осталось {days_left} дней)"
     elif user.subscription_type == SubscriptionType.FREE:

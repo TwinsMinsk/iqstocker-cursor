@@ -152,13 +152,15 @@ class BoostyPaymentHandler:
             
             # Calculate subscription duration
             duration_days = self._get_subscription_duration(subscription_type)
-            expires_at = datetime.now(timezone.utc) + timedelta(days=duration_days)
+            # Use naive datetime for database compatibility (TIMESTAMP WITHOUT TIME ZONE)
+            now = datetime.utcnow()
+            expires_at = now + timedelta(days=duration_days)
             
             # Create subscription record
             subscription = Subscription(
                 user_id=user_id,
                 subscription_type=subscription_type,
-                started_at=datetime.now(timezone.utc),
+                started_at=now,
                 expires_at=expires_at,
                 payment_id=payment_id,
                 amount=self._get_subscription_price(subscription_type, discount_percent),

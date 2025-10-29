@@ -1,6 +1,6 @@
 """User model."""
 
-from datetime import datetime, timezone
+from datetime import datetime
 from enum import Enum
 from sqlalchemy import BigInteger, Boolean, DateTime, Enum as SQLEnum, String, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -9,8 +9,11 @@ from config.database import Base
 
 
 def utc_now() -> datetime:
-    """Return current UTC time with timezone awareness."""
-    return datetime.now(timezone.utc)
+    """Return current UTC time as naive datetime for database compatibility.
+    
+    Database columns use TIMESTAMP WITHOUT TIME ZONE, which requires naive datetime.
+    """
+    return datetime.utcnow()
 
 
 class SubscriptionType(str, Enum):
@@ -75,7 +78,8 @@ class User(Base):
     
     def update_activity(self):
         """Update last activity timestamp."""
-        self.last_activity_at = utc_now()
+        # Use naive datetime for database compatibility
+        self.last_activity_at = datetime.utcnow()
     
     def __repr__(self):
         return f"<User(id={self.id}, telegram_id={self.telegram_id}, subscription={self.subscription_type})>"

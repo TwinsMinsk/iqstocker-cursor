@@ -52,7 +52,8 @@ class NotificationManager:
         """Send notifications about expiring TEST_PRO subscriptions."""
         
         sent_count = 0
-        now = datetime.now(timezone.utc)
+        # Use naive datetime for comparison with database (TIMESTAMP WITHOUT TIME ZONE)
+        now = datetime.utcnow()
         
         # Users with TEST_PRO expiring in 7 days
         seven_days_later = now + timedelta(days=7)
@@ -112,7 +113,8 @@ class NotificationManager:
         sent_count = 0
         
         # Get FREE users who haven't received marketing notification this month
-        now = datetime.now(timezone.utc)
+        # Use naive datetime for comparison with database (TIMESTAMP WITHOUT TIME ZONE)
+        now = datetime.utcnow()
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         
         stmt = select(User).filter(
@@ -232,7 +234,8 @@ class NotificationManager:
     async def check_and_convert_expired_test_pro(self, session: AsyncSession) -> int:
         """Check and convert expired TEST_PRO subscriptions to FREE."""
         
-        now = datetime.now(timezone.utc)
+        # Use naive datetime for comparison with database (TIMESTAMP WITHOUT TIME ZONE)
+        now = datetime.utcnow()
         stmt = select(User).filter(
             User.subscription_type == SubscriptionType.TEST_PRO,
             User.subscription_expires_at < now

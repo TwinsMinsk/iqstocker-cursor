@@ -63,12 +63,14 @@ def create_initial_data():
         admin_user = db.query(User).filter(User.telegram_id == 811079407).first()
         if not admin_user:
             print("👤 Создание админ-пользователя...")
+            # Use naive datetime for database compatibility (TIMESTAMP WITHOUT TIME ZONE)
+            expires_at = datetime.utcnow().replace(year=2030)
             admin_user = User(
                 telegram_id=811079407,
                 username="admin",
                 first_name="Admin",
                 subscription_type=SubscriptionType.ULTRA,
-                subscription_expires_at=datetime.now(timezone.utc).replace(year=2030)
+                subscription_expires_at=expires_at
             )
             db.add(admin_user)
             db.flush()

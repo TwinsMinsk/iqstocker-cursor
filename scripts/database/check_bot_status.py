@@ -148,12 +148,14 @@ def create_test_user():
                 return True
             
             # Создаем нового пользователя
+            # Use naive datetime for database compatibility (TIMESTAMP WITHOUT TIME ZONE)
+            expires_at = datetime.utcnow().replace(year=2030)
             test_user = User(
                 telegram_id=811079407,
                 username="test_user",
                 first_name="Test User",
                 subscription_type=SubscriptionType.PRO,
-                subscription_expires_at=datetime.now(timezone.utc).replace(year=2030)
+                subscription_expires_at=expires_at
             )
             db.add(test_user)
             db.flush()  # Получаем ID
