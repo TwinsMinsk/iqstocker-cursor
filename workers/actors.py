@@ -14,7 +14,6 @@ from dramatiq.brokers.redis import RedisBroker
 from config.settings import settings
 import logging
 import os
-import atexit
 
 # Настройка логирования ДО использования
 logging.basicConfig(
@@ -36,18 +35,34 @@ print(f"[INIT] REDIS_URL from settings.redis.url: {redis_url_from_settings[:50] 
 logger.info(f"REDIS_URL from settings.redis.url: {redis_url_from_settings[:50] if redis_url_from_settings else 'NOT SET'}...")
 
 # Определяем, какой URL использовать (приоритет: env > settings)
-if redis_url_env and redis_url_env != "redis://localhost:6379/0":
+# Проверяем, что URL полный (не пустой и не минимальный)
+def is_valid_redis_url(url):
+    """Проверяет, что Redis URL валидный."""
+    if not url:
+        return False
+    if url == "redis://localhost:6379/0":
+        return False
+    # Проверяем, что это не просто "redis://:@:" (неполный URL)
+    if url.startswith("redis://") and len(url) < 20:
+        # Минимальный валидный URL должен быть длиннее
+        if url.count(":") < 3:  # redis://host:port/db должно быть минимум 3 двоеточия
+            return False
+    return True
+
+if redis_url_env and is_valid_redis_url(redis_url_env):
     redis_url = redis_url_env
     logger.info(f"Using REDIS_URL from environment variable: {redis_url[:50]}...")
-elif redis_url_from_settings and redis_url_from_settings != "redis://localhost:6379/0":
+elif redis_url_from_settings and is_valid_redis_url(redis_url_from_settings):
     redis_url = redis_url_from_settings
     logger.info(f"Using REDIS_URL from settings: {redis_url[:50]}...")
 else:
-    error_msg = f"CRITICAL: REDIS_URL is not set or is using default localhost value!"
-    error_msg += f"\n  Environment REDIS_URL: {redis_url_env}"
-    error_msg += f"\n  Settings redis.url: {redis_url_from_settings}"
+    error_msg = f"CRITICAL: REDIS_URL is not set or is invalid!"
+    error_msg += f"\n  Environment REDIS_URL: {redis_url_env} (length: {len(redis_url_env) if redis_url_env else 0})"
+    error_msg += f"\n  Settings redis.url: {redis_url_from_settings} (length: {len(redis_url_from_settings) if redis_url_from_settings else 0})"
+    error_msg += f"\n  Please set REDIS_URL environment variable in Railway for worker service!"
+    print(f"[ERROR] {error_msg}")
     logger.error(error_msg)
-    raise ValueError("REDIS_URL is not set or is using default localhost value")
+    raise ValueError("REDIS_URL is not set, invalid, or is using default localhost value")
 
 # Финализируем redis_url для использования
 logger.info(f"Final Redis URL to use: {redis_url[:50]}... (full length: {len(redis_url)})")
@@ -119,33 +134,8 @@ def reinitialize_broker_after_fork():
     except Exception as e:
         logger.error(f"[PID {os.getpid()}] Failed to reinitialize broker after fork: {e}")
 
-# Регистрируем функцию для вызова после форка
-# Note: Это может не работать напрямую, но мы также добавим middleware
-
-# Создаем middleware для проверки брокера перед каждым сообщением
-# Это гарантирует, что брокер правильный даже в форкнутых процессах
-@dramatiq.middleware()
-class BrokerCheckMiddleware:
-    """Middleware для проверки правильности брокера перед обработкой сообщений."""
-    
-    def __init__(self):
-        self.logger = logging.getLogger(__name__)
-    
-    def before_process_message(self, broker, message):
-        """Вызывается перед обработкой каждого сообщения."""
-        current_broker = dramatiq.get_broker()
-        redis_url_to_check = os.getenv("REDIS_URL", redis_url)
-        
-        # Если брокер не является RedisBroker или URL неверный, переинициализируем
-        if not isinstance(current_broker, RedisBroker):
-            self.logger.warning(f"[PID {os.getpid()}] Broker is not RedisBroker, reinitializing...")
-            try:
-                ensure_broker_initialized()
-            except Exception as e:
-                self.logger.error(f"[PID {os.getpid()}] Failed to reinitialize broker in middleware: {e}")
-
-# Регистрируем middleware
-dramatiq.add_middleware(BrokerCheckMiddleware())
+# Note: При multiprocessing каждый процесс заново импортирует модуль,
+# поэтому ensure_broker_initialized() вызывается при каждом импорте
 
 @dramatiq.actor
 def process_csv_file(file_path: str, user_id: int):
