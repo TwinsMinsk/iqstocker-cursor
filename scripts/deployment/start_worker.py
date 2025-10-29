@@ -37,11 +37,14 @@ def main():
     env["REDIS_URL"] = redis_url
     
     # Start dramatiq worker
+    # ВАЖНО: Используем --processes 1 для начальной отладки,
+    # чтобы избежать проблем с форком процессов и потерей состояния брокера
+    # После того как проблема будет решена, можно вернуть --processes 2
     cmd = [
-        "dramatiq", 
+        sys.executable, "-m", "dramatiq",
         "workers.actors", 
         "--path", ".",
-        "--processes", "2",  # Reduce processes for Railway
+        "--processes", "1",  # Используем 1 процесс для отладки проблемы с брокером
         "--threads", "4"     # Reduce threads for Railway
     ]
     
@@ -50,6 +53,7 @@ def main():
     
     try:
         # Передаем env явно, чтобы гарантировать доступность REDIS_URL
+        # Просто используем subprocess.run с явным env
         subprocess.run(cmd, check=True, env=env)
     except subprocess.CalledProcessError as e:
         print(f"❌ Worker failed: {e}")

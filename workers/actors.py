@@ -14,20 +14,25 @@ from dramatiq.brokers.redis import RedisBroker
 from config.settings import settings
 import logging
 import os
+import atexit
 
 # Настройка логирования ДО использования
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - [PID %(process)d] - %(name)s - %(levelname)s - %(message)s',
+    force=True  # Принудительно переустанавливаем конфигурацию для форкнутых процессов
 )
 logger = logging.getLogger(__name__)
 
 # Сначала проверим переменную окружения напрямую
 redis_url_env = os.getenv("REDIS_URL")
+# Используем print() для немедленного вывода, чтобы увидеть логи в Railway
+print(f"[INIT] REDIS_URL from environment: {redis_url_env[:50] if redis_url_env else 'NOT SET'}...")
 logger.info(f"REDIS_URL from environment: {redis_url_env[:50] if redis_url_env else 'NOT SET'}...")
 
 # Затем проверяем через settings
 redis_url_from_settings = settings.redis.url
+print(f"[INIT] REDIS_URL from settings.redis.url: {redis_url_from_settings[:50] if redis_url_from_settings else 'NOT SET'}...")
 logger.info(f"REDIS_URL from settings.redis.url: {redis_url_from_settings[:50] if redis_url_from_settings else 'NOT SET'}...")
 
 # Определяем, какой URL использовать (приоритет: env > settings)
@@ -50,56 +55,97 @@ logger.info(f"Final Redis URL to use: {redis_url[:50]}... (full length: {len(red
 # КРИТИЧЕСКИ ВАЖНО: Убеждаемся, что переменная окружения установлена
 # Это нужно для того, чтобы форкнутые процессы могли получить правильный URL
 os.environ["REDIS_URL"] = redis_url
-logger.info(f"Set REDIS_URL in environment for worker processes")
+logger.info(f"Set REDIS_URL in environment for worker processes (PID: {os.getpid()})")
 
-logger.info(f"Initializing Dramatiq RedisBroker with URL: {redis_url[:50]}...")
-
-# Инициализируем брокер с правильным URL
-# ВАЖНО: Это должно выполняться КАЖДЫЙ РАЗ при импорте модуля,
-# даже если воркер запускается с несколькими процессами (--processes)
-try:
-    # Создаем новый брокер с правильным URL
-    # Используем переменную окружения напрямую для надежности
-    redis_broker = RedisBroker(url=redis_url)
+def ensure_broker_initialized():
+    """
+    Функция для гарантированной инициализации брокера.
+    Вызывается при импорте модуля и может быть вызвана повторно в форкнутых процессах.
+    """
+    # Получаем URL заново на случай, если мы в форкнутом процессе
+    current_redis_url = os.getenv("REDIS_URL")
+    if not current_redis_url or current_redis_url == "redis://localhost:6379/0":
+        current_redis_url = redis_url
+        os.environ["REDIS_URL"] = redis_url
+        logger.warning(f"REDIS_URL not set in environment, using default: {redis_url[:50]}...")
     
-    # Дополнительно проверяем, что URL в брокере правильный
-    if hasattr(redis_broker, 'url') and redis_broker.url != redis_url:
-        logger.warning(f"Broker URL mismatch! Expected: {redis_url[:50]}, Got: {redis_broker.url[:50] if hasattr(redis_broker, 'url') else 'N/A'}")
-        # Пересоздаем брокер с правильным URL
-        redis_broker = RedisBroker(url=redis_url)
+    print(f"[INIT] [PID {os.getpid()}] Initializing Dramatiq RedisBroker with URL: {current_redis_url[:50]}...")
+    logger.info(f"[PID {os.getpid()}] Initializing Dramatiq RedisBroker with URL: {current_redis_url[:50]}...")
     
-    # Устанавливаем брокер глобально для Dramatiq
-    # Это должно быть вызвано ДО создания любых акторов
-    dramatiq.set_broker(redis_broker)
-    
-    # Проверяем, что брокер установлен правильно
-    current_broker = dramatiq.get_broker()
-    logger.info(f"Dramatiq broker set successfully!")
-    logger.info(f"Current broker type: {type(current_broker)}")
-    
-    # Проверяем, что это именно RedisBroker, а не дефолтный
-    if not isinstance(current_broker, RedisBroker):
-        logger.warning(f"WARNING: Current broker is not RedisBroker! Type: {type(current_broker)}")
-        # Пытаемся установить заново
-        dramatiq.set_broker(redis_broker)
-        logger.info("Re-set broker to RedisBroker")
-    
-    # Попытаемся проверить подключение (опционально, для отладки)
     try:
-        # Проверяем наличие клиента в брокере
-        if hasattr(current_broker, 'client'):
-            logger.info(f"Broker client available: {type(current_broker.client)}")
-        elif hasattr(current_broker, 'connection_pool'):
-            logger.info(f"Broker connection pool available")
-    except Exception as check_error:
-        logger.warning(f"Could not check broker connection details: {check_error}")
-    
+        # Создаем новый брокер с правильным URL
+        new_broker = RedisBroker(url=current_redis_url)
+        
+        # Устанавливаем брокер глобально для Dramatiq
+        dramatiq.set_broker(new_broker)
+        
+        # Проверяем, что брокер установлен правильно
+        current_broker = dramatiq.get_broker()
+        print(f"[INIT] [PID {os.getpid()}] Dramatiq broker set successfully! Type: {type(current_broker)}")
+        logger.info(f"[PID {os.getpid()}] Dramatiq broker set successfully! Type: {type(current_broker)}")
+        
+        # Проверяем, что это именно RedisBroker
+        if not isinstance(current_broker, RedisBroker):
+            logger.error(f"[PID {os.getpid()}] ERROR: Current broker is not RedisBroker! Type: {type(current_broker)}")
+            # Пытаемся установить заново
+            dramatiq.set_broker(new_broker)
+            logger.info(f"[PID {os.getpid()}] Re-set broker to RedisBroker")
+        
+        return new_broker
+        
+    except Exception as e:
+        logger.error(f"[PID {os.getpid()}] Failed to initialize RedisBroker: {e}")
+        logger.error(f"[PID {os.getpid()}] Redis URL was: {current_redis_url[:50]}...")
+        import traceback
+        logger.error(f"[PID {os.getpid()}] Traceback: {traceback.format_exc()}")
+        raise
+
+# Инициализируем брокер при импорте модуля
+logger.info(f"[PID {os.getpid()}] Module workers.actors imported, initializing broker...")
+try:
+    redis_broker = ensure_broker_initialized()
 except Exception as e:
-    logger.error(f"Failed to initialize RedisBroker: {e}")
-    logger.error(f"Redis URL was: {redis_url[:50]}...")
-    import traceback
-    logger.error(f"Traceback: {traceback.format_exc()}")
+    logger.error(f"[PID {os.getpid()}] Critical: Failed to initialize broker at module import: {e}")
     raise
+
+# Регистрируем функцию для повторной инициализации при форке (для multiprocessing)
+# Это гарантирует, что каждый форкнутый процесс получит правильный брокер
+def reinitialize_broker_after_fork():
+    """Переинициализирует брокер после форка процесса."""
+    logger.info(f"[PID {os.getpid()}] Process forked, reinitializing broker...")
+    try:
+        ensure_broker_initialized()
+        logger.info(f"[PID {os.getpid()}] Broker reinitialized successfully after fork")
+    except Exception as e:
+        logger.error(f"[PID {os.getpid()}] Failed to reinitialize broker after fork: {e}")
+
+# Регистрируем функцию для вызова после форка
+# Note: Это может не работать напрямую, но мы также добавим middleware
+
+# Создаем middleware для проверки брокера перед каждым сообщением
+# Это гарантирует, что брокер правильный даже в форкнутых процессах
+@dramatiq.middleware()
+class BrokerCheckMiddleware:
+    """Middleware для проверки правильности брокера перед обработкой сообщений."""
+    
+    def __init__(self):
+        self.logger = logging.getLogger(__name__)
+    
+    def before_process_message(self, broker, message):
+        """Вызывается перед обработкой каждого сообщения."""
+        current_broker = dramatiq.get_broker()
+        redis_url_to_check = os.getenv("REDIS_URL", redis_url)
+        
+        # Если брокер не является RedisBroker или URL неверный, переинициализируем
+        if not isinstance(current_broker, RedisBroker):
+            self.logger.warning(f"[PID {os.getpid()}] Broker is not RedisBroker, reinitializing...")
+            try:
+                ensure_broker_initialized()
+            except Exception as e:
+                self.logger.error(f"[PID {os.getpid()}] Failed to reinitialize broker in middleware: {e}")
+
+# Регистрируем middleware
+dramatiq.add_middleware(BrokerCheckMiddleware())
 
 @dramatiq.actor
 def process_csv_file(file_path: str, user_id: int):
