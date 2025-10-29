@@ -14,16 +14,16 @@ from dramatiq.brokers.redis import RedisBroker
 from config.settings import settings
 import logging
 
-# Проверяем, что URL есть
-if not settings.redis_url or settings.redis_url == "redis://localhost:6379/0":
-    logging.error("CRITICAL: REDIS_URL is not set in environment variables!")
-    logging.error(f"Current REDIS_URL value: {settings.redis_url}")
+# Проверяем, что URL есть (используем правильный путь: settings.redis.url)
+if not settings.redis.url or settings.redis.url == "redis://localhost:6379/0":
+    logging.error("CRITICAL: REDIS_URL is not set in environment variables or is using default localhost value!")
+    logging.error(f"Current settings.redis.url value: {settings.redis.url}")
     raise ValueError("REDIS_URL is not set or is using default localhost value")
 
-logging.info(f"Initializing Dramatiq RedisBroker with URL: {settings.redis_url[:50]}...")
+logging.info(f"Initializing Dramatiq RedisBroker with URL: {settings.redis.url[:50]}...")
 
-# Инициализируем брокер с URL из settings
-redis_broker = RedisBroker(url=settings.redis_url)
+# Инициализируем брокер с URL из settings (используем правильный путь)
+redis_broker = RedisBroker(url=settings.redis.url)
 dramatiq.set_broker(redis_broker)
 
 @dramatiq.actor
