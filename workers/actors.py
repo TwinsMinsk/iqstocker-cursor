@@ -11,12 +11,20 @@ This file defines the actors that will be processed by the worker service.
 
 import dramatiq
 from dramatiq.brokers.redis import RedisBroker
-import os
+from config.settings import settings
+import logging
 
-# Configure Redis broker
-redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-broker = RedisBroker(url=redis_url)
-dramatiq.set_broker(broker)
+# Проверяем, что URL есть
+if not settings.redis_url or settings.redis_url == "redis://localhost:6379/0":
+    logging.error("CRITICAL: REDIS_URL is not set in environment variables!")
+    logging.error(f"Current REDIS_URL value: {settings.redis_url}")
+    raise ValueError("REDIS_URL is not set or is using default localhost value")
+
+logging.info(f"Initializing Dramatiq RedisBroker with URL: {settings.redis_url[:50]}...")
+
+# Инициализируем брокер с URL из settings
+redis_broker = RedisBroker(url=settings.redis_url)
+dramatiq.set_broker(redis_broker)
 
 @dramatiq.actor
 def process_csv_file(file_path: str, user_id: int):

@@ -1,5 +1,6 @@
 """Main FastAPI application for admin panel."""
 
+from pathlib import Path
 from fastapi import FastAPI, Request, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -8,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqladmin import Admin, ModelView
 from sqladmin.authentication import AuthenticationBackend
 from starlette.middleware.sessions import SessionMiddleware
+import logging
 
 from config.database import get_async_session, engine
 from database.models import (
@@ -17,6 +19,18 @@ from database.models import (
 from admin_panel.auth import authentication_backend, ADMIN_SECRET_KEY
 from admin_panel.views import dashboard, themes, placeholders
 
+# Определяем корень директории admin_panel
+BASE_DIR = Path(__file__).resolve().parent
+STATIC_DIR = BASE_DIR / "static"
+TEMPLATES_DIR = BASE_DIR / "templates"
+
+# Проверка для отладки
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+logger.info(f"Admin Panel BASE_DIR: {BASE_DIR}")
+logger.info(f"Admin Panel STATIC_DIR: {STATIC_DIR}")
+logger.info(f"Admin Panel TEMPLATES_DIR: {TEMPLATES_DIR}")
 
 # Create FastAPI app
 app = FastAPI(title="IQStocker Admin Panel", version="2.0")
@@ -24,11 +38,21 @@ app = FastAPI(title="IQStocker Admin Panel", version="2.0")
 # Add session middleware
 app.add_middleware(SessionMiddleware, secret_key=ADMIN_SECRET_KEY)
 
-# Mount static files
-app.mount("/static", StaticFiles(directory="admin_panel/static"), name="static")
+# Mount static files с проверкой
+if not STATIC_DIR.is_dir():
+    logger.error(f"Static directory NOT FOUND at {STATIC_DIR}")
+    raise RuntimeError(f"Static directory not found at {STATIC_DIR}")
+else:
+    logger.info("Static directory found.")
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
-# Setup templates
-templates = Jinja2Templates(directory="admin_panel/templates")
+# Setup templates с проверкой
+if not TEMPLATES_DIR.is_dir():
+    logger.error(f"Templates directory NOT FOUND at {TEMPLATES_DIR}")
+    raise RuntimeError(f"Templates directory not found at {TEMPLATES_DIR}")
+else:
+    logger.info("Templates directory found.")
+    templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 # Create authentication backend
 # authentication_backend is imported from admin_panel.auth
@@ -40,7 +64,7 @@ admin = Admin(
     authentication_backend=authentication_backend,
     title="IQStocker Admin",
     base_url="/admin",
-    templates_dir="admin_panel/templates"
+    templates_dir=str(TEMPLATES_DIR)
 )
 
 # Add model views

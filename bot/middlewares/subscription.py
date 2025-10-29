@@ -3,9 +3,9 @@
 from typing import Callable, Dict, Any, Awaitable
 from aiogram import BaseMiddleware
 from aiogram.types import TelegramObject
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
-from config.database import SessionLocal
 from database.models import User
 
 
@@ -30,13 +30,14 @@ class SubscriptionMiddleware(BaseMiddleware):
             user_id = event.callback_query.from_user.id
         
         if user_id:
-            # Get user from database
-            db = SessionLocal()
-            try:
-                user = db.query(User).filter(User.telegram_id == user_id).first()
+            # Получаем async сессию из data (должна быть установлена DatabaseMiddleware)
+            session: AsyncSession = data.get("session")
+            if session:
+                # Создаем асинхронный запрос
+                stmt = select(User).where(User.telegram_id == user_id)
+                result = await session.execute(stmt)
+                user = result.scalar_one_or_none()  # Получаем одного юзера или None
                 if user:
-                    data['user'] = user
-            finally:
-                db.close()
+                    data["user"] = user  # Кладем юзера в data для хэндлеров
         
         return await handler(event, data)

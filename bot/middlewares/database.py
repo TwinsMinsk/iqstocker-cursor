@@ -3,23 +3,9 @@
 from typing import Callable, Dict, Any, Awaitable
 from aiogram import BaseMiddleware
 from aiogram.types import TelegramObject
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from config.settings import settings
-
-
-# Create async engine and session maker
-# Convert sqlite:/// to sqlite+aiosqlite:/// (but keep original for other databases)
-database_url = settings.database_url
-if database_url.startswith('sqlite:///'):
-    database_url = database_url.replace('sqlite:///', 'sqlite+aiosqlite:///')
-
-engine = create_async_engine(database_url, echo=False, future=True)
-async_session_maker = async_sessionmaker(
-    engine,
-    expire_on_commit=False,
-    class_=AsyncSession,
-)
+from config.database import AsyncSessionLocal
 
 
 class DatabaseMiddleware(BaseMiddleware):
@@ -33,7 +19,13 @@ class DatabaseMiddleware(BaseMiddleware):
     ) -> Any:
         """Process middleware and inject session."""
         
-        async with async_session_maker() as session:
-            data['session'] = session
-            return await handler(event, data)
+        # Создаем асинхронную сессию для каждого запроса
+        async with AsyncSessionLocal() as session:
+            # Передаем сессию в data, чтобы она была доступна в хэндлерах и других middleware
+            data["session"] = session
+            # Вызываем следующий middleware или хэндлер
+            result = await handler(event, data)
+            # Коммитить или откатывать здесь НЕ нужно, если только нет специфичной логики.
+            # Обычно коммит делается в репозитории или хэндлере.
+        return result
 
