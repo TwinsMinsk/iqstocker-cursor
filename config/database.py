@@ -6,18 +6,30 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 import redis
+import os
 from typing import Generator
 
 from config.settings import settings
 
 # SQLAlchemy setup
+# КРИТИЧЕСКИ ВАЖНО: Сначала проверяем переменную окружения DATABASE_URL напрямую
+# Это гарантирует, что мы получим правильный URL даже в форкнутых процессах
+import logging
+db_logger = logging.getLogger(__name__)
+
+database_url_env = os.getenv("DATABASE_URL")
+if database_url_env:
+    database_url = database_url_env
+    db_logger.info(f"Database URL from DATABASE_URL environment variable: {database_url[:50]}...")
+else:
+    # Fallback на settings.database_url, если переменная окружения не установлена
+    database_url = settings.database_url
+    db_logger.warning(f"DATABASE_URL environment variable not found, using settings.database_url: {database_url[:50]}...")
+
 # Detect database type - проверяем начало URL для надежности
-database_url = settings.database_url
 is_postgresql = database_url.startswith('postgresql://') or database_url.startswith('postgresql+')
 
 # Логируем для отладки
-import logging
-db_logger = logging.getLogger(__name__)
 db_logger.info(f"Database URL detected: {database_url[:50]}... (is_postgresql: {is_postgresql})")
 
 if not is_postgresql and not database_url.startswith('sqlite://'):
