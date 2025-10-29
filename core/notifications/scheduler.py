@@ -10,6 +10,7 @@ from core.notifications.notification_manager import get_notification_manager
 from core.notifications.themes_notifications import notify_weekly_themes
 from core.admin.calendar_manager import CalendarManager
 from database.models import CalendarEntry
+from config.database import AsyncSessionLocal
 from config.settings import settings
 
 
@@ -92,38 +93,62 @@ class TaskScheduler:
     async def check_expired_subscriptions(self):
         """Check and convert expired TEST_PRO subscriptions."""
         print("Checking expired TEST_PRO subscriptions...")
-        converted_count = self.notification_manager.check_and_convert_expired_test_pro()
-        print(f"Converted {converted_count} expired subscriptions")
+        async with AsyncSessionLocal() as session:
+            try:
+                converted_count = await self.notification_manager.check_and_convert_expired_test_pro(session)
+                print(f"Converted {converted_count} expired subscriptions")
+            except Exception as e:
+                print(f"Error checking expired subscriptions: {e}")
     
     async def send_weekly_themes_notifications(self):
         """Send weekly themes notifications."""
         print("Sending weekly themes notifications...")
-        sent_count = await self.notification_manager.send_weekly_themes_notifications()
-        print(f"Sent {sent_count} weekly themes notifications")
+        async with AsyncSessionLocal() as session:
+            try:
+                sent_count = await self.notification_manager.send_weekly_themes_notifications(session)
+                print(f"Sent {sent_count} weekly themes notifications")
+            except Exception as e:
+                print(f"Error sending weekly themes notifications: {e}")
     
     async def send_marketing_notifications(self):
         """Send monthly marketing notifications."""
         print("Sending monthly marketing notifications...")
-        sent_count = await self.notification_manager.send_marketing_notifications()
-        print(f"Sent {sent_count} marketing notifications")
+        async with AsyncSessionLocal() as session:
+            try:
+                sent_count = await self.notification_manager.send_marketing_notifications(session)
+                print(f"Sent {sent_count} marketing notifications")
+            except Exception as e:
+                print(f"Error sending marketing notifications: {e}")
     
     async def send_calendar_update_notifications(self):
         """Send calendar update notifications."""
         print("Sending calendar update notifications...")
-        sent_count = await self.notification_manager.send_calendar_update_notifications()
-        print(f"Sent {sent_count} calendar update notifications")
+        async with AsyncSessionLocal() as session:
+            try:
+                sent_count = await self.notification_manager.send_calendar_update_notifications(session)
+                print(f"Sent {sent_count} calendar update notifications")
+            except Exception as e:
+                print(f"Error sending calendar update notifications: {e}")
     
     async def send_test_pro_expiring_notifications(self):
         """Send TEST_PRO expiration notifications."""
         print("Sending TEST_PRO expiration notifications...")
-        sent_count = await self.notification_manager.send_test_pro_expiring_notifications()
-        print(f"Sent {sent_count} TEST_PRO expiration notifications")
+        async with AsyncSessionLocal() as session:
+            try:
+                sent_count = await self.notification_manager.send_test_pro_expiring_notifications(session)
+                print(f"Sent {sent_count} TEST_PRO expiration notifications")
+            except Exception as e:
+                print(f"Error sending TEST_PRO expiration notifications: {e}")
     
     async def send_daily_weekly_themes_notify(self):
         """Send daily reminder about weekly themes availability."""
         print("Sending daily weekly themes availability notifications...")
-        sent_count = await notify_weekly_themes(self.bot)
-        print(f"Sent {sent_count} weekly themes availability notifications")
+        async with AsyncSessionLocal() as session:
+            try:
+                sent_count = await notify_weekly_themes(self.bot, session)
+                print(f"Sent {sent_count} weekly themes availability notifications")
+            except Exception as e:
+                print(f"Error sending daily weekly themes notifications: {e}")
     
     async def create_monthly_calendar(self):
         """Create calendar for next month automatically."""

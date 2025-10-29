@@ -1,23 +1,25 @@
 """Weekly themes notification job."""
 
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import desc
+from sqlalchemy import desc, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from aiogram import Bot
 import logging
 
-from config.database import SessionLocal
+from config.database import AsyncSessionLocal
 from database.models import User, ThemeRequest, SubscriptionType
 from bot.lexicon import LEXICON_RU
 
 logger = logging.getLogger(__name__)
 
 
-async def notify_weekly_themes(bot: Bot) -> int:
+async def notify_weekly_themes(bot: Bot, session: AsyncSession) -> int:
     """Send notifications to users who can request new themes after 7-day cooldown."""
-    db = SessionLocal()
     sent = 0
     try:
-        users = db.query(User).all()
+        stmt = select(User)
+        result = await session.execute(stmt)
+        users = result.scalars().all()
         now = datetime.now(timezone.utc)
         
         logger.info(f"Starting weekly themes notification check for {len(users)} users")
@@ -25,9 +27,11 @@ async def notify_weekly_themes(bot: Bot) -> int:
         for user in users:
             try:
                 # Get the most recent theme request
-                last_request = db.query(ThemeRequest).filter(
+                stmt = select(ThemeRequest).filter(
                     ThemeRequest.user_id == user.id
-                ).order_by(desc(ThemeRequest.requested_at)).first()
+                ).order_by(desc(ThemeRequest.requested_at)).limit(1)
+                result = await session.execute(stmt)
+                last_request = result.scalar_one_or_none()
                 
                 if not last_request:
                     # User has never requested themes - skip notification
@@ -65,7 +69,8 @@ async def notify_weekly_themes(bot: Bot) -> int:
         logger.info(f"Sent {sent} weekly themes notifications")
         return sent
         
-    finally:
-        db.close()
+    except Exception as e:
+        logger.error(f"Error in notify_weekly_themes: {e}")
+        return 0
 
 

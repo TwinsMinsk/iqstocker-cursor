@@ -3,11 +3,12 @@
 import asyncio
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Dict, Any
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 
-from config.database import SessionLocal
+from config.database import AsyncSessionLocal
 from database.models import User, SubscriptionType, Limits
 from config.settings import settings
 
@@ -17,12 +18,6 @@ class NotificationManager:
     
     def __init__(self, bot: Optional[Bot] = None):
         self.bot = bot
-        self.db = SessionLocal()
-    
-    def __del__(self):
-        """Close database session."""
-        if hasattr(self, 'db'):
-            self.db.close()
     
     async def send_notification(self, telegram_id: int, message: str, keyboard=None) -> bool:
         """Send notification to specific user."""
@@ -53,7 +48,7 @@ class NotificationManager:
             print(f"Error sending notification to {telegram_id}: {e}")
             return False
     
-    async def send_test_pro_expiring_notifications(self) -> int:
+    async def send_test_pro_expiring_notifications(self, session: AsyncSession) -> int:
         """Send notifications about expiring TEST_PRO subscriptions."""
         
         sent_count = 0
@@ -61,11 +56,13 @@ class NotificationManager:
         
         # Users with TEST_PRO expiring in 7 days
         seven_days_later = now + timedelta(days=7)
-        users_7_days = self.db.query(User).filter(
+        stmt = select(User).filter(
             User.subscription_type == SubscriptionType.TEST_PRO,
             User.subscription_expires_at <= seven_days_later,
             User.subscription_expires_at > now
-        ).all()
+        )
+        result = await session.execute(stmt)
+        users_7_days = result.scalars().all()
         
         for user in users_7_days:
             message = """⏳ **Осталась всего неделя бесплатного PRO**
@@ -84,11 +81,13 @@ class NotificationManager:
         
         # Users with TEST_PRO expiring in 2 days
         two_days_later = now + timedelta(days=2)
-        users_2_days = self.db.query(User).filter(
+        stmt = select(User).filter(
             User.subscription_type == SubscriptionType.TEST_PRO,
             User.subscription_expires_at <= two_days_later,
             User.subscription_expires_at > now
-        ).all()
+        )
+        result = await session.execute(stmt)
+        users_2_days = result.scalars().all()
         
         for user in users_2_days:
             message = """🔔 **48 часов до конца бесплатного PRO**
@@ -107,7 +106,7 @@ class NotificationManager:
         
         return sent_count
     
-    async def send_marketing_notifications(self) -> int:
+    async def send_marketing_notifications(self, session: AsyncSession) -> int:
         """Send marketing notifications to FREE users."""
         
         sent_count = 0
@@ -116,10 +115,12 @@ class NotificationManager:
         now = datetime.now(timezone.utc)
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         
-        free_users = self.db.query(User).filter(
+        stmt = select(User).filter(
             User.subscription_type == SubscriptionType.FREE,
             User.created_at < month_start  # Users created before this month
-        ).all()
+        )
+        result = await session.execute(stmt)
+        free_users = result.scalars().all()
         
         for user in free_users:
             message = """🔥 **Хочешь больше продаж?**
@@ -139,7 +140,7 @@ class NotificationManager:
         
         return sent_count
     
-    async def send_weekly_themes_notifications(self) -> int:
+    async def send_weekly_themes_notifications(self, session: AsyncSession) -> int:
         """Send notifications to users who can request new themes."""
         
         try:
@@ -150,14 +151,18 @@ class NotificationManager:
             sent_count = 0
             
             # Получаем всех активных пользователей
-            users = self.db.query(User).all()
+            stmt = select(User)
+            result = await session.execute(stmt)
+            users = result.scalars().all()
             
             for user in users:
                 try:
                     # Проверяем, прошла ли неделя с последнего запроса
-                    last_request = self.db.query(ThemeRequest).filter(
+                    stmt = select(ThemeRequest).filter(
                         ThemeRequest.user_id == user.id
-                    ).order_by(desc(ThemeRequest.requested_at)).first()
+                    ).order_by(desc(ThemeRequest.requested_at)).limit(1)
+                    result = await session.execute(stmt)
+                    last_request = result.scalar_one_or_none()
                     
                     if last_request:
                         week_ago = datetime.now(timezone.utc) - timedelta(days=7)
@@ -184,13 +189,15 @@ class NotificationManager:
             print(f"Error in send_weekly_themes_notifications: {e}")
             return 0
     
-    async def send_calendar_update_notifications(self) -> int:
+    async def send_calendar_update_notifications(self, session: AsyncSession) -> int:
         """Send notifications about calendar updates."""
         
         sent_count = 0
         
         # Send to all users
-        all_users = self.db.query(User).all()
+        stmt = select(User)
+        result = await session.execute(stmt)
+        all_users = result.scalars().all()
         
         for user in all_users:
             message = """📅 **Календарь стокера обновлен!**
@@ -204,16 +211,17 @@ class NotificationManager:
         
         return sent_count
     
-    async def send_broadcast(self, message: str, subscription_type: Optional[SubscriptionType] = None) -> int:
+    async def send_broadcast(self, session: AsyncSession, message: str, subscription_type: Optional[SubscriptionType] = None) -> int:
         """Send broadcast message to users."""
         
         sent_count = 0
         
-        query = self.db.query(User)
+        stmt = select(User)
         if subscription_type:
-            query = query.filter(User.subscription_type == subscription_type)
+            stmt = stmt.filter(User.subscription_type == subscription_type)
         
-        users = query.all()
+        result = await session.execute(stmt)
+        users = result.scalars().all()
         
         for user in users:
             if await self.send_notification(user.telegram_id, message):
@@ -221,14 +229,16 @@ class NotificationManager:
         
         return sent_count
     
-    def check_and_convert_expired_test_pro(self) -> int:
+    async def check_and_convert_expired_test_pro(self, session: AsyncSession) -> int:
         """Check and convert expired TEST_PRO subscriptions to FREE."""
         
         now = datetime.now(timezone.utc)
-        expired_users = self.db.query(User).filter(
+        stmt = select(User).filter(
             User.subscription_type == SubscriptionType.TEST_PRO,
             User.subscription_expires_at < now
-        ).all()
+        )
+        result = await session.execute(stmt)
+        expired_users = result.scalars().all()
         
         converted_count = 0
         for user in expired_users:
@@ -244,7 +254,7 @@ class NotificationManager:
             converted_count += 1
         
         if converted_count > 0:
-            self.db.commit()
+            await session.commit()
             print(f"Converted {converted_count} expired TEST_PRO subscriptions to FREE")
         
         return converted_count
