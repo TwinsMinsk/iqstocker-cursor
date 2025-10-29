@@ -5,9 +5,11 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from urllib.parse import urlparse, parse_qs, urlunparse, urlencode
+import asyncpg
 import redis
 import os
-from typing import Generator
+from typing import Generator, Callable, Any
 
 from config.settings import settings
 
@@ -68,6 +70,21 @@ if is_postgresql:
     else:
         # Fallback: пытаемся заменить первый postgresql://
         async_database_url = database_url.replace('postgresql://', 'postgresql+asyncpg://', 1)
+    
+    # КРИТИЧЕСКИ ВАЖНО для Supabase: добавляем SSL параметры в URL
+    # asyncpg поддерживает SSL параметры через URL query string
+    # Для Supabase требуется ssl='require' или добавление ?sslmode=require
+    # Но asyncpg использует другой формат - проверяем, нет ли уже SSL параметров
+    if '?' not in async_database_url:
+        # Если нет query параметров, добавляем SSL требование
+        # Для asyncpg через SQLAlchemy лучше использовать connect_args, но попробуем и через URL
+        # Для Supabase обычно требуется ssl='require' в connect_args
+        pass  # SSL добавим через connect_args ниже
+    elif 'sslmode' not in async_database_url.lower() and 'ssl=' not in async_database_url.lower():
+        # Есть query параметры, но нет SSL - добавляем
+        async_database_url += '&sslmode=require'
+        db_logger.info("Added sslmode=require to database URL")
+    
     db_logger.info(f"Async PostgreSQL URL: {async_database_url[:50]}...")
 else:
     # SQLite: заменяем sqlite:// на sqlite+aiosqlite://
@@ -92,16 +109,33 @@ if is_postgresql:
     # КРИТИЧЕСКИ ВАЖНО для Supabase и других облачных PostgreSQL: добавляем SSL параметры для asyncpg
     # Supabase и большинство облачных PostgreSQL требуют SSL соединение
     # asyncpg по умолчанию подключается без SSL, поэтому нужно явно указать
-    # asyncpg использует ssl=True в connect_args для требования SSL соединения
     
-    # Проверяем, есть ли уже SSL параметры в URL или connect_args
+    # Проверяем, есть ли уже SSL параметры в URL
     has_ssl_in_url = 'sslmode=require' in async_database_url.lower() or 'ssl=require' in async_database_url.lower()
     
     if not has_ssl_in_url:
-        # Добавляем SSL требование через connect_args (предпочтительный способ для asyncpg)
+        # Для asyncpg правильный формат SSL - это через connect_args
+        # asyncpg поддерживает несколько форматов:
+        # - ssl=True - требует SSL без проверки сертификата (подходит для Supabase)
+        # - ssl=ssl.create_default_context() - с проверкой сертификата
+        
+        # Для Supabase используем ssl=True в connect_args
+        # SQLAlchemy передает connect_args напрямую в asyncpg.connect()
         async_engine_kwargs.setdefault('connect_args', {})
+        
+        # КРИТИЧЕСКИ ВАЖНО: Для Supabase требуется SSL соединение
+        # asyncpg использует ssl=True (boolean), а не строку 'require'
         async_engine_kwargs['connect_args']['ssl'] = True
-        db_logger.info("Added SSL requirement for asyncpg connection (required for cloud PostgreSQL/Supabase)")
+        
+        db_logger.info("Added SSL requirement (ssl=True) for asyncpg connection via connect_args (required for Supabase)")
+        db_logger.info(f"Connect args: {async_engine_kwargs.get('connect_args', {})}")
+        
+        # Дополнительно логируем информацию о подключении для отладки
+        try:
+            parsed = urlparse(async_database_url)
+            db_logger.info(f"Async connection details: host={parsed.hostname}, port={parsed.port or 5432}, db={parsed.path[1:] if parsed.path else 'N/A'}")
+        except Exception as e:
+            db_logger.warning(f"Could not parse async database URL for logging: {e}")
     else:
         db_logger.info("SSL parameters already present in database URL")
 else:
