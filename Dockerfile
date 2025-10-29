@@ -32,6 +32,23 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Копирование кода приложения и скрипта-загрузчика
 COPY . .
 
+# Проверка копирования admin_panel директорий (для отладки)
+RUN echo "=== Checking admin_panel structure after COPY ===" && \
+    ls -la /app/admin_panel/ 2>&1 || echo "ERROR: admin_panel directory not found" && \
+    echo "--- Checking static directory ---" && \
+    (test -d /app/admin_panel/static && ls -la /app/admin_panel/static/ || echo "ERROR: admin_panel/static directory not found") && \
+    echo "--- Checking templates directory ---" && \
+    (test -d /app/admin_panel/templates && ls -la /app/admin_panel/templates/ || echo "ERROR: admin_panel/templates directory not found")
+
+# Создание необходимых директорий (ДО chown и USER, чтобы был root доступ)
+RUN mkdir -p logs uploads
+
+# Гарантируем существование admin_panel/static и admin_panel/templates
+# (Docker COPY может не копировать пустые директории)
+RUN mkdir -p /app/admin_panel/static /app/admin_panel/templates && \
+    echo "Created/verified admin_panel directories:" && \
+    ls -ld /app/admin_panel/static /app/admin_panel/templates
+
 # --- ГЛАВНЫЕ ИЗМЕНЕНИЯ ---
 
 # 1. Делаем наш скрипт-загрузчик исполняемым
@@ -44,9 +61,6 @@ ENTRYPOINT ["/app/entrypoint.sh"]
 # 3. Default command - будет переопределяться Railway через startCommand в railway.json
 CMD []
 # -------------------------
-
-# Создание необходимых директорий
-RUN mkdir -p logs uploads admin/static admin/templates
 
 # Настройка окружения
 ENV PYTHONPATH=/app
