@@ -88,6 +88,22 @@ if is_postgresql:
         'pool_recycle': 3600,
         'pool_timeout': 30
     })
+    
+    # КРИТИЧЕСКИ ВАЖНО для Supabase и других облачных PostgreSQL: добавляем SSL параметры для asyncpg
+    # Supabase и большинство облачных PostgreSQL требуют SSL соединение
+    # asyncpg по умолчанию подключается без SSL, поэтому нужно явно указать
+    # asyncpg использует ssl=True в connect_args для требования SSL соединения
+    
+    # Проверяем, есть ли уже SSL параметры в URL или connect_args
+    has_ssl_in_url = 'sslmode=require' in async_database_url.lower() or 'ssl=require' in async_database_url.lower()
+    
+    if not has_ssl_in_url:
+        # Добавляем SSL требование через connect_args (предпочтительный способ для asyncpg)
+        async_engine_kwargs.setdefault('connect_args', {})
+        async_engine_kwargs['connect_args']['ssl'] = True
+        db_logger.info("Added SSL requirement for asyncpg connection (required for cloud PostgreSQL/Supabase)")
+    else:
+        db_logger.info("SSL parameters already present in database URL")
 else:
     async_engine_kwargs['poolclass'] = StaticPool
 
