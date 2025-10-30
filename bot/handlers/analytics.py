@@ -536,6 +536,15 @@ async def handle_content_type_callback(callback: CallbackQuery, state: FSMContex
     
     # Extract content type from callback data
     content_type = callback.data.replace("content_type_", "")
+    # Map to DB enum values (legacy enum in DB: PHOTOS/VIDEOS/MIXED)
+    db_enum_mapping = {
+        "AI": "MIXED",             # нет прямого соответствия
+        "PHOTO": "PHOTOS",
+        "ILLUSTRATION": "PHOTOS",
+        "VIDEO": "VIDEOS",
+        "VECTOR": "PHOTOS",
+    }
+    db_content_type = db_enum_mapping.get(content_type, "PHOTOS")
     
     # Get all data from state
     data = await state.get_data()
@@ -567,7 +576,8 @@ async def handle_content_type_callback(callback: CallbackQuery, state: FSMContex
             csv_analysis.upload_limit = data["upload_limit"]
             csv_analysis.monthly_uploads = data["monthly_uploads"]
             csv_analysis.acceptance_rate = data["acceptance_rate"]
-            csv_analysis.content_type = content_type
+            # write legacy DB enum value to avoid enum mismatch errors
+            csv_analysis.content_type = db_content_type
             csv_analysis.status = AnalysisStatus.PROCESSING
             
             db.commit()
@@ -630,20 +640,21 @@ async def handle_content_type_text(message: Message, state: FSMContext, user: Us
     
     content_type = message.text.strip().upper()
     
-    # Маппинг типов контента
-    content_type_mapping = {
-        'AI': 'AI',
-        'ФОТО': 'PHOTO',
-        'PHOTO': 'PHOTO',
-        'ИЛЛЮСТРАЦИИ': 'ILLUSTRATION',
-        'ILLUSTRATION': 'ILLUSTRATION',
-        'ВИДЕО': 'VIDEO',
-        'VIDEO': 'VIDEO',
-        'ВЕКТОР': 'VECTOR',
-        'VECTOR': 'VECTOR'
+    # Маппинг типов контента -> к ЛЕГАСИ enum БД (PHOTOS / VIDEOS / MIXED)
+    # Сопоставляем наши варианты к значениям, существующим в текущем типе contenttype
+    to_db_enum_mapping = {
+        'AI': 'MIXED',
+        'ФОТО': 'PHOTOS',
+        'PHOTO': 'PHOTOS',
+        'ИЛЛЮСТРАЦИИ': 'PHOTOS',
+        'ILLUSTRATION': 'PHOTOS',
+        'ВИДЕО': 'VIDEOS',
+        'VIDEO': 'VIDEOS',
+        'ВЕКТОР': 'PHOTOS',
+        'VECTOR': 'PHOTOS'
     }
     
-    content_type_enum = content_type_mapping.get(content_type, 'PHOTO')
+    content_type_enum = to_db_enum_mapping.get(content_type, 'PHOTOS')
     
     # Update CSV analysis with user data
     db = SessionLocal()
@@ -657,6 +668,7 @@ async def handle_content_type_text(message: Message, state: FSMContext, user: Us
             csv_analysis.upload_limit = data["upload_limit"]
             csv_analysis.monthly_uploads = data["monthly_uploads"]
             csv_analysis.acceptance_rate = data["acceptance_rate"]
+            # write legacy DB enum value to avoid enum mismatch errors
             csv_analysis.content_type = content_type_enum
             csv_analysis.status = AnalysisStatus.PROCESSING
             
