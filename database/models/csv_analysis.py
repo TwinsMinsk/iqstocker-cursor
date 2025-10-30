@@ -9,12 +9,10 @@ from config.database import Base
 
 
 class ContentType(str, Enum):
-    """Content types."""
-    AI = "AI"
-    PHOTO = "PHOTO"
-    ILLUSTRATION = "ILLUSTRATION"
-    VIDEO = "VIDEO"
-    VECTOR = "VECTOR"
+    """Content types (must match DB enum 'contenttype')."""
+    PHOTOS = "PHOTOS"
+    VIDEOS = "VIDEOS"
+    MIXED = "MIXED"
 
 
 class AnalysisStatus(str, Enum):
@@ -43,7 +41,10 @@ class CSVAnalysis(Base):
     monthly_uploads: Mapped[int] = mapped_column(nullable=True)
     acceptance_rate: Mapped[float] = mapped_column(Numeric(5, 2), nullable=True)  # percentage
     profit_margin: Mapped[float] = mapped_column(Numeric(5, 2), nullable=True)   # percentage
-    content_type: Mapped[ContentType] = mapped_column(SQLEnum(ContentType), nullable=True)
+    # Must use the same Postgres enum type name as in migrations: name="contenttype"
+    content_type: Mapped[ContentType] = mapped_column(
+        SQLEnum(ContentType, name="contenttype"), nullable=True
+    )
     
     # Processing status
     status: Mapped[AnalysisStatus] = mapped_column(
