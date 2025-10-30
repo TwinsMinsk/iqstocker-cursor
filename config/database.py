@@ -1,4 +1,4 @@
-﻿"""Database configuration and session management."""
+"""Database configuration and session management."""
 
 import logging
 import os
