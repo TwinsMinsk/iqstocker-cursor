@@ -134,18 +134,9 @@ if is_postgresql:
     # Disable statement cache for pgbouncer compatibility
     # Many cloud PostgreSQL providers (Railway, Supabase, etc.) use pgbouncer or similar poolers
     # which don't support prepared statements properly in transaction/statement pool modes
-    # Using both approaches: disable cache AND use unique statement names as fallback
+    # IMPORTANT: do not set prepared_statement_name_func — this would still create PREPARE/EXECUTE
     async_engine_kwargs["connect_args"]["statement_cache_size"] = 0
-    
-    # Use unique names for prepared statements to avoid conflicts when cache is disabled
-    # This ensures each prepared statement gets a unique name even if cache is somehow enabled
-    def unique_stmt_name():
-        """Generate unique prepared statement names to avoid conflicts with pgbouncer."""
-        return f"__asyncpg_stmt_{uuid.uuid4().hex[:16]}__"
-    
-    async_engine_kwargs["connect_args"]["prepared_statement_name_func"] = unique_stmt_name
-    
-    db_logger.info("Disabled statement cache and enabled unique statement names for pgbouncer/connection pooler compatibility")
+    db_logger.info("Disabled asyncpg statement cache for pgbouncer/connection pooler compatibility")
     
     if is_supabase:
         # For Supabase: disable SSL verification (Supabase pooler certificates)
@@ -159,10 +150,9 @@ if is_postgresql:
     
     # Log final connection args for debugging (without sensitive data)
     db_logger.info(
-        "Async engine connect_args: statement_cache_size=%s, has_ssl=%s, has_unique_names=%s",
+        "Async engine connect_args: statement_cache_size=%s, has_ssl=%s",
         async_engine_kwargs["connect_args"].get("statement_cache_size"),
         bool(async_engine_kwargs["connect_args"].get("ssl")),
-        "prepared_statement_name_func" in async_engine_kwargs["connect_args"]
     )
 
     try:
