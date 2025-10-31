@@ -17,7 +17,7 @@ from database.models import (
     AnalyticsReport, VideoLesson, LLMSettings
 )
 from admin_panel.auth import authentication_backend, ADMIN_SECRET_KEY
-from admin_panel.views import dashboard, themes, placeholders
+from admin_panel.views import dashboard, themes, placeholders, lexicon, users, analytics
 
 # Определяем корень директории admin_panel
 BASE_DIR = Path(__file__).resolve().parent
@@ -69,11 +69,16 @@ admin = Admin(
 
 # Add model views
 class UserAdmin(ModelView, model=User):
-    column_list = [User.id, User.username, User.first_name, User.last_name, User.subscription_type, User.is_admin, User.created_at]
+    column_list = [User.id, User.username, User.first_name, User.last_name, User.telegram_id, User.subscription_type, User.is_admin, User.created_at, User.last_activity_at]
+    column_searchable_list = [User.username, User.first_name, User.last_name, User.telegram_id]
+    column_sortable_list = [User.id, User.created_at, User.last_activity_at, User.subscription_type]
+    column_filters = [User.subscription_type, User.is_admin]
     can_create = True
     can_edit = True
     can_delete = True
     can_view_details = True
+    can_export = True
+    export_types = ["csv", "json"]
 
 class SubscriptionAdmin(ModelView, model=Subscription):
     column_list = [Subscription.id, Subscription.user_id, Subscription.subscription_type, Subscription.started_at, Subscription.expires_at]
@@ -131,6 +136,9 @@ admin.add_view(LLMSettingsAdmin)
 app.include_router(dashboard.router, prefix="", tags=["dashboard"])
 app.include_router(themes.router, prefix="", tags=["themes"])
 app.include_router(placeholders.router, prefix="", tags=["placeholders"])
+app.include_router(lexicon.router, prefix="", tags=["lexicon"])
+app.include_router(users.router, prefix="", tags=["users"])
+app.include_router(analytics.router, prefix="", tags=["analytics"])
 
 
 @app.get("/")

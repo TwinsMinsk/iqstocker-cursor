@@ -2,99 +2,143 @@
 
 {% block title %}Дашборд - IQStocker Admin{% endblock %}
 
+{% block page_title %}
+<i class="fas fa-tachometer-alt me-2"></i>Дашборд
+{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item active">Дашборд</li>
+{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h1 class="h2">Дашборд</h1>
-</div>
-
-{% if stats.error %}
-<div class="alert alert-danger" role="alert">
-    <h4 class="alert-heading">Ошибка!</h4>
-    <p>{{ stats.error }}</p>
-</div>
-{% endif %}
-
-<!-- Statistics Cards -->
+<!-- Статистические карточки -->
 <div class="row mb-4">
     <div class="col-md-3 mb-3">
-        <div class="card stat-card">
-            <div class="card-body text-center">
-                <i class="fas fa-users fa-2x mb-2"></i>
-                <div class="stat-number">{{ stats.total_users }}</div>
-                <div>Всего пользователей</div>
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-users"></i>
+            </div>
+            <div class="stat-label">Всего пользователей</div>
+            <div class="stat-number">{{ stats.total_users }}</div>
+            <div class="stat-change">
+                <i class="fas fa-arrow-up me-1"></i>+{{ stats.new_users_week }} за неделю
             </div>
         </div>
     </div>
+    
     <div class="col-md-3 mb-3">
-        <div class="card stat-card">
-            <div class="card-body text-center">
-                <i class="fas fa-percentage fa-2x mb-2"></i>
-                <div class="stat-number">{{ stats.conversion_rate }}%</div>
-                <div>Конверсия</div>
+        <div class="stat-card success">
+            <div class="stat-icon">
+                <i class="fas fa-user-check"></i>
+            </div>
+            <div class="stat-label">Активные пользователи</div>
+            <div class="stat-number">{{ stats.active_users }}</div>
+            <div class="stat-change">За последние 30 дней</div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="stat-card info">
+            <div class="stat-icon">
+                <i class="fas fa-percentage"></i>
+            </div>
+            <div class="stat-label">Конверсия</div>
+            <div class="stat-number">{{ stats.conversion_rate }}%</div>
+            <div class="stat-change">Платные подписки</div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="stat-card warning">
+            <div class="stat-icon">
+                <i class="fas fa-chart-line"></i>
+            </div>
+            <div class="stat-label">Всего аналитик</div>
+            <div class="stat-number">{{ stats.total_analyses }}</div>
+            <div class="stat-change">{{ stats.total_reports }} отчетов</div>
+        </div>
+    </div>
+</div>
+
+<!-- Графики и детали -->
+<div class="row mb-4">
+    <!-- Распределение по тарифам -->
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Распределение по тарифам</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="subscriptionChart" class="chart-container"></canvas>
             </div>
         </div>
     </div>
-    <div class="col-md-3 mb-3">
-        <div class="card stat-card">
-            <div class="card-body text-center">
-                <i class="fas fa-crown fa-2x mb-2"></i>
-                <div class="stat-number">{{ stats.subscription_counts.get('PRO', 0) }}</div>
-                <div>Pro подписки</div>
+    
+    <!-- Статистика использования -->
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Среднее использование</h5>
             </div>
-        </div>
-    </div>
-    <div class="col-md-3 mb-3">
-        <div class="card stat-card">
-            <div class="card-body text-center">
-                <i class="fas fa-gift fa-2x mb-2"></i>
-                <div class="stat-number">{{ stats.subscription_counts.get('FREE', 0) }}</div>
-                <div>Бесплатные</div>
+            <div class="card-body">
+                <canvas id="usageChart" class="chart-container"></canvas>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Subscription Statistics -->
-<div class="row mb-4">
-    <div class="col-md-6">
+<!-- Таблица последних пользователей -->
+<div class="row">
+    <div class="col-12">
         <div class="card">
             <div class="card-header">
-                <h5 class="card-title mb-0">Статистика подписок</h5>
+                <h5 class="mb-0"><i class="fas fa-user-clock me-2"></i>Последние зарегистрированные пользователи</h5>
             </div>
             <div class="card-body">
-                <canvas id="subscriptionChart" width="400" height="200"></canvas>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">Последние пользователи</h5>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-sm">
+                {% if stats.latest_users %}
+                <div class="table-container">
+                    <table class="table table-hover">
                         <thead>
                             <tr>
-                                <th>Пользователь</th>
+                                <th>ID</th>
+                                <th>Имя пользователя</th>
+                                <th>Telegram ID</th>
+                                <th>Тариф</th>
                                 <th>Дата регистрации</th>
-                                <th>Подписка</th>
+                                <th>Последняя активность</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for user in stats.latest_users %}
                             <tr>
-                                <td>{{ user.username }}</td>
-                                <td>{{ user.created_at.strftime('%d.%m.%Y') }}</td>
+                                <td>{{ user.id }}</td>
                                 <td>
-                                    {% if user.subscription_type == 'PRO' %}
-                                        <span class="badge bg-primary">Pro</span>
-                                    {% elif user.subscription_type == 'ULTRA' %}
-                                        <span class="badge bg-warning">Ultra</span>
-                                    {% elif user.subscription_type == 'TEST_PRO' %}
-                                        <span class="badge bg-info">Test Pro</span>
+                                    {% if user.username %}
+                                        {{ user.username }}
+                                    {% elif user.first_name %}
+                                        {{ user.first_name }} {% if user.last_name %}{{ user.last_name }}{% endif %}
                                     {% else %}
-                                        <span class="badge bg-secondary">Free</span>
+                                        <em>Не указано</em>
+                                    {% endif %}
+                                </td>
+                                <td><code>{{ user.telegram_id }}</code></td>
+                                <td>
+                                    {% if user.subscription_type == 'FREE' %}
+                                        <span class="badge badge-free">FREE</span>
+                                    {% elif user.subscription_type == 'PRO' %}
+                                        <span class="badge badge-pro">PRO</span>
+                                    {% elif user.subscription_type == 'ULTRA' %}
+                                        <span class="badge badge-ultra">ULTRA</span>
+                                    {% elif user.subscription_type == 'TEST_PRO' %}
+                                        <span class="badge badge-test">TEST_PRO</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ user.created_at.strftime('%d.%m.%Y %H:%M') if user.created_at else 'N/A' }}</td>
+                                <td>
+                                    {% if user.last_activity_at %}
+                                        {{ user.last_activity_at.strftime('%d.%m.%Y %H:%M') }}
+                                    {% else %}
+                                        <em>Нет данных</em>
                                     {% endif %}
                                 </td>
                             </tr>
@@ -102,77 +146,81 @@
                         </tbody>
                     </table>
                 </div>
+                {% else %}
+                <p class="text-muted text-center py-4">Нет зарегистрированных пользователей</p>
+                {% endif %}
             </div>
         </div>
     </div>
 </div>
 
-<!-- Quick Actions -->
-<div class="row">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">Быстрые действия</h5>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-3 mb-2">
-                        <a href="/themes" class="btn btn-primary w-100">
-                            <i class="fas fa-palette me-2"></i>Управление темами
-                        </a>
-                    </div>
-                    <div class="col-md-3 mb-2">
-                        <a href="/user-management" class="btn btn-success w-100">
-                            <i class="fas fa-users me-2"></i>Пользователи
-                        </a>
-                    </div>
-                    <div class="col-md-3 mb-2">
-                        <a href="/broadcast" class="btn btn-warning w-100">
-                            <i class="fas fa-bullhorn me-2"></i>Рассылка
-                        </a>
-                    </div>
-                    <div class="col-md-3 mb-2">
-                        <a href="/admin" class="btn btn-info w-100">
-                            <i class="fas fa-cogs me-2"></i>SQLAdmin
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-{% endblock %}
-
-{% block scripts %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    // Subscription Chart
-    const ctx = document.getElementById('subscriptionChart').getContext('2d');
-    const subscriptionData = {{ stats.subscription_counts | tojson }};
-    
-    new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: Object.keys(subscriptionData),
-            datasets: [{
-                data: Object.values(subscriptionData),
-                backgroundColor: [
-                    '#FF6384',
-                    '#36A2EB',
-                    '#FFCE56',
-                    '#4BC0C0'
-                ]
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'bottom'
-                }
+// График распределения по тарифам
+const subscriptionCtx = document.getElementById('subscriptionChart').getContext('2d');
+new Chart(subscriptionCtx, {
+    type: 'doughnut',
+    data: {
+        labels: ['FREE', 'PRO', 'ULTRA', 'TEST_PRO'],
+        datasets: [{
+            data: [
+                {{ stats.subscription_counts.FREE }},
+                {{ stats.subscription_counts.PRO }},
+                {{ stats.subscription_counts.ULTRA }},
+                {{ stats.subscription_counts.TEST_PRO }}
+            ],
+            backgroundColor: [
+                '#e5e7eb',
+                '#3b82f6',
+                '#8b5cf6',
+                '#fbbf24'
+            ],
+            borderWidth: 0
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'bottom'
             }
         }
-    });
+    }
+});
+
+// График использования
+const usageCtx = document.getElementById('usageChart').getContext('2d');
+new Chart(usageCtx, {
+    type: 'bar',
+    data: {
+        labels: ['Аналитика', 'Темы'],
+        datasets: [{
+            label: 'Среднее использование',
+            data: [
+                {{ stats.avg_analytics_used }},
+                {{ stats.avg_themes_used }}
+            ],
+            backgroundColor: [
+                'rgba(102, 126, 234, 0.8)',
+                'rgba(118, 75, 162, 0.8)'
+            ],
+            borderRadius: 8
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                display: false
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
 </script>
 {% endblock %}

@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}Аналитика - IQStocker Admin{% endblock %}
+
+{% block page_title %}
+<i class="fas fa-chart-bar me-2"></i>Аналитика
+{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item active">Аналитика</li>
+{% endblock %}
+
+{% block content %}
+<!-- Статистика -->
+<div class="row mb-4">
+    <div class="col-md-4 mb-3">
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-file-chart-line"></i>
+            </div>
+            <div class="stat-label">Всего отчетов</div>
+            <div class="stat-number">{{ total_reports }}</div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-3">
+        <div class="stat-card success">
+            <div class="stat-icon">
+                <i class="fas fa-dollar-sign"></i>
+            </div>
+            <div class="stat-label">Общий доход</div>
+            <div class="stat-number">${{ total_revenue }}</div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-3">
+        <div class="stat-card info">
+            <div class="stat-icon">
+                <i class="fas fa-calendar-week"></i>
+            </div>
+            <div class="stat-label">За период ({{ period_days }} дней)</div>
+            <div class="stat-number">${{ period_revenue }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- Топ пользователей -->
+{% if top_users %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-trophy me-2"></i>Топ пользователей по доходу</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-container">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Место</th>
+                                <th>Пользователь</th>
+                                <th>Отчетов</th>
+                                <th>Общий доход</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in top_users %}
+                            <tr>
+                                <td>
+                                    {% if loop.index == 1 %}
+                                        <span class="badge bg-warning text-dark">🥇</span>
+                                    {% elif loop.index == 2 %}
+                                        <span class="badge bg-secondary">🥈</span>
+                                    {% elif loop.index == 3 %}
+                                        <span class="badge bg-danger">🥉</span>
+                                    {% else %}
+                                        <span class="badge bg-light text-dark">#{{ loop.index }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if user.username %}
+                                        <code>@{{ user.username }}</code>
+                                    {% elif user.first_name %}
+                                        {{ user.first_name }}
+                                    {% else %}
+                                        User #{{ user.id }}
+                                    {% endif %}
+                                </td>
+                                <td>{{ user.report_count }}</td>
+                                <td><strong>${{ "%.2f"|format(user.total_revenue) }}</strong></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Последние отчеты -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-list me-2"></i>Последние отчеты</h5>
+            </div>
+            <div class="card-body">
+                {% if recent_reports %}
+                <div class="table-container">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Анализ ID</th>
+                                <th>Продаж</th>
+                                <th>Доход</th>
+                                <th>Дата</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for report in recent_reports %}
+                            <tr>
+                                <td>{{ report.id }}</td>
+                                <td>{{ report.csv_analysis_id }}</td>
+                                <td>{{ report.total_sales }}</td>
+                                <td><strong>${{ "%.2f"|format(report.total_revenue) }}</strong></td>
+                                <td>
+                                    {% if report.created_at %}
+                                        {{ report.created_at.strftime('%d.%m.%Y %H:%M') }}
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted text-center py-5">Нет отчетов за выбранный период</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

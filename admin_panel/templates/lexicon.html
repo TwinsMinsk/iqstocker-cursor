@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+
+{% block title %}Управление сообщениями - IQStocker Admin{% endblock %}
+
+{% block page_title %}
+<i class="fas fa-comments me-2"></i>Управление сообщениями
+{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item active">Управление сообщениями</li>
+{% endblock %}
+
+{% block content %}
+<!-- Поиск и фильтры -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" action="/lexicon" class="row g-3">
+            <div class="col-md-8">
+                <div class="search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" class="form-control" name="search" 
+                           placeholder="Поиск по ключу или тексту..." 
+                           value="{{ search_query }}">
+                </div>
+            </div>
+            <div class="col-md-4">
+                <select name="category" class="form-select">
+                    <option value="all" {% if active_category == "all" %}selected{% endif %}>Все категории</option>
+                    {% for cat_key, cat_data in categories.items() %}
+                    <option value="{{ cat_key }}" {% if active_category == cat_key %}selected{% endif %}>
+                        {{ cat_data.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-12">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-search me-1"></i>Поиск
+                </button>
+                <a href="/lexicon" class="btn btn-outline-secondary">
+                    <i class="fas fa-times me-1"></i>Сбросить
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Категории -->
+<ul class="nav nav-tabs mb-4" role="tablist">
+    {% for cat_key, cat_data in categories.items() %}
+    <li class="nav-item">
+        <a class="nav-link {% if active_category == cat_key %}active{% endif %}" 
+           href="/lexicon?category={{ cat_key }}{% if search_query %}&search={{ search_query }}{% endif %}">
+            {{ cat_data.name }}
+            <span class="badge bg-secondary ms-2">{{ cat_data.items|length }}</span>
+        </a>
+    </li>
+    {% endfor %}
+</ul>
+
+<!-- Список сообщений -->
+<div class="row">
+    {% for cat_key, cat_data in categories.items() %}
+        {% if active_category == cat_key or active_category == "all" %}
+        <div class="col-12 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">{{ cat_data.name }} ({{ cat_data.items|length }} сообщений)</h5>
+                </div>
+                <div class="card-body">
+                    {% if cat_data.items %}
+                    <div class="row">
+                        {% for key, value in cat_data.items.items() %}
+                        <div class="col-md-6 mb-4">
+                            <div class="lexicon-editor" data-key="{{ key }}" data-category="{{ cat_key }}">
+                                <div class="lexicon-key">
+                                    <i class="fas fa-key me-1"></i>{{ key }}
+                                </div>
+                                <div class="lexicon-value" 
+                                     contenteditable="false" 
+                                     id="value-{{ key }}"
+                                     onclick="enableEdit('{{ key }}', '{{ cat_key }}')">
+                                    {{ value }}
+                                </div>
+                                <div class="mt-2 d-none" id="actions-{{ key }}">
+                                    <button class="btn btn-sm btn-success" onclick="saveLexicon('{{ key }}', '{{ cat_key }}')">
+                                        <i class="fas fa-save me-1"></i>Сохранить
+                                    </button>
+                                    <button class="btn btn-sm btn-secondary" onclick="cancelEdit('{{ key }}')">
+                                        <i class="fas fa-times me-1"></i>Отмена
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center py-4">Нет сообщений в этой категории</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    {% endfor %}
+</div>
+
+<script>
+let originalValues = {};
+
+function enableEdit(key, category) {
+    const element = document.getElementById(`value-${key}`);
+    const actionsDiv = document.getElementById(`actions-${key}`);
+    
+    // Сохраняем оригинальное значение
+    originalValues[key] = element.textContent;
+    
+    // Делаем редактируемым
+    element.contentEditable = 'true';
+    element.classList.add('editing');
+    actionsDiv.classList.remove('d-none');
+    
+    // Фокус на элементе
+    element.focus();
+}
+
+function cancelEdit(key) {
+    const element = document.getElementById(`value-${key}`);
+    const actionsDiv = document.getElementById(`actions-${key}`);
+    
+    // Восстанавливаем оригинальное значение
+    element.textContent = originalValues[key];
+    
+    // Убираем редактирование
+    element.contentEditable = 'false';
+    element.classList.remove('editing');
+    actionsDiv.classList.add('d-none');
+    
+    delete originalValues[key];
+}
+
+async function saveLexicon(key, category) {
+    const element = document.getElementById(`value-${key}`);
+    const actionsDiv = document.getElementById(`actions-${key}`);
+    const newValue = element.textContent.trim();
+    
+    // Показываем загрузку
+    const saveBtn = actionsDiv.querySelector('.btn-success');
+    const originalText = saveBtn.innerHTML;
+    saveBtn.innerHTML = '<span class="loading"></span> Сохранение...';
+    saveBtn.disabled = true;
+    
+    try {
+        const formData = new FormData();
+        formData.append('key', key);
+        formData.append('value', newValue);
+        formData.append('category', category);
+        
+        const response = await fetch('/lexicon/update', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Успешно сохранено
+            element.contentEditable = 'false';
+            element.classList.remove('editing');
+            actionsDiv.classList.add('d-none');
+            delete originalValues[key];
+            
+            // Показываем уведомление
+            showNotification('Успешно сохранено!', 'success');
+        } else {
+            throw new Error(result.message || 'Ошибка при сохранении');
+        }
+    } catch (error) {
+        showNotification('Ошибка: ' + error.message, 'error');
+        // Восстанавливаем кнопку
+        saveBtn.innerHTML = originalText;
+        saveBtn.disabled = false;
+    }
+}
+
+function showNotification(message, type) {
+    // Простое уведомление (можно улучшить)
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    notification.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.remove();
+    }, 3000);
+}
+
+// Предотвращаем потерю фокуса при клике вне
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.lexicon-value') && !e.target.closest('.btn')) {
+        // Закрываем все редактируемые элементы
+        document.querySelectorAll('.lexicon-value.editing').forEach(el => {
+            const key = el.id.replace('value-', '');
+            cancelEdit(key);
+        });
+    }
+});
+</script>
+{% endblock %}
+

@@ -13,11 +13,13 @@ from database.models import (
 
 async def get_dashboard_stats(session: AsyncSession) -> Dict[str, Any]:
     """Get dashboard statistics."""
+    from datetime import datetime, timedelta
+    from database.models import CSVAnalysis, Limits
     
     # Count users by subscription level
     subscription_stats = await session.execute(
-        select(Subscription.subscription_type, func.count(Subscription.id))
-        .group_by(Subscription.subscription_type)
+        select(User.subscription_type, func.count(User.id))
+        .group_by(User.subscription_type)
     )
     subscription_counts = dict(subscription_stats.fetchall())
     
@@ -33,18 +35,83 @@ async def get_dashboard_stats(session: AsyncSession) -> Dict[str, Any]:
     total_users = await session.execute(select(func.count(User.id)))
     total_users_count = total_users.scalar()
     
-    non_free_subscriptions = sum(
-        count for subscription_type, count in subscription_counts.items() 
-        if subscription_type != 'FREE'
-    )
+    free_count = subscription_counts.get('FREE', 0)
+    pro_count = subscription_counts.get('PRO', 0)
+    ultra_count = subscription_counts.get('ULTRA', 0)
+    test_pro_count = subscription_counts.get('TEST_PRO', 0)
     
-    conversion_rate = (non_free_subscriptions / total_users_count * 100) if total_users_count > 0 else 0
+    non_free_count = pro_count + ultra_count + test_pro_count
+    conversion_rate = (non_free_count / total_users_count * 100) if total_users_count > 0 else 0
+    
+    # Get active users (last 30 days)
+    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    active_users = await session.execute(
+        select(func.count(User.id))
+        .where(User.last_activity_at >= thirty_days_ago)
+    )
+    active_users_count = active_users.scalar() or 0
+    
+    # Get total CSV analyses
+    total_analyses = await session.execute(select(func.count(CSVAnalysis.id)))
+    total_analyses_count = total_analyses.scalar() or 0
+    
+    # Get total analytics reports
+    total_reports = await session.execute(select(func.count(AnalyticsReport.id)))
+    total_reports_count = total_reports.scalar() or 0
+    
+    # Calculate total revenue from analytics reports
+    revenue_stats = await session.execute(
+        select(func.sum(AnalyticsReport.total_revenue))
+    )
+    total_revenue = revenue_stats.scalar() or 0
+    
+    # Get users with limits
+    users_with_limits = await session.execute(
+        select(func.count(Limits.id))
+    )
+    users_with_limits_count = users_with_limits.scalar() or 0
+    
+    # Calculate average usage
+    if users_with_limits_count > 0:
+        analytics_usage = await session.execute(
+            select(func.sum(Limits.analytics_used))
+        )
+        themes_usage = await session.execute(
+            select(func.sum(Limits.themes_used))
+        )
+        analytics_total_usage = analytics_usage.scalar() or 0
+        themes_total_usage = themes_usage.scalar() or 0
+        avg_analytics_used = analytics_total_usage / users_with_limits_count
+        avg_themes_used = themes_total_usage / users_with_limits_count
+    else:
+        avg_analytics_used = 0
+        avg_themes_used = 0
+    
+    # Users growth (last 7 days)
+    seven_days_ago = datetime.utcnow() - timedelta(days=7)
+    new_users_week = await session.execute(
+        select(func.count(User.id))
+        .where(User.created_at >= seven_days_ago)
+    )
+    new_users_week_count = new_users_week.scalar() or 0
     
     return {
-        'subscription_counts': subscription_counts,
+        'subscription_counts': {
+            'FREE': free_count,
+            'PRO': pro_count,
+            'ULTRA': ultra_count,
+            'TEST_PRO': test_pro_count
+        },
         'latest_users': latest_users_list,
         'conversion_rate': round(conversion_rate, 2),
-        'total_users': total_users_count
+        'total_users': total_users_count,
+        'active_users': active_users_count,
+        'total_analyses': total_analyses_count,
+        'total_reports': total_reports_count,
+        'total_revenue': round(float(total_revenue), 2),
+        'new_users_week': new_users_week_count,
+        'avg_analytics_used': round(avg_analytics_used, 2),
+        'avg_themes_used': round(avg_themes_used, 2),
     }
 
 
