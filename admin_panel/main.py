@@ -133,6 +133,12 @@ app.include_router(themes.router, prefix="", tags=["themes"])
 app.include_router(placeholders.router, prefix="", tags=["placeholders"])
 
 
+@app.get("/")
+async def root():
+    """Root page - redirect to dashboard."""
+    return RedirectResponse(url="/dashboard")
+
+
 @app.get("/test", response_class=HTMLResponse)
 async def test_page():
     """Test page."""

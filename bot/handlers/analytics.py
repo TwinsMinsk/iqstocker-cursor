@@ -168,7 +168,7 @@ async def show_reports_callback(callback: CallbackQuery, user: User, limits: Lim
             # No reports - show message
             await safe_edit_message(
                 callback=callback,
-                text="📊 У тебя пока нет отчетов.\n\nЗагрузи CSV-файл для создания первого отчета.",
+                text=LEXICON_RU['analytics_no_reports'],
                 reply_markup=get_analytics_intro_keyboard(has_reports=False)
             )
         else:

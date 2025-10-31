@@ -55,7 +55,7 @@ def get_analytics_report_view_keyboard(reports: list, current_report_id: int, su
     
     # Add back to list button
     keyboard.append([
-        InlineKeyboardButton(text="◀️ Назад к списку", callback_data="analytics")
+        InlineKeyboardButton(text=LEXICON_COMMANDS_RU['analytics_back_to_list'], callback_data="analytics")
     ])
     
     # Add back to menu button

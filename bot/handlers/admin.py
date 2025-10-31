@@ -44,7 +44,7 @@ async def admin_command(message: Message, state: FSMContext):
     """Handle admin command."""
     
     if not is_admin(message.from_user.id):
-        await message.answer("❌ У вас нет прав администратора.")
+        await message.answer(LEXICON_RU['admin_no_access'])
         return
     
     admin_text = """🔧 <b>Админ-панель IQStocker</b>

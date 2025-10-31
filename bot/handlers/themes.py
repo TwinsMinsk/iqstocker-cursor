@@ -166,7 +166,7 @@ async def generate_themes_callback(callback: CallbackQuery, callback_data: Theme
         if not available_themes:
             await safe_edit_message(
                 callback=callback,
-                text="😞 К сожалению, сейчас нет доступных тем. Попробуй позже.",
+                text=LEXICON_RU['themes_no_available'],
                 reply_markup=get_themes_menu_keyboard(has_archive=await has_archive(session, user.id))
             )
             return
@@ -231,9 +231,7 @@ async def archive_themes_callback(callback: CallbackQuery, callback_data: Themes
         if not all_requests:
             await safe_edit_message(
                 callback=callback,
-                text="🗂️ <b>Архив тем</b>\n\n"
-                     "У тебя пока нет сохраненных подборок.\n\n"
-                     "Нажми кнопку <b>Получить темы</b>, чтобы создать первую подборку!",
+                text=LEXICON_RU['themes_archive_empty'],
                 reply_markup=get_themes_menu_keyboard(has_archive=False)
             )
             return
@@ -276,7 +274,7 @@ async def show_archive_page(callback: CallbackQuery, user: User, history: list, 
     formatted_date = request.created_at.strftime("%d.%m.%Y")
     
     # Format themes text
-    archive_text = f"🗂️ <b>Архив тем</b>\n\n"
+    archive_text = LEXICON_RU['themes_archive_title']
     archive_text += f"<b>Подборка от {formatted_date}</b>\n\n"
     
     for i, theme in enumerate(request.theme_name.split('\n'), 1):

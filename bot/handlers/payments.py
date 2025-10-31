@@ -33,7 +33,7 @@ async def upgrade_pro_callback(callback: CallbackQuery, user: User):
     if not payment_url:
         await safe_edit_message(
             callback=callback,
-            text="❌ Не удалось создать ссылку для оплаты. Попробуй еще раз позже.",
+            text=LEXICON_RU['payment_link_error'],
             reply_markup=get_main_menu_keyboard(user.subscription_type)
         )
         await callback.answer()
@@ -108,7 +108,7 @@ async def upgrade_ultra_callback(callback: CallbackQuery, user: User):
     if not payment_url:
         await safe_edit_message(
             callback=callback,
-            text="❌ Не удалось создать ссылку для оплаты. Попробуй еще раз позже.",
+            text=LEXICON_RU['payment_link_error'],
             reply_markup=get_main_menu_keyboard(user.subscription_type)
         )
         await callback.answer()
@@ -344,7 +344,7 @@ async def payment_pro_test_discount_callback(callback: CallbackQuery, user: User
     if not payment_url:
         await safe_edit_message(
             callback=callback,
-            text="❌ Не удалось создать ссылку для оплаты. Попробуй еще раз позже.",
+            text=LEXICON_RU['payment_link_error'],
             reply_markup=get_main_menu_keyboard(user.subscription_type)
         )
         await callback.answer()
@@ -400,7 +400,7 @@ async def payment_pro_std_callback(callback: CallbackQuery, user: User):
     if not payment_url:
         await safe_edit_message(
             callback=callback,
-            text="❌ Не удалось создать ссылку для оплаты. Попробуй еще раз позже.",
+            text=LEXICON_RU['payment_link_error'],
             reply_markup=get_main_menu_keyboard(user.subscription_type)
         )
         await callback.answer()
@@ -437,7 +437,7 @@ async def payment_ultra_test_discount_callback(callback: CallbackQuery, user: Us
     if not payment_url:
         await safe_edit_message(
             callback=callback,
-            text="❌ Не удалось создать ссылку для оплаты. Попробуй еще раз позже.",
+            text=LEXICON_RU['payment_link_error'],
             reply_markup=get_main_menu_keyboard(user.subscription_type)
         )
         await callback.answer()
@@ -493,7 +493,7 @@ async def payment_ultra_std_callback(callback: CallbackQuery, user: User):
     if not payment_url:
         await safe_edit_message(
             callback=callback,
-            text="❌ Не удалось создать ссылку для оплаты. Попробуй еще раз позже.",
+            text=LEXICON_RU['payment_link_error'],
             reply_markup=get_main_menu_keyboard(user.subscription_type)
         )
         await callback.answer()
