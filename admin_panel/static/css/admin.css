@@ -83,6 +83,20 @@ body {
     border-left-color: var(--primary-color);
 }
 
+.sidebar-divider {
+    border-color: rgba(255, 255, 255, 0.1);
+    margin: 1rem 0;
+}
+
+.nav-section-header {
+    padding: 0.75rem 1.5rem;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+}
+
 .sidebar-nav .nav-link.active {
     color: white;
     background: linear-gradient(90deg, rgba(102, 126, 234, 0.2), transparent);

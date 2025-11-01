@@ -4,11 +4,13 @@ from pathlib import Path
 from fastapi import FastAPI, Request, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqladmin import Admin, ModelView
 from sqladmin.authentication import AuthenticationBackend
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as StarletteRequest
 import logging
 
 from config.database import get_async_session, engine
@@ -37,6 +39,141 @@ app = FastAPI(title="IQStocker Admin Panel", version="2.0")
 
 # Add session middleware
 app.add_middleware(SessionMiddleware, secret_key=ADMIN_SECRET_KEY)
+
+
+# Middleware для редиректа /admin/ на /dashboard
+class AdminRedirectMiddleware(BaseHTTPMiddleware):
+    """Middleware to redirect /admin/ to /dashboard."""
+    
+    async def dispatch(self, request: StarletteRequest, call_next):
+        # Редиректим /admin/ на /dashboard
+        if request.url.path == "/admin" or request.url.path == "/admin/":
+            return RedirectResponse(url="/dashboard")
+        
+        return await call_next(request)
+
+
+# Middleware для инжекции CSS в SQLAdmin страницы
+class SQLAdminCSSMiddleware(BaseHTTPMiddleware):
+    """Middleware to inject custom CSS into SQLAdmin pages."""
+    
+    async def dispatch(self, request: StarletteRequest, call_next):
+        response = await call_next(request)
+        
+        # Только для HTML ответов от SQLAdmin (пути /admin/* но не /admin/ напрямую)
+        if (request.url.path.startswith("/admin/") and 
+            request.url.path != "/admin/" and
+            response.headers.get("content-type", "").startswith("text/html")):
+            
+            try:
+                # Читаем body если это streaming response
+                if hasattr(response, 'body_iterator'):
+                    body = b""
+                    async for chunk in response.body_iterator:
+                        body += chunk
+                elif hasattr(response, 'body'):
+                    body = response.body
+                else:
+                    return response
+                
+                body_str = body.decode('utf-8', errors='ignore')
+                
+                # Инжектируем CSS перед закрывающим </head>
+                if '</head>' in body_str.lower() and '/static/css/admin.css' not in body_str:
+                    css_injection = '''
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="/static/css/admin.css" rel="stylesheet">
+    <style>
+        /* Дополнительные стили для SQLAdmin */
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important; 
+            background-color: #f5f7fa !important;
+        }
+        .admin-sidebar, .sidebar, nav.sidebar { 
+            background: linear-gradient(180deg, #252836 0%, #1a1b23 100%) !important; 
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1) !important;
+        }
+        .nav-link.active, .sidebar-nav .nav-link.active { 
+            background: rgba(102, 126, 234, 0.2) !important; 
+            border-left: 3px solid #667eea !important; 
+            color: white !important;
+        }
+        .nav-link, .sidebar-nav .nav-link { 
+            color: rgba(255, 255, 255, 0.7) !important;
+            transition: all 0.3s ease !important;
+        }
+        .nav-link:hover, .sidebar-nav .nav-link:hover { 
+            background: rgba(255, 255, 255, 0.1) !important; 
+            color: white !important;
+        }
+        .card, .admin-card { 
+            border-radius: 12px !important; 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important; 
+            border: none !important;
+        }
+        .btn-primary { 
+            background: linear-gradient(135deg, #667eea, #764ba2) !important; 
+            border: none !important; 
+            border-radius: 8px !important;
+            transition: all 0.3s ease !important;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px) !important;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
+        }
+        .table { 
+            border-radius: 8px !important; 
+            overflow: hidden !important; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+        }
+        .table thead { 
+            background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%) !important; 
+        }
+        .table tbody tr:hover {
+            background-color: #f9fafb !important;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            color: #1f2937 !important;
+        }
+        .badge {
+            border-radius: 6px !important;
+            padding: 0.375rem 0.75rem !important;
+            font-weight: 500 !important;
+        }
+    </style>
+'''
+                    body_str = body_str.replace('</head>', css_injection + '</head>')
+                    body = body_str.encode('utf-8')
+                    
+                    # Создаем новый response с обновленным body
+                    return Response(
+                        content=body,
+                        status_code=response.status_code,
+                        headers=dict(response.headers),
+                        media_type=response.media_type
+                    )
+                
+                # Возвращаем оригинальный response если не было изменений
+                if hasattr(response, 'body_iterator'):
+                    return Response(
+                        content=body,
+                        status_code=response.status_code,
+                        headers=dict(response.headers),
+                        media_type=response.media_type
+                    )
+            except Exception as e:
+                logger.error(f"Error in SQLAdminCSSMiddleware: {e}")
+        
+        return response
+
+
+# Применяем middleware (порядок важен! Middleware выполняются в обратном порядке)
+# Последний добавленный middleware выполняется первым
+# 1. Инжекция CSS для SQLAdmin страниц (выполняется последним из middleware)
+app.add_middleware(SQLAdminCSSMiddleware)
+# 2. Редирект для /admin/ на /dashboard (выполняется перед CSS инжекцией)
+app.add_middleware(AdminRedirectMiddleware)
 
 # Mount static files с проверкой
 if not STATIC_DIR.is_dir():
