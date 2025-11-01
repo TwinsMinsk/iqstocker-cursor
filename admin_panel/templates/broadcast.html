@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+
+{% block title %}Рассылка сообщений - IQStocker Admin{% endblock %}
+
+{% block page_title %}
+<i class="fas fa-bullhorn me-2"></i>Рассылка сообщений
+{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item active">Рассылка сообщений</li>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-paper-plane me-2"></i>Создать рассылку</h5>
+            </div>
+            <div class="card-body">
+                <form id="broadcastForm" method="post" action="/broadcast/send">
+                    <div class="mb-3">
+                        <label for="message" class="form-label">Текст сообщения</label>
+                        <textarea class="form-control" id="message" name="message" rows="8" 
+                                  placeholder="Введите текст сообщения для рассылки..." required></textarea>
+                        <small class="form-text text-muted">Поддерживается HTML форматирование</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Получатели</label>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="send_to_all" id="sendToAll" value="true" checked>
+                            <label class="form-check-label" for="sendToAll">
+                                <strong>Всем пользователям</strong> ({{ total_users }} чел.)
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="send_to_all" id="sendToType" value="false">
+                            <label class="form-check-label" for="sendToType">
+                                По тарифу:
+                            </label>
+                        </div>
+                        <select class="form-select mt-2" name="subscription_type" id="subscriptionType" disabled>
+                            <option value="">Выберите тариф</option>
+                            {% for sub_type in subscription_types %}
+                            <option value="{{ sub_type }}">
+                                {{ sub_type }} ({{ subscription_counts[sub_type] }} чел.)
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="alert alert-info" role="alert">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Внимание:</strong> Сообщение будет отправлено всем выбранным пользователям. 
+                        Рекомендуется проверять текст перед отправкой.
+                    </div>
+                    
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary" id="sendBtn">
+                            <i class="fas fa-paper-plane me-1"></i>Отправить рассылку
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="document.getElementById('broadcastForm').reset()">
+                            <i class="fas fa-times me-1"></i>Очистить
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Статистика</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>Всего пользователей:</span>
+                        <strong class="text-primary">{{ total_users }}</strong>
+                    </div>
+                </div>
+                <hr>
+                <h6 class="mb-3">По тарифам:</h6>
+                {% for sub_type in subscription_types %}
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span>{{ sub_type }}:</span>
+                    <strong>{{ subscription_counts[sub_type] }}</strong>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="resultModal" class="modal fade" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Результат рассылки</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="resultContent">
+                <!-- Result will be inserted here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const sendToAll = document.getElementById('sendToAll');
+    const sendToType = document.getElementById('sendToType');
+    const subscriptionType = document.getElementById('subscriptionType');
+    
+    sendToAll.addEventListener('change', function() {
+        if (this.checked) {
+            subscriptionType.disabled = true;
+            subscriptionType.value = '';
+        }
+    });
+    
+    sendToType.addEventListener('change', function() {
+        if (this.checked) {
+            subscriptionType.disabled = false;
+            subscriptionType.required = true;
+        }
+    });
+    
+    const form = document.getElementById('broadcastForm');
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const sendBtn = document.getElementById('sendBtn');
+        const originalText = sendBtn.innerHTML;
+        sendBtn.disabled = true;
+        sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Отправка...';
+        
+        const formData = new FormData(form);
+        
+        try {
+            const response = await fetch('/broadcast/send', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const result = await response.json();
+            
+            let modalContent = '';
+            if (result.success) {
+                modalContent = `
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle me-2"></i><strong>Успешно!</strong>
+                        <p class="mb-0 mt-2">${result.message}</p>
+                        <hr>
+                        <p class="mb-0"><strong>Отправлено:</strong> ${result.sent_count}</p>
+                        <p class="mb-0"><strong>Не удалось отправить:</strong> ${result.failed_count}</p>
+                        <p class="mb-0"><strong>Всего получателей:</strong> ${result.total_users}</p>
+                    </div>
+                `;
+                form.reset();
+                sendToAll.checked = true;
+                subscriptionType.disabled = true;
+            } else {
+                modalContent = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i><strong>Ошибка!</strong>
+                        <p class="mb-0 mt-2">${result.message}</p>
+                    </div>
+                `;
+            }
+            
+            document.getElementById('resultContent').innerHTML = modalContent;
+            const modal = new bootstrap.Modal(document.getElementById('resultModal'));
+            modal.show();
+            
+        } catch (error) {
+            document.getElementById('resultContent').innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-circle me-2"></i><strong>Ошибка!</strong>
+                    <p class="mb-0 mt-2">Произошла ошибка при отправке: ${error.message}</p>
+                </div>
+            `;
+            const modal = new bootstrap.Modal(document.getElementById('resultModal'));
+            modal.show();
+        } finally {
+            sendBtn.disabled = false;
+            sendBtn.innerHTML = originalText;
+        }
+    });
+});
+</script>
+{% endblock %}
+
