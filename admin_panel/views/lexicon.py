@@ -167,14 +167,16 @@ async def update_lexicon_entry(
                 
                 # Format new value - escape properly
                 # If contains newlines or is long, use triple quotes
-                if '\n' in value or len(value) > 80:
+                # Ensure value is a string, not a function
+                value_str = str(value) if not isinstance(value, str) else value
+                if '\n' in value_str or len(value_str) > 80:
                     # Use triple single quotes for multi-line
                     # Escape triple quotes if they exist in value
-                    formatted_value = value.replace("'''", "\\'''")
+                    formatted_value = value_str.replace("'''", "\\'''")
                     new_entry = f"\\1'''{formatted_value}'''"
                 else:
                     # Escape single quotes and backslashes
-                    escaped_value = value.replace("\\", "\\\\").replace("'", "\\'")
+                    escaped_value = value_str.replace("\\", "\\\\").replace("'", "\\'")
                     new_entry = f"\\1'{escaped_value}'"
                 
                 new_content = re.sub(pattern, new_entry, content, flags=re.MULTILINE | re.DOTALL)
@@ -187,11 +189,13 @@ async def update_lexicon_entry(
                     for i, line in enumerate(lines):
                         if f"'{key}':" in line:
                             # Found the line, replace the value part
-                            if '\n' in value or len(value) > 80:
-                                formatted_value = value.replace("'''", "\\'''")
+                            # Ensure value is a string, not a function
+                            value_str = str(value) if not isinstance(value, str) else value
+                            if '\n' in value_str or len(value_str) > 80:
+                                formatted_value = value_str.replace("'''", "\\'''")
                                 lines[i] = re.sub(r":\s+['\"].*['\"]", f": '''{formatted_value}'''", line)
                             else:
-                                escaped_value = value.replace("\\", "\\\\").replace("'", "\\'")
+                                escaped_value = value_str.replace("\\", "\\\\").replace("'", "\\'")
                                 lines[i] = re.sub(r":\s+['\"].*['\"]", f": '{escaped_value}'", line)
                             break
                     lexicon_file.write_text('\n'.join(lines), encoding='utf-8')
@@ -212,15 +216,17 @@ async def update_lexicon_entry(
                 pattern = rf"(\s+'{re.escape(key)}':\s+)(['\"](?:[^'\"]|\\.)*['\"]|'''[^']*'''|\"\"\"[^\"]*\"\"\"|\([^\)]*\))"
                 
                 # Format new value
-                if '\n' in value or len(value) > 80:
+                # Ensure value is a string, not a function
+                value_str = str(value) if not isinstance(value, str) else value
+                if '\n' in value_str or len(value_str) > 80:
                     # Use triple single quotes
-                    formatted_value = value.replace("'''", "\\'''")
+                    formatted_value = value_str.replace("'''", "\\'''")
                     new_entry = f"\\1'''{formatted_value}'''"
-                elif value.strip().startswith('(') and value.strip().endswith(')'):
+                elif value_str.strip().startswith('(') and value_str.strip().endswith(')'):
                     # Already formatted as tuple
-                    new_entry = f"\\1{value}"
+                    new_entry = f"\\1{value_str}"
                 else:
-                    escaped_value = value.replace("\\", "\\\\").replace("'", "\\'")
+                    escaped_value = value_str.replace("\\", "\\\\").replace("'", "\\'")
                     new_entry = f"\\1'{escaped_value}'"
                 
                 new_content = re.sub(pattern, new_entry, content, flags=re.MULTILINE | re.DOTALL)
@@ -234,11 +240,13 @@ async def update_lexicon_entry(
                     for i, line in enumerate(lines):
                         if f"'{key}':" in line:
                             key_found = True
-                            if '\n' in value or len(value) > 80:
-                                formatted_value = value.replace("'''", "\\'''")
+                            # Ensure value is a string, not a function
+                            value_str = str(value) if not isinstance(value, str) else value
+                            if '\n' in value_str or len(value_str) > 80:
+                                formatted_value = value_str.replace("'''", "\\'''")
                                 lines[i] = re.sub(r":\s+['\"].*['\"]", f": '''{formatted_value}'''", line)
                             else:
-                                escaped_value = value.replace("\\", "\\\\").replace("'", "\\'")
+                                escaped_value = value_str.replace("\\", "\\\\").replace("'", "\\'")
                                 lines[i] = re.sub(r":\s+['\"].*['\"]", f": '{escaped_value}'", line)
                             break
                     

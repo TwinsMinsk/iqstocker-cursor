@@ -52,7 +52,7 @@
         <a class="nav-link {% if active_category == cat_key %}active{% endif %}" 
            href="/lexicon?category={{ cat_key }}{% if search_query %}&search={{ search_query }}{% endif %}">
             {{ cat_data.name }}
-            <span class="badge bg-secondary ms-2">{{ cat_data.items|length }}</span>
+            <span class="badge bg-secondary ms-2">{{ cat_data['items']|length }}</span>
         </a>
     </li>
     {% endfor %}
@@ -65,12 +65,12 @@
         <div class="col-12 mb-4">
             <div class="card">
                 <div class="card-header">
-                    <h5 class="mb-0">{{ cat_data.name }} ({{ cat_data.items|length }} сообщений)</h5>
+                    <h5 class="mb-0">{{ cat_data.name }} ({{ cat_data['items']|length }} сообщений)</h5>
                 </div>
                 <div class="card-body">
-                    {% if cat_data.items %}
+                    {% if cat_data['items'] %}
                     <div class="row">
-                        {% for key, value in cat_data.items.items() %}
+                        {% for key, value in cat_data['items'].items() %}
                         <div class="col-md-6 mb-4">
                             <div class="lexicon-editor" data-key="{{ key }}" data-category="{{ cat_key }}">
                                 <div class="lexicon-key">

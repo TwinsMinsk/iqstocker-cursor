@@ -46,7 +46,8 @@ class AdminRedirectMiddleware(BaseHTTPMiddleware):
     """Middleware to redirect /admin/ to /dashboard."""
     
     async def dispatch(self, request: StarletteRequest, call_next):
-        # Редиректим /admin/ на /dashboard
+        # Редиректим только корневой /admin/ на /dashboard
+        # НЕ трогаем /admin/user/, /admin/subscription/ и т.д. (это SQLAdmin страницы)
         if request.url.path == "/admin" or request.url.path == "/admin/":
             return RedirectResponse(url="/dashboard")
         
@@ -61,9 +62,15 @@ class SQLAdminCSSMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         
         # Только для HTML ответов от SQLAdmin (пути /admin/* но не /admin/ напрямую)
-        if (request.url.path.startswith("/admin/") and 
+        # Проверяем что это SQLAdmin страница, а не наши кастомные страницы
+        is_sqladmin_page = (
+            request.url.path.startswith("/admin/") and 
             request.url.path != "/admin/" and
-            response.headers.get("content-type", "").startswith("text/html")):
+            not request.url.path.startswith("/admin/logout") and
+            response.headers.get("content-type", "").startswith("text/html")
+        )
+        
+        if is_sqladmin_page:
             
             try:
                 # Читаем body если это streaming response
@@ -147,19 +154,29 @@ class SQLAdminCSSMiddleware(BaseHTTPMiddleware):
                     body = body_str.encode('utf-8')
                     
                     # Создаем новый response с обновленным body
+                    # Удаляем Content-Length чтобы он пересчитался автоматически
+                    headers = dict(response.headers)
+                    if 'content-length' in headers:
+                        del headers['content-length']
+                    
                     return Response(
                         content=body,
                         status_code=response.status_code,
-                        headers=dict(response.headers),
+                        headers=headers,
                         media_type=response.media_type
                     )
                 
                 # Возвращаем оригинальный response если не было изменений
                 if hasattr(response, 'body_iterator'):
+                    # Удаляем Content-Length чтобы он пересчитался автоматически
+                    headers = dict(response.headers)
+                    if 'content-length' in headers:
+                        del headers['content-length']
+                    
                     return Response(
                         content=body,
                         status_code=response.status_code,
-                        headers=dict(response.headers),
+                        headers=headers,
                         media_type=response.media_type
                     )
             except Exception as e:
@@ -261,13 +278,51 @@ class LLMSettingsAdmin(ModelView, model=LLMSettings):
     can_view_details = True
 
 # Register admin views
-admin.add_view(UserAdmin)
-admin.add_view(SubscriptionAdmin)
-admin.add_view(GlobalThemeAdmin)
-admin.add_view(SystemMessageAdmin)
-admin.add_view(AnalyticsReportAdmin)
-admin.add_view(VideoLessonAdmin)
-admin.add_view(LLMSettingsAdmin)
+logger.info("Registering SQLAdmin views...")
+try:
+    admin.add_view(UserAdmin)
+    logger.info("✓ UserAdmin registered (path should be /admin/user/)")
+except Exception as e:
+    logger.error(f"✗ Failed to register UserAdmin: {e}")
+
+try:
+    admin.add_view(SubscriptionAdmin)
+    logger.info("✓ SubscriptionAdmin registered (path should be /admin/subscription/)")
+except Exception as e:
+    logger.error(f"✗ Failed to register SubscriptionAdmin: {e}")
+
+try:
+    admin.add_view(GlobalThemeAdmin)
+    logger.info("✓ GlobalThemeAdmin registered (path should be /admin/global-theme/ or /admin/globaltheme/)")
+except Exception as e:
+    logger.error(f"✗ Failed to register GlobalThemeAdmin: {e}")
+
+try:
+    admin.add_view(SystemMessageAdmin)
+    logger.info("✓ SystemMessageAdmin registered")
+except Exception as e:
+    logger.error(f"✗ Failed to register SystemMessageAdmin: {e}")
+
+try:
+    admin.add_view(AnalyticsReportAdmin)
+    logger.info("✓ AnalyticsReportAdmin registered (path should be /admin/analytics-report/ or /admin/analyticsreport/)")
+except Exception as e:
+    logger.error(f"✗ Failed to register AnalyticsReportAdmin: {e}")
+
+try:
+    admin.add_view(VideoLessonAdmin)
+    logger.info("✓ VideoLessonAdmin registered (path should be /admin/video-lesson/ or /admin/videolesson/)")
+except Exception as e:
+    logger.error(f"✗ Failed to register VideoLessonAdmin: {e}")
+
+try:
+    admin.add_view(LLMSettingsAdmin)
+    logger.info("✓ LLMSettingsAdmin registered")
+except Exception as e:
+    logger.error(f"✗ Failed to register LLMSettingsAdmin: {e}")
+
+logger.info("SQLAdmin views registration completed!")
+logger.info("All SQLAdmin routes should be available under /admin/ path")
 
 # Include routers
 app.include_router(dashboard.router, prefix="", tags=["dashboard"])
