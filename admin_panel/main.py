@@ -78,13 +78,15 @@ else:
 logger.info("Using custom admin views instead of SQLAdmin")
 
 # Include routers
+# Important: Register specific routers BEFORE placeholders to avoid conflicts
 app.include_router(dashboard.router, prefix="", tags=["dashboard"])
-app.include_router(themes.router, prefix="", tags=["themes"])
-app.include_router(placeholders.router, prefix="", tags=["placeholders"])
 app.include_router(lexicon.router, prefix="", tags=["lexicon"])
 app.include_router(users.router, prefix="", tags=["users"])
 app.include_router(analytics.router, prefix="", tags=["analytics"])
 app.include_router(broadcast.router, prefix="", tags=["broadcast"])
+app.include_router(themes.router, prefix="", tags=["themes"])
+# Placeholders router should be last to catch any unmatched routes
+app.include_router(placeholders.router, prefix="", tags=["placeholders"])
 
 
 @app.get("/")

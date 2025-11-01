@@ -86,17 +86,7 @@ async def user_management(request: Request):
     )
 
 
-@router.get("/broadcast", response_class=HTMLResponse)
-async def broadcast(request: Request):
-    """Broadcast placeholder."""
-    return templates.TemplateResponse(
-        "placeholder.html",
-        {
-            "request": request,
-            "title": "Рассылка",
-            "description": "Массовая рассылка сообщений"
-        }
-    )
+# Broadcast route removed - now handled by broadcast.py
 
 
 @router.get("/referral", response_class=HTMLResponse)

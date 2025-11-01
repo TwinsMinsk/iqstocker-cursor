@@ -81,7 +81,7 @@ async def broadcast_page(request: Request):
 async def send_broadcast(
     message: str = Form(...),
     subscription_type: Optional[str] = Form(None),
-    send_to_all: bool = Form(False)
+    send_to_all: str = Form("true")
 ):
     """Send broadcast message to users."""
     if not message.strip():
@@ -89,6 +89,9 @@ async def send_broadcast(
             {"success": False, "message": "Сообщение не может быть пустым"},
             status_code=400
         )
+    
+    # Parse send_to_all (comes as string "true" or "false" from form)
+    send_to_all_bool = send_to_all.lower() in ("true", "1", "yes", "on")
     
     bot = await get_bot_instance()
     if not bot:
@@ -101,9 +104,15 @@ async def send_broadcast(
         try:
             # Get target users
             query = select(User)
-            if not send_to_all and subscription_type:
-                sub_type_enum = SubscriptionType[subscription_type]
-                query = query.where(User.subscription_type == sub_type_enum)
+            if not send_to_all_bool and subscription_type and subscription_type.strip():
+                try:
+                    sub_type_enum = SubscriptionType[subscription_type]
+                    query = query.where(User.subscription_type == sub_type_enum)
+                except KeyError:
+                    return JSONResponse(
+                        {"success": False, "message": f"Неизвестный тип подписки: {subscription_type}"},
+                        status_code=400
+                    )
             
             users_result = await session.execute(query)
             users = users_result.scalars().all()
