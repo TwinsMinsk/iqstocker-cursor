@@ -2,18 +2,22 @@
 
 import json
 import logging
-from typing import Dict, Optional
 from datetime import datetime
+from pathlib import Path
+from typing import Dict, Iterable, Optional
 
 import redis
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
-from config.database import redis_client, AsyncSessionLocal, SessionLocal
-from database.models.lexicon_entry import LexiconEntry, LexiconCategory
+from config.database import AsyncSessionLocal, SessionLocal, redis_client
+from database.models.lexicon_entry import LexiconCategory, LexiconEntry
 
 logger = logging.getLogger(__name__)
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+LEXICON_CACHE_FILE = PROJECT_ROOT / "bot" / "lexicon" / "lexicon_cache.json"
 
 
 class LexiconService:
@@ -37,14 +41,25 @@ class LexiconService:
     def _load_from_file_fallback(self) -> Dict[str, Dict[str, str]]:
         """Load lexicon from file as fallback."""
         try:
-            from bot.lexicon.lexicon_ru import LEXICON_RU, LEXICON_COMMANDS_RU
+            if LEXICON_CACHE_FILE.exists():
+                cache_data = json.loads(LEXICON_CACHE_FILE.read_text(encoding="utf-8"))
+                return {
+                    "LEXICON_RU": cache_data.get("LEXICON_RU", {}),
+                    "LEXICON_COMMANDS_RU": cache_data.get("LEXICON_COMMANDS_RU", {}),
+                }
+        except Exception as e:
+            logger.warning(f"Failed to load lexicon cache file: {e}")
+
+        try:
+            from bot.lexicon.lexicon_ru import LEXICON_COMMANDS_RU, LEXICON_RU
+
             return {
-                'LEXICON_RU': LEXICON_RU,
-                'LEXICON_COMMANDS_RU': LEXICON_COMMANDS_RU
+                "LEXICON_RU": LEXICON_RU,
+                "LEXICON_COMMANDS_RU": LEXICON_COMMANDS_RU,
             }
         except Exception as e:
-            logger.warning(f"Failed to load lexicon from file: {e}")
-            return {'LEXICON_RU': {}, 'LEXICON_COMMANDS_RU': {}}
+            logger.warning(f"Failed to load lexicon from static file: {e}")
+            return {"LEXICON_RU": {}, "LEXICON_COMMANDS_RU": {}}
     
     async def load_lexicon_async(self, session: Optional[AsyncSession] = None) -> Dict[str, Dict[str, str]]:
         """Load all lexicon entries from database with caching (async)."""
@@ -102,6 +117,28 @@ class LexiconService:
             logger.warning(f"Failed to cache lexicon: {e}")
         
         return result
+
+    def _serialise_entries(self, entries: Iterable[LexiconEntry]) -> Dict[str, Dict[str, str]]:
+        """Convert lexicon ORM entries into serialisable structure."""
+        data: Dict[str, Dict[str, str]] = {
+            "LEXICON_RU": {},
+            "LEXICON_COMMANDS_RU": {},
+        }
+        for entry in entries:
+            category_key = entry.category.value
+            data.setdefault(category_key, {})[entry.key] = entry.value
+        return data
+
+    def _write_cache_file(self, data: Dict[str, Dict[str, str]]) -> None:
+        """Persist current lexicon snapshot to local cache file."""
+        try:
+            LEXICON_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+            LEXICON_CACHE_FILE.write_text(
+                json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+        except Exception as exc:
+            logger.warning(f"Failed to write lexicon cache file: {exc}")
     
     def load_lexicon_sync(self, session: Optional[Session] = None) -> Dict[str, Dict[str, str]]:
         """Load all lexicon entries from database with caching (sync)."""
@@ -313,7 +350,14 @@ class LexiconService:
             session.add(entry)
         
         await session.commit()
-        
+
+        try:
+            snapshot_result = await session.execute(select(LexiconEntry))
+            snapshot_entries = snapshot_result.scalars().all()
+            self._write_cache_file(self._serialise_entries(snapshot_entries))
+        except Exception as exc:
+            logger.warning(f"Failed to refresh lexicon cache snapshot (async): {exc}")
+
         # Invalidate caches
         self.invalidate_cache()
         
@@ -365,7 +409,13 @@ class LexiconService:
             session.add(entry)
         
         session.commit()
-        
+
+        try:
+            snapshot_entries = session.query(LexiconEntry).all()
+            self._write_cache_file(self._serialise_entries(snapshot_entries))
+        except Exception as exc:
+            logger.warning(f"Failed to refresh lexicon cache snapshot (sync): {exc}")
+
         # Invalidate caches
         self.invalidate_cache()
         
