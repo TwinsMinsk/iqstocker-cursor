@@ -301,9 +301,12 @@ async def update_lexicon_entry(
             try:
                 import bot.lexicon.lexicon_ru as lexicon_module
                 importlib.reload(lexicon_module)
-                # Update global references
-                global LEXICON_COMMANDS_RU
-                LEXICON_COMMANDS_RU = lexicon_module.LEXICON_COMMANDS_RU
+                # Update module-level references by updating the dicts in-place
+                # This avoids the global declaration issue
+                if hasattr(lexicon_module, 'LEXICON_COMMANDS_RU'):
+                    LEXICON_COMMANDS_RU.clear()
+                    LEXICON_COMMANDS_RU.update(lexicon_module.LEXICON_COMMANDS_RU)
+                logger.info(f"Lexicon file updated for key '{key}'. Module reloaded successfully.")
             except Exception as reload_error:
                 logger.warning(f"Failed to reload lexicon module: {reload_error}")
                 # Continue anyway - file was saved
@@ -390,9 +393,12 @@ async def update_lexicon_entry(
             try:
                 import bot.lexicon.lexicon_ru as lexicon_module
                 importlib.reload(lexicon_module)
-                # Update global references
-                global LEXICON_RU
-                LEXICON_RU = lexicon_module.LEXICON_RU
+                # Update module-level references by updating the dicts in-place
+                # This avoids the global declaration issue
+                if hasattr(lexicon_module, 'LEXICON_RU'):
+                    LEXICON_RU.clear()
+                    LEXICON_RU.update(lexicon_module.LEXICON_RU)
+                logger.info(f"Lexicon file updated for key '{key}'. Module reloaded successfully.")
             except Exception as reload_error:
                 logger.warning(f"Failed to reload lexicon module: {reload_error}")
                 # Continue anyway - file was saved
