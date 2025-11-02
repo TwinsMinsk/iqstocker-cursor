@@ -43,22 +43,27 @@ class LexiconService:
         try:
             if LEXICON_CACHE_FILE.exists():
                 cache_data = json.loads(LEXICON_CACHE_FILE.read_text(encoding="utf-8"))
-                return {
+                merged_cache = {
                     "LEXICON_RU": cache_data.get("LEXICON_RU", {}),
                     "LEXICON_COMMANDS_RU": cache_data.get("LEXICON_COMMANDS_RU", {}),
                 }
+                return self._merge_with_static(merged_cache)
         except Exception as e:
             logger.warning(f"Failed to load lexicon cache file: {e}")
 
+        return self._load_static_lexicon()
+
+    def _load_static_lexicon(self) -> Dict[str, Dict[str, str]]:
+        """Load static lexicon shipped with the application."""
         try:
             from bot.lexicon.lexicon_ru import LEXICON_COMMANDS_RU, LEXICON_RU
 
             return {
-                "LEXICON_RU": LEXICON_RU,
-                "LEXICON_COMMANDS_RU": LEXICON_COMMANDS_RU,
+                "LEXICON_RU": dict(LEXICON_RU),
+                "LEXICON_COMMANDS_RU": dict(LEXICON_COMMANDS_RU),
             }
-        except Exception as e:
-            logger.warning(f"Failed to load lexicon from static file: {e}")
+        except Exception as exc:
+            logger.warning(f"Failed to load lexicon from static file: {exc}")
             return {"LEXICON_RU": {}, "LEXICON_COMMANDS_RU": {}}
     
     async def load_lexicon_async(self, session: Optional[AsyncSession] = None) -> Dict[str, Dict[str, str]]:
@@ -108,6 +113,8 @@ class LexiconService:
                     result[category_key][entry.key] = entry.value
             
             logger.info(f"Loaded {len(entries)} lexicon entries from database")
+
+        result = self._merge_with_static(result)
         
         # Cache the result
         try:
@@ -133,8 +140,9 @@ class LexiconService:
         """Persist current lexicon snapshot to local cache file."""
         try:
             LEXICON_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+            merged_data = self._merge_with_static(data)
             LEXICON_CACHE_FILE.write_text(
-                json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True),
+                json.dumps(merged_data, ensure_ascii=False, indent=2, sort_keys=True),
                 encoding="utf-8",
             )
         except Exception as exc:
@@ -185,7 +193,9 @@ class LexiconService:
                     result[category_key][entry.key] = entry.value
             
             logger.info(f"Loaded {len(entries)} lexicon entries from database")
-        
+
+        result = self._merge_with_static(result)
+
         # Cache the result
         try:
             cache_data = json.dumps(result, ensure_ascii=False)
@@ -455,4 +465,17 @@ class LexiconService:
         except Exception as e:
             logger.warning(f"Failed to invalidate cache: {e}")
             return 0
+
+    def _merge_with_static(self, data: Dict[str, Dict[str, str]]) -> Dict[str, Dict[str, str]]:
+        """Merge provided lexicon data with static fallback values."""
+        static_data = self._load_static_lexicon()
+        merged: Dict[str, Dict[str, str]] = {}
+
+        all_categories = set(static_data.keys()) | set(data.keys())
+        for category in all_categories:
+            category_data = dict(static_data.get(category, {}))
+            category_data.update(data.get(category, {}))
+            merged[category] = category_data
+
+        return merged
 
