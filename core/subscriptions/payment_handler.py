@@ -74,6 +74,25 @@ class PaymentHandler:
                     session.add(limits)
                 
                 await session.commit()
+                
+                # Refresh user and limits to get latest data
+                await session.refresh(user)
+                await session.refresh(limits)
+                
+                # Send notification about tariff change (except for TEST_PRO)
+                if sub_type != SubscriptionType.TEST_PRO:
+                    try:
+                        from aiogram import Bot
+                        from config.settings import settings
+                        from core.notifications.tariff_notifications import send_tariff_change_notification
+                        
+                        bot = Bot(token=settings.bot_token)
+                        await send_tariff_change_notification(bot, user, sub_type, limits)
+                        await bot.session.close()
+                    except Exception as e:
+                        print(f"Error sending tariff change notification: {e}")
+                        # Don't fail payment processing if notification fails
+                
                 print(f"Subscription activated for user {user_id}: {sub_type}")
                 return True
                 

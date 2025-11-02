@@ -517,8 +517,13 @@ async def admin_set_tariff(callback: CallbackQuery, callback_data: ActionCallbac
             db.add(limits)
             db.flush()
 
+        old_subscription_type = user.subscription_type
         set_admin_subscription(user, limits, target_type)
         db.commit()
+        
+        # Refresh to get updated data
+        db.refresh(user)
+        db.refresh(limits)
 
         subscription_label = LEXICON_RU.get(f'subscription_label_{target_type}', target_type)
         expires_at = (
@@ -526,6 +531,25 @@ async def admin_set_tariff(callback: CallbackQuery, callback_data: ActionCallbac
             if user.subscription_expires_at
             else LEXICON_RU['admin_tariff_expires_unlimited']
         )
+
+        # Send notification if tariff actually changed and not to TEST_PRO
+        try:
+            new_sub_type = SubscriptionType[target_type]
+        except (KeyError, ValueError):
+            new_sub_type = None
+        
+        if new_sub_type and new_sub_type != SubscriptionType.TEST_PRO and old_subscription_type != new_sub_type:
+            try:
+                from aiogram import Bot
+                from config.settings import settings
+                from core.notifications.tariff_notifications import send_tariff_change_notification
+                
+                bot = Bot(token=settings.bot_token)
+                await send_tariff_change_notification(bot, user, new_sub_type, limits)
+                await bot.session.close()
+            except Exception as e:
+                print(f"Error sending tariff change notification: {e}")
+                # Don't fail if notification fails
 
         await callback.message.edit_text(
             LEXICON_RU['admin_tariff_success'].format(

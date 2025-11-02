@@ -32,6 +32,7 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
             'profile': {'name': 'Профиль', 'items': {}},
             'payments': {'name': 'Платежи', 'items': {}},
             'faq': {'name': 'FAQ', 'items': {}},
+            'calendar': {'name': 'Календарь', 'items': {}},
             'buttons': {'name': 'Кнопки', 'items': {}},
             'other': {'name': 'Прочее', 'items': {}}
         }
@@ -50,10 +51,12 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
                         categories['lessons']['items'][key] = value
                     elif key.startswith('profile'):
                         categories['profile']['items'][key] = value
-                    elif key.startswith('payment') or key.startswith('payment'):
+                    elif key.startswith('payment'):
                         categories['payments']['items'][key] = value
                     elif key.startswith('faq'):
                         categories['faq']['items'][key] = value
+                    elif key.startswith('calendar'):
+                        categories['calendar']['items'][key] = value
                     elif key.startswith('start') or key.startswith('main_menu') or key.startswith('returning'):
                         categories['main']['items'][key] = value
                     else:
@@ -83,6 +86,7 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
             'profile': {'name': 'Профиль', 'items': {}},
             'payments': {'name': 'Платежи', 'items': {}},
             'faq': {'name': 'FAQ', 'items': {}},
+            'calendar': {'name': 'Календарь', 'items': {}},
             'buttons': {'name': 'Кнопки', 'items': {}},
             'other': {'name': 'Прочее', 'items': {}}
         }

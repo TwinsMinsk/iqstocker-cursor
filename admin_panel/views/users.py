@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 
 from config.database import AsyncSessionLocal
 from database.models import User, SubscriptionType
-from database.models import Limits, CSVAnalysis, Subscription, AnalyticsReport, ThemeRequest, UserIssuedTheme, GlobalTheme
+from database.models import Limits, CSVAnalysis, Subscription, AnalyticsReport, ThemeRequest
 
 router = APIRouter()
 templates = Jinja2Templates(directory="admin_panel/templates")
@@ -99,6 +99,19 @@ async def users_page(
         stats_result = await session.execute(stats_query)
         stats_by_type = dict(stats_result.fetchall())
         
+        # Get list of administrators
+        admins_query = select(User).where(User.is_admin == True).order_by(User.created_at)
+        admins_result = await session.execute(admins_query)
+        admins = admins_result.scalars().all()
+        admins_data = []
+        for admin in admins:
+            admins_data.append({
+                'user': admin,
+                'name': f"{admin.first_name or ''} {admin.last_name or ''}".strip() or admin.username or f"User {admin.id}",
+                'username': admin.username,
+                'telegram_id': admin.telegram_id
+            })
+        
         total_pages = (total_count + per_page - 1) // per_page
         
         return templates.TemplateResponse(
@@ -107,6 +120,7 @@ async def users_page(
                 "request": request,
                 "users_data": users_data,
                 "stats_by_type": stats_by_type,
+                "admins_data": admins_data,
                 "current_filter": subscription_type or 'all',
                 "search_query": search or '',
                 "current_page": page,
@@ -176,18 +190,25 @@ async def get_user_actions(user_id: int = Path(...)):
         theme_requests_result = await session.execute(theme_requests_query)
         theme_requests_count = theme_requests_result.scalar() or 0
         
-        # Get issued themes list with names
-        issued_themes_query = select(UserIssuedTheme, GlobalTheme).join(
-            GlobalTheme, UserIssuedTheme.theme_id == GlobalTheme.id
-        ).where(UserIssuedTheme.user_id == user_id).order_by(desc(UserIssuedTheme.issued_at))
+        # Get issued themes list from ThemeRequest with status ISSUED
+        issued_themes_query = select(ThemeRequest).where(
+            ThemeRequest.user_id == user_id,
+            ThemeRequest.status == "ISSUED"
+        ).order_by(desc(ThemeRequest.created_at))
         issued_themes_result = await session.execute(issued_themes_query)
-        issued_themes_data = []
+        issued_themes_requests = issued_themes_result.scalars().all()
         
-        for user_theme, global_theme in issued_themes_result.all():
-            issued_themes_data.append({
-                "theme_name": global_theme.theme_name,
-                "issued_at": user_theme.issued_at.strftime('%d.%m.%Y %H:%M') if user_theme.issued_at else None
-            })
+        # Process issued themes: theme_name can contain multiple themes separated by \n
+        issued_themes_data = []
+        for theme_request in issued_themes_requests:
+            if theme_request.theme_name:
+                # Split by newline to get individual theme names
+                theme_names = [name.strip() for name in theme_request.theme_name.split('\n') if name.strip()]
+                for theme_name in theme_names:
+                    issued_themes_data.append({
+                        "theme_name": theme_name,
+                        "issued_at": theme_request.created_at.strftime('%d.%m.%Y %H:%M') if theme_request.created_at else None
+                    })
         
         return JSONResponse(content={
             "user": {
@@ -273,6 +294,9 @@ async def edit_user_submit(
             )
         
         try:
+            # Store old subscription type to check if it changed
+            old_subscription_type = user.subscription_type
+            
             # Update subscription type
             new_sub_type = SubscriptionType(subscription_type)
             user.subscription_type = new_sub_type
@@ -308,6 +332,24 @@ async def edit_user_submit(
             
             await session.commit()
             
+            # Refresh to get updated data
+            await session.refresh(user)
+            await session.refresh(limits)
+            
+            # Send notification if tariff actually changed and not to TEST_PRO
+            if new_sub_type != SubscriptionType.TEST_PRO and old_subscription_type != new_sub_type:
+                try:
+                    from aiogram import Bot
+                    from config.settings import settings
+                    from core.notifications.tariff_notifications import send_tariff_change_notification
+                    
+                    bot = Bot(token=settings.bot_token)
+                    await send_tariff_change_notification(bot, user, new_sub_type, limits)
+                    await bot.session.close()
+                except Exception as e:
+                    print(f"Error sending tariff change notification: {e}")
+                    # Don't fail if notification fails
+            
             # Redirect back to users page with success message
             return RedirectResponse(url="/users?success=1", status_code=303)
             
@@ -336,5 +378,38 @@ async def edit_user_submit(
                     "error_message": f"Произошла ошибка при сохранении: {str(e)}"
                 },
                 status_code=500
+            )
+
+
+@router.post("/api/users/{user_id}/toggle_admin", response_class=JSONResponse)
+async def toggle_admin_status(user_id: int = Path(...)):
+    """Toggle admin status for a user."""
+    async with AsyncSessionLocal() as session:
+        try:
+            # Get user
+            user_query = select(User).where(User.id == user_id)
+            user_result = await session.execute(user_query)
+            user = user_result.scalar_one_or_none()
+            
+            if not user:
+                return JSONResponse(
+                    status_code=404,
+                    content={"success": False, "message": "Пользователь не найден"}
+                )
+            
+            # Toggle admin status
+            user.is_admin = not user.is_admin
+            await session.commit()
+            
+            return JSONResponse(content={
+                "success": True,
+                "is_admin": user.is_admin,
+                "message": f"Статус администратора {'назначен' if user.is_admin else 'снят'}"
+            })
+        except Exception as e:
+            await session.rollback()
+            return JSONResponse(
+                status_code=500,
+                content={"success": False, "message": f"Ошибка: {str(e)}"}
             )
 

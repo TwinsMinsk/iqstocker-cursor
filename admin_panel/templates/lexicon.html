@@ -71,15 +71,16 @@
                     {% if cat_data['items'] %}
                     <div class="row">
                         {% for key, value in cat_data['items'].items() %}
-                        <div class="col-md-6 mb-4">
-                            <div class="lexicon-editor" data-key="{{ key }}" data-category="{{ cat_key }}">
-                                <div class="lexicon-key">
-                                    <i class="fas fa-key me-1"></i>{{ key }}
+                        <div class="col-md-6 mb-3">
+                            <div class="lexicon-editor border rounded p-3" data-key="{{ key }}" data-category="{{ cat_key }}">
+                                <div class="lexicon-key mb-2">
+                                    <i class="fas fa-key me-1"></i><strong>{{ key }}</strong>
                                 </div>
                                 <div class="lexicon-value" 
                                      contenteditable="false" 
                                      id="value-{{ key }}"
-                                     onclick="enableEdit('{{ key }}', '{{ cat_key }}')">
+                                     onclick="enableEdit('{{ key }}', '{{ cat_key }}')"
+                                     style="min-height: 40px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; white-space: pre-wrap; word-wrap: break-word;">
                                     {{ value }}
                                 </div>
                                 <div class="mt-2 d-none" id="actions-{{ key }}">

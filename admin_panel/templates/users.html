@@ -50,7 +50,7 @@
         </div>
     </div>
     <div class="col-md-4">
-        <div class="card">
+        <div class="card mb-4">
             <div class="card-body">
                 <h6 class="mb-3">Статистика по тарифам</h6>
                 <div class="d-flex justify-content-between mb-2">
@@ -69,6 +69,40 @@
                     <span>TEST_PRO:</span>
                     <strong>{{ stats_by_type.get('TEST_PRO', 0) }}</strong>
                 </div>
+            </div>
+        </div>
+        
+        <!-- Блок администраторов -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">
+                    <i class="fas fa-shield-alt me-2"></i>Администраторы
+                    <span class="badge bg-danger ms-2">{{ admins_data|length }}</span>
+                </h6>
+            </div>
+            <div class="card-body">
+                {% if admins_data %}
+                <div class="list-group list-group-flush">
+                    {% for admin in admins_data %}
+                    <div class="list-group-item px-0 py-2 d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{{ admin.name }}</strong>
+                            {% if admin.username %}
+                            <br><small class="text-muted">@{{ admin.username }}</small>
+                            {% endif %}
+                            <br><small class="text-muted"><code>{{ admin.telegram_id }}</code></small>
+                        </div>
+                        <button class="btn btn-sm btn-outline-danger" 
+                                onclick="toggleAdmin({{ admin.user.id }}, {% if admin.user.is_admin %}true{% else %}false{% endif %})"
+                                title="{% if admin.user.is_admin %}Убрать админа{% else %}Сделать админом{% endif %}">
+                            <i class="fas {% if admin.user.is_admin %}fa-user-times{% else %}fa-user-shield{% endif %}"></i>
+                        </button>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted text-center mb-0">Нет администраторов</p>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -369,6 +403,50 @@ async function showUserActions(userId) {
             </div>
         `;
     }
+}
+
+async function toggleAdmin(userId, isAdmin) {
+    if (!confirm(isAdmin ? 'Вы уверены, что хотите убрать статус администратора у этого пользователя?' : 'Вы уверены, что хотите назначить этого пользователя администратором?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/users/${userId}/toggle_admin`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification(result.message, 'success');
+            // Reload page after short delay
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            showNotification('Ошибка: ' + (result.message || 'Неизвестная ошибка'), 'error');
+        }
+    } catch (error) {
+        showNotification('Ошибка: ' + error.message, 'error');
+    }
+}
+
+function showNotification(message, type) {
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    notification.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.remove();
+    }, 3000);
 }
 </script>
 {% endblock %}

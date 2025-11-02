@@ -65,7 +65,8 @@ async def create_new_user(message: Message, session: AsyncSession) -> User:
         created_at=now,
         updated_at=now,
         test_pro_started_at=now,
-        subscription_expires_at=test_pro_expires
+        subscription_expires_at=test_pro_expires,
+        last_activity_at=now
     )
     session.add(user)
     await session.flush()  # Get user ID
