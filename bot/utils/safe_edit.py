@@ -42,6 +42,10 @@ async def safe_edit_message(callback: CallbackQuery = None, message: Message = N
                 reply_markup=reply_markup,
                 parse_mode=parse_mode
             )
+        elif "query is too old" in str(e).lower() or "query id is invalid" in str(e).lower():
+            logger.warning("Callback query expired before edit could be applied")
+            if callback:
+                await callback.answer()
         else:
             logger.error(f"Failed to edit message: {e}")
             raise

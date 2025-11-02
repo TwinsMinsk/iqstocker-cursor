@@ -130,6 +130,12 @@ if is_postgresql:
     
     parsed_async_url = urlparse(async_database_url)
     is_supabase = parsed_async_url.hostname and "supabase.com" in parsed_async_url.hostname
+    if is_supabase:
+        # Supabase session poolers allow only a few concurrent clients; keep pools tiny
+        engine_kwargs["pool_size"] = 1
+        engine_kwargs["max_overflow"] = 0
+        async_engine_kwargs["pool_size"] = 1
+        async_engine_kwargs["max_overflow"] = 0
     
     # Disable statement cache for pgbouncer compatibility
     # Many cloud PostgreSQL providers (Railway, Supabase, etc.) use pgbouncer or similar poolers
