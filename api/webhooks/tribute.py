@@ -81,6 +81,12 @@ class TributeWebhookHandler:
         sub_name = payload.get('subscription_name', '').upper()
         prod_name = payload.get('product_name', '').upper()
         
+        # Убираем префикс "TEST " для тестовых данных
+        if "TEST" in sub_name:
+            sub_name = sub_name.replace("TEST", "").strip()
+        if "TEST" in prod_name:
+            prod_name = prod_name.replace("TEST", "").strip()
+        
         if "ULTRA" in sub_name or "ULTRA" in prod_name:
             return "ULTRA"
         if "PRO" in sub_name or "PRO" in prod_name:

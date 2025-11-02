@@ -2,9 +2,10 @@
 
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
-from config.database import SessionLocal
+from config.database import AsyncSessionLocal
 from database.models import User, Subscription, SubscriptionType, Limits
 from config.settings import settings
 
@@ -13,12 +14,8 @@ class PaymentHandler:
     """Handler for payment processing and subscription management."""
     
     def __init__(self):
-        self.db = SessionLocal()
-    
-    def __del__(self):
-        """Close database session."""
-        if hasattr(self, 'db'):
-            self.db.close()
+        # Не создаем сессию здесь - будем использовать async context manager
+        pass
     
     async def process_payment_success(
         self, 
@@ -29,54 +26,63 @@ class PaymentHandler:
         discount_percent: int = 0
     ) -> bool:
         """Process successful payment and activate subscription."""
-        try:
-            # Find user by telegram_id
-            user = self.db.query(User).filter(User.telegram_id == user_id).first()
-            if not user:
-                print(f"User not found: {user_id}")
+        async with AsyncSessionLocal() as session:
+            try:
+                # Find user by telegram_id
+                user_query = select(User).where(User.telegram_id == user_id)
+                user_result = await session.execute(user_query)
+                user = user_result.scalar_one_or_none()
+                
+                if not user:
+                    print(f"User not found: {user_id}")
+                    return False
+                
+                # Convert string to enum
+                sub_type = self._string_to_subscription_type(subscription_type)
+                if not sub_type:
+                    print(f"Invalid subscription type: {subscription_type}")
+                    return False
+                
+                # Calculate expiration date
+                expires_at = datetime.utcnow() + timedelta(days=30)  # Monthly subscription
+                
+                # Create subscription record
+                subscription = Subscription(
+                    user_id=user.id,
+                    subscription_type=sub_type,
+                    started_at=datetime.utcnow(),
+                    expires_at=expires_at,
+                    payment_id=payment_id,
+                    amount=amount,
+                    discount_percent=discount_percent
+                )
+                session.add(subscription)
+                
+                # Update user subscription
+                user.subscription_type = sub_type
+                user.subscription_expires_at = expires_at
+                
+                # Update limits
+                limits_query = select(Limits).where(Limits.user_id == user.id)
+                limits_result = await session.execute(limits_query)
+                limits = limits_result.scalar_one_or_none()
+                
+                if limits:
+                    self._update_limits_for_subscription(limits, sub_type)
+                else:
+                    limits = self._create_limits_for_subscription(user.id, sub_type)
+                    session.add(limits)
+                
+                await session.commit()
+                print(f"Subscription activated for user {user_id}: {sub_type}")
+                return True
+                
+            except Exception as e:
+                print(f"Error processing payment: {e}")
+                import traceback
+                traceback.print_exc()
+                await session.rollback()
                 return False
-            
-            # Convert string to enum
-            sub_type = self._string_to_subscription_type(subscription_type)
-            if not sub_type:
-                print(f"Invalid subscription type: {subscription_type}")
-                return False
-            
-            # Calculate expiration date
-            expires_at = datetime.utcnow() + timedelta(days=30)  # Monthly subscription
-            
-            # Create subscription record
-            subscription = Subscription(
-                user_id=user.id,
-                subscription_type=sub_type,
-                started_at=datetime.utcnow(),
-                expires_at=expires_at,
-                payment_id=payment_id,
-                amount=amount,
-                discount_percent=discount_percent
-            )
-            self.db.add(subscription)
-            
-            # Update user subscription
-            user.subscription_type = sub_type
-            user.subscription_expires_at = expires_at
-            
-            # Update limits
-            limits = self.db.query(Limits).filter(Limits.user_id == user.id).first()
-            if limits:
-                self._update_limits_for_subscription(limits, sub_type)
-            else:
-                limits = self._create_limits_for_subscription(user.id, sub_type)
-                self.db.add(limits)
-            
-            self.db.commit()
-            print(f"Subscription activated for user {user_id}: {sub_type}")
-            return True
-            
-        except Exception as e:
-            print(f"Error processing payment: {e}")
-            self.db.rollback()
-            return False
     
     def _string_to_subscription_type(self, subscription_str: str) -> Optional[SubscriptionType]:
         """Convert string to SubscriptionType enum."""
@@ -84,7 +90,9 @@ class PaymentHandler:
             "PRO": SubscriptionType.PRO,
             "ULTRA": SubscriptionType.ULTRA,
             "pro": SubscriptionType.PRO,
-            "ultra": SubscriptionType.ULTRA
+            "ultra": SubscriptionType.ULTRA,
+            "TEST PRO": SubscriptionType.PRO,  # Для тестовых данных
+            "TEST ULTRA": SubscriptionType.ULTRA  # Для тестовых данных
         }
         return mapping.get(subscription_str)
     
@@ -114,7 +122,7 @@ class PaymentHandler:
         
         return limits
     
-    def check_subscription_expiry(self) -> int:
+    async def check_subscription_expiry(self) -> int:
         """Check and update expired subscriptions.
         
         При истечении PRO/ULTRA подписки:
@@ -124,33 +132,39 @@ class PaymentHandler:
         """
         expired_count = 0
         
-        try:
-            # Find expired TEST_PRO/PRO/ULTRA subscriptions
-            expired_users = self.db.query(User).filter(
-                User.subscription_type.in_([SubscriptionType.TEST_PRO, SubscriptionType.PRO, SubscriptionType.ULTRA]),
-                User.subscription_expires_at < datetime.utcnow()
-            ).all()
-            
-            for user in expired_users:
-                # Switch to FREE
-                user.subscription_type = SubscriptionType.FREE
-                user.subscription_expires_at = None
+        async with AsyncSessionLocal() as session:
+            try:
+                # Find expired TEST_PRO/PRO/ULTRA subscriptions
+                expired_users_query = select(User).where(
+                    User.subscription_type.in_([SubscriptionType.TEST_PRO, SubscriptionType.PRO, SubscriptionType.ULTRA]),
+                    User.subscription_expires_at < datetime.utcnow()
+                )
+                expired_users_result = await session.execute(expired_users_query)
+                expired_users = expired_users_result.scalars().all()
                 
-                # Update limits to FREE tier (не обнуляем used - это история)
-                limits = self.db.query(Limits).filter(Limits.user_id == user.id).first()
-                if limits:
-                    limits.analytics_total = settings.free_analytics_limit
-                    limits.themes_total = settings.free_themes_limit
-                    # analytics_used и themes_used НЕ трогаем - это история
+                for user in expired_users:
+                    # Switch to FREE
+                    user.subscription_type = SubscriptionType.FREE
+                    user.subscription_expires_at = None
+                    
+                    # Update limits to FREE tier (не обнуляем used - это история)
+                    limits_query = select(Limits).where(Limits.user_id == user.id)
+                    limits_result = await session.execute(limits_query)
+                    limits = limits_result.scalar_one_or_none()
+                    
+                    if limits:
+                        limits.analytics_total = settings.free_analytics_limit
+                        limits.themes_total = settings.free_themes_limit
+                        # analytics_used и themes_used НЕ трогаем - это история
+                    
+                    expired_count += 1
                 
-                expired_count += 1
-            
-            self.db.commit()
-            print(f"Updated {expired_count} expired subscriptions")
-            
-        except Exception as e:
-            print(f"Error checking subscription expiry: {e}")
-            self.db.rollback()
+                await session.commit()
+                print(f"Updated {expired_count} expired subscriptions")
+                
+            except Exception as e:
+                print(f"Error checking subscription expiry: {e}")
+                await session.rollback()
         
         return expired_count
     
