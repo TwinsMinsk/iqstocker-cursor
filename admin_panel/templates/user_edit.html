@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Редактирование пользователя - IQStocker Admin{% endblock %}
+
+{% block page_title %}
+<i class="fas fa-user-edit me-2"></i>Редактирование пользователя
+{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="/users">Пользователи</a></li>
+<li class="breadcrumb-item active">Редактирование</li>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-user me-2"></i>
+                    {% if user.first_name %}
+                        {{ user.first_name }} {% if user.last_name %}{{ user.last_name }}{% endif %}
+                    {% elif user.username %}
+                        @{{ user.username }}
+                    {% else %}
+                        Пользователь #{{ user.id }}
+                    {% endif %}
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if error_message %}
+                <div class="alert alert-danger" role="alert">
+                    <i class="fas fa-exclamation-triangle me-2"></i>{{ error_message }}
+                </div>
+                {% endif %}
+                
+                <form method="post" action="/admin/user/{{ user.id }}/edit">
+                    <div class="mb-4">
+                        <h6 class="mb-3"><i class="fas fa-crown me-2"></i>Тариф</h6>
+                        
+                        <div class="mb-3">
+                            <label for="subscription_type" class="form-label">Тип подписки</label>
+                            <select class="form-select" id="subscription_type" name="subscription_type" required>
+                                {% for sub_type in subscription_types %}
+                                <option value="{{ sub_type }}" {% if user.subscription_type.value == sub_type %}selected{% endif %}>
+                                    {{ sub_type }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="subscription_expires_at" class="form-label">Дата окончания подписки</label>
+                            <input type="date" class="form-control" id="subscription_expires_at" name="subscription_expires_at"
+                                   value="{% if user.subscription_expires_at %}{{ user.subscription_expires_at.strftime('%Y-%m-%d') }}{% endif %}">
+                            <small class="form-text text-muted">Оставьте пустым для FREE тарифа или бессрочной подписки</small>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <h6 class="mb-3"><i class="fas fa-sliders-h me-2"></i>Лимиты</h6>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="analytics_total" class="form-label">Аналитика портфеля (всего)</label>
+                                <input type="number" class="form-control" id="analytics_total" name="analytics_total" 
+                                       value="{% if limits %}{{ limits.analytics_total }}{% else %}0{% endif %}" 
+                                       min="0" required>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="analytics_used" class="form-label">Аналитика портфеля (использовано)</label>
+                                <input type="number" class="form-control" id="analytics_used" name="analytics_used" 
+                                       value="{% if limits %}{{ limits.analytics_used }}{% else %}0{% endif %}" 
+                                       min="0" required>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="themes_total" class="form-label">Темы (всего)</label>
+                                <input type="number" class="form-control" id="themes_total" name="themes_total" 
+                                       value="{% if limits %}{{ limits.themes_total }}{% else %}0{% endif %}" 
+                                       min="0" required>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="themes_used" class="form-label">Темы (использовано)</label>
+                                <input type="number" class="form-control" id="themes_used" name="themes_used" 
+                                       value="{% if limits %}{{ limits.themes_used }}{% else %}0{% endif %}" 
+                                       min="0" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="/users" class="btn btn-secondary">
+                            <i class="fas fa-times me-1"></i>Отмена
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i>Сохранить изменения
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

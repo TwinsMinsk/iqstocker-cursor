@@ -1,15 +1,16 @@
 """Enhanced users management views for admin panel."""
 
-from fastapi import APIRouter, Request, Query
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Request, Query, Path, Form
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc, and_
 from typing import Optional
+from datetime import datetime, timedelta
 
 from config.database import AsyncSessionLocal
 from database.models import User, SubscriptionType
-from database.models import Limits, CSVAnalysis
+from database.models import Limits, CSVAnalysis, Subscription, AnalyticsReport, ThemeRequest, UserIssuedTheme, GlobalTheme
 
 router = APIRouter()
 templates = Jinja2Templates(directory="admin_panel/templates")
@@ -114,4 +115,226 @@ async def users_page(
                 "per_page": per_page
             }
         )
+
+
+@router.get("/api/users/{user_id}/actions", response_class=JSONResponse)
+async def get_user_actions(user_id: int = Path(...)):
+    """Get user actions and statistics for actions modal."""
+    async with AsyncSessionLocal() as session:
+        # Get user
+        user_query = select(User).where(User.id == user_id)
+        user_result = await session.execute(user_query)
+        user = user_result.scalar_one_or_none()
+        
+        if not user:
+            return JSONResponse(status_code=404, content={"error": "User not found"})
+        
+        # Get subscription history
+        subscriptions_query = select(Subscription).where(Subscription.user_id == user_id).order_by(desc(Subscription.created_at))
+        subscriptions_result = await session.execute(subscriptions_query)
+        subscriptions = subscriptions_result.scalars().all()
+        
+        subscriptions_data = []
+        for sub in subscriptions:
+            subscriptions_data.append({
+                "id": sub.id,
+                "type": sub.subscription_type.value,
+                "started_at": sub.started_at.strftime('%d.%m.%Y %H:%M') if sub.started_at else None,
+                "expires_at": sub.expires_at.strftime('%d.%m.%Y %H:%M') if sub.expires_at else None,
+                "amount": float(sub.amount) if sub.amount else 0,
+                "payment_id": sub.payment_id,
+                "discount_percent": sub.discount_percent
+            })
+        
+        # Get CSV analyses with status breakdown
+        csv_query = select(CSVAnalysis).where(CSVAnalysis.user_id == user_id).order_by(desc(CSVAnalysis.created_at))
+        csv_result = await session.execute(csv_query)
+        csv_analyses = csv_result.scalars().all()
+        
+        csv_count_by_status = {}
+        csv_list = []
+        for csv in csv_analyses:
+            status = csv.status.value
+            csv_count_by_status[status] = csv_count_by_status.get(status, 0) + 1
+            csv_list.append({
+                "id": csv.id,
+                "month": csv.month,
+                "year": csv.year,
+                "status": status,
+                "created_at": csv.created_at.strftime('%d.%m.%Y %H:%M') if csv.created_at else None
+            })
+        
+        # Get total revenue from AnalyticsReport (sum all reports for this user)
+        revenue_query = select(func.sum(AnalyticsReport.total_revenue)).join(
+            CSVAnalysis, AnalyticsReport.csv_analysis_id == CSVAnalysis.id
+        ).where(CSVAnalysis.user_id == user_id)
+        revenue_result = await session.execute(revenue_query)
+        total_revenue = revenue_result.scalar() or 0
+        
+        # Get theme requests count
+        theme_requests_query = select(func.count(ThemeRequest.id)).where(ThemeRequest.user_id == user_id)
+        theme_requests_result = await session.execute(theme_requests_query)
+        theme_requests_count = theme_requests_result.scalar() or 0
+        
+        # Get issued themes list with names
+        issued_themes_query = select(UserIssuedTheme, GlobalTheme).join(
+            GlobalTheme, UserIssuedTheme.theme_id == GlobalTheme.id
+        ).where(UserIssuedTheme.user_id == user_id).order_by(desc(UserIssuedTheme.issued_at))
+        issued_themes_result = await session.execute(issued_themes_query)
+        issued_themes_data = []
+        
+        for user_theme, global_theme in issued_themes_result.all():
+            issued_themes_data.append({
+                "theme_name": global_theme.theme_name,
+                "issued_at": user_theme.issued_at.strftime('%d.%m.%Y %H:%M') if user_theme.issued_at else None
+            })
+        
+        return JSONResponse(content={
+            "user": {
+                "id": user.id,
+                "name": f"{user.first_name or ''} {user.last_name or ''}".strip() or user.username or f"User {user.id}",
+                "username": user.username,
+                "telegram_id": user.telegram_id,
+                "subscription_type": user.subscription_type.value
+            },
+            "subscriptions": subscriptions_data,
+            "analytics": {
+                "total": len(csv_list),
+                "by_status": csv_count_by_status,
+                "list": csv_list
+            },
+            "total_revenue": round(float(total_revenue), 2),
+            "theme_requests_count": theme_requests_count,
+            "issued_themes": issued_themes_data
+        })
+
+
+@router.get("/admin/user/{user_id}/edit", response_class=HTMLResponse)
+async def edit_user_page(request: Request, user_id: int = Path(...)):
+    """Edit user page with subscription and limits form."""
+    async with AsyncSessionLocal() as session:
+        # Get user
+        user_query = select(User).where(User.id == user_id)
+        user_result = await session.execute(user_query)
+        user = user_result.scalar_one_or_none()
+        
+        if not user:
+            return templates.TemplateResponse(
+                "error.html",
+                {
+                    "request": request,
+                    "error_message": "Пользователь не найден"
+                },
+                status_code=404
+            )
+        
+        # Get limits
+        limits_query = select(Limits).where(Limits.user_id == user_id)
+        limits_result = await session.execute(limits_query)
+        limits = limits_result.scalar_one_or_none()
+        
+        return templates.TemplateResponse(
+            "user_edit.html",
+            {
+                "request": request,
+                "user": user,
+                "limits": limits,
+                "subscription_types": ["FREE", "PRO", "ULTRA", "TEST_PRO"]
+            }
+        )
+
+
+@router.post("/admin/user/{user_id}/edit", response_class=HTMLResponse)
+async def edit_user_submit(
+    request: Request,
+    user_id: int = Path(...),
+    subscription_type: str = Form(...),
+    subscription_expires_at: Optional[str] = Form(None),
+    analytics_total: int = Form(...),
+    analytics_used: int = Form(...),
+    themes_total: int = Form(...),
+    themes_used: int = Form(...)
+):
+    """Process user edit form submission."""
+    async with AsyncSessionLocal() as session:
+        # Get user
+        user_query = select(User).where(User.id == user_id)
+        user_result = await session.execute(user_query)
+        user = user_result.scalar_one_or_none()
+        
+        if not user:
+            return templates.TemplateResponse(
+                "error.html",
+                {
+                    "request": request,
+                    "error_message": "Пользователь не найден"
+                },
+                status_code=404
+            )
+        
+        try:
+            # Update subscription type
+            new_sub_type = SubscriptionType(subscription_type)
+            user.subscription_type = new_sub_type
+            
+            # Update expiration date if provided
+            if subscription_expires_at and subscription_expires_at.strip():
+                try:
+                    expires_date = datetime.strptime(subscription_expires_at, '%Y-%m-%d')
+                    user.subscription_expires_at = expires_date
+                except ValueError:
+                    # Invalid date format, set to None
+                    user.subscription_expires_at = None
+            elif new_sub_type == SubscriptionType.FREE:
+                user.subscription_expires_at = None
+            elif not user.subscription_expires_at and new_sub_type in [SubscriptionType.PRO, SubscriptionType.ULTRA]:
+                # Set default expiration if not provided
+                user.subscription_expires_at = datetime.utcnow() + timedelta(days=30)
+            
+            # Get or create limits
+            limits_query = select(Limits).where(Limits.user_id == user_id)
+            limits_result = await session.execute(limits_query)
+            limits = limits_result.scalar_one_or_none()
+            
+            if not limits:
+                limits = Limits(user_id=user_id)
+                session.add(limits)
+            
+            # Update limits
+            limits.analytics_total = analytics_total
+            limits.analytics_used = analytics_used
+            limits.themes_total = themes_total
+            limits.themes_used = themes_used
+            
+            await session.commit()
+            
+            # Redirect back to users page with success message
+            return RedirectResponse(url="/users?success=1", status_code=303)
+            
+        except ValueError as e:
+            await session.rollback()
+            return templates.TemplateResponse(
+                "user_edit.html",
+                {
+                    "request": request,
+                    "user": user,
+                    "limits": limits,
+                    "subscription_types": ["FREE", "PRO", "ULTRA", "TEST_PRO"],
+                    "error_message": f"Ошибка: {str(e)}"
+                },
+                status_code=400
+            )
+        except Exception as e:
+            await session.rollback()
+            return templates.TemplateResponse(
+                "user_edit.html",
+                {
+                    "request": request,
+                    "user": user,
+                    "limits": limits,
+                    "subscription_types": ["FREE", "PRO", "ULTRA", "TEST_PRO"],
+                    "error_message": f"Произошла ошибка при сохранении: {str(e)}"
+                },
+                status_code=500
+            )
 

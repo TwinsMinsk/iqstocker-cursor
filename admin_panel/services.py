@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from database.models import (
     User, Subscription, GlobalTheme, ThemeRequest, 
-    LLMSettings, SystemMessage, AnalyticsReport, VideoLesson
+    LLMSettings, SystemMessage, AnalyticsReport, VideoLesson, SubscriptionType
 )
 
 
@@ -95,6 +95,69 @@ async def get_dashboard_stats(session: AsyncSession) -> Dict[str, Any]:
     )
     new_users_week_count = new_users_week.scalar() or 0
     
+    # User growth data for last 30 days (for chart)
+    user_growth_dates = []
+    user_growth_counts = []
+    
+    # Get user registrations grouped by day for last 30 days
+    from sqlalchemy import cast, Date
+    growth_query = await session.execute(
+        select(
+            cast(User.created_at, Date).label('date'),
+            func.count(User.id).label('count')
+        )
+        .where(User.created_at >= thirty_days_ago)
+        .group_by(cast(User.created_at, Date))
+        .order_by(cast(User.created_at, Date))
+    )
+    growth_data = growth_query.all()
+    
+    # Fill in all 30 days (even if no registrations)
+    current_date = thirty_days_ago.date()
+    today = datetime.utcnow().date()
+    growth_dict = {row.date: row.count for row in growth_data}
+    
+    while current_date <= today:
+        user_growth_dates.append(current_date.strftime('%d.%m'))
+        user_growth_counts.append(growth_dict.get(current_date, 0))
+        current_date += timedelta(days=1)
+    
+    # Conversion history (daily conversion rate for last 30 days)
+    # Optimized: get all users data once, then calculate in Python
+    conversion_dates = []
+    conversion_rates = []
+    
+    # Get all users with their registration date and subscription type
+    all_users = await session.execute(
+        select(User.created_at, User.subscription_type)
+        .where(User.created_at <= datetime.utcnow())
+        .order_by(User.created_at)
+    )
+    users_data = all_users.all()
+    
+    # Calculate conversion rate for each day
+    from datetime import time
+    current_date = thirty_days_ago.date()
+    while current_date <= today:
+        # Use end of day (23:59:59) for comparison
+        date_end = datetime.combine(current_date, time(23, 59, 59))
+        
+        # Count in Python (much faster than DB queries)
+        total_users_by_date = sum(1 for u in users_data if u.created_at and u.created_at.date() <= current_date)
+        non_free_users_by_date = sum(
+            1 for u in users_data 
+            if u.created_at and u.created_at.date() <= current_date
+            and u.subscription_type in [SubscriptionType.PRO, SubscriptionType.ULTRA, SubscriptionType.TEST_PRO]
+        )
+        
+        # Calculate conversion rate
+        conv_rate = (non_free_users_by_date / total_users_by_date * 100) if total_users_by_date > 0 else 0
+        
+        conversion_dates.append(current_date.strftime('%d.%m'))
+        conversion_rates.append(round(conv_rate, 2))
+        
+        current_date += timedelta(days=1)
+    
     return {
         'subscription_counts': {
             'FREE': free_count,
@@ -112,6 +175,14 @@ async def get_dashboard_stats(session: AsyncSession) -> Dict[str, Any]:
         'new_users_week': new_users_week_count,
         'avg_analytics_used': round(avg_analytics_used, 2),
         'avg_themes_used': round(avg_themes_used, 2),
+        'user_growth_data': {
+            'dates': user_growth_dates,
+            'counts': user_growth_counts
+        },
+        'conversion_history': {
+            'dates': conversion_dates,
+            'rates': conversion_rates
+        },
     }
 
 

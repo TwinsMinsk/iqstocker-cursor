@@ -74,14 +74,14 @@
         </div>
     </div>
     
-    <!-- Статистика использования -->
+    <!-- Рост пользователей и Конверсия -->
     <div class="col-md-6 mb-3">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Среднее использование</h5>
+                <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Рост пользователей и Конверсия</h5>
             </div>
             <div class="card-body">
-                <canvas id="usageChart" class="chart-container"></canvas>
+                <canvas id="growthAndConversionChart" class="chart-container"></canvas>
             </div>
         </div>
     </div>
@@ -156,8 +156,9 @@
 
 <script>
 // График распределения по тарифам
-const subscriptionCtx = document.getElementById('subscriptionChart').getContext('2d');
-new Chart(subscriptionCtx, {
+const subscriptionCtx = document.getElementById('subscriptionChart');
+if (subscriptionCtx) {
+    new Chart(subscriptionCtx.getContext('2d'), {
     type: 'doughnut',
     data: {
         labels: ['FREE', 'PRO', 'ULTRA', 'TEST_PRO'],
@@ -186,41 +187,92 @@ new Chart(subscriptionCtx, {
             }
         }
     }
-});
+    });
+}
 
-// График использования
-const usageCtx = document.getElementById('usageChart').getContext('2d');
-new Chart(usageCtx, {
-    type: 'bar',
-    data: {
-        labels: ['Аналитика', 'Темы'],
-        datasets: [{
-            label: 'Среднее использование',
-            data: [
-                {{ stats.avg_analytics_used }},
-                {{ stats.avg_themes_used }}
-            ],
-            backgroundColor: [
-                'rgba(102, 126, 234, 0.8)',
-                'rgba(118, 75, 162, 0.8)'
-            ],
-            borderRadius: 8
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                display: false
-            }
+// График роста пользователей и конверсии
+const growthCtx = document.getElementById('growthAndConversionChart');
+if (growthCtx) {
+    new Chart(growthCtx.getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: {{ stats.user_growth_data.dates|tojson }},
+            datasets: [
+                {
+                    label: 'Новых пользователей',
+                    data: {{ stats.user_growth_data.counts|tojson }},
+                    borderColor: 'rgb(59, 130, 246)',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    yAxisID: 'y',
+                    tension: 0.4,
+                    fill: true
+                },
+                {
+                    label: 'Конверсия (%)',
+                    data: {{ stats.conversion_history.rates|tojson }},
+                    borderColor: 'rgb(139, 92, 246)',
+                    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                    yAxisID: 'y1',
+                    tension: 0.4,
+                    fill: true
+                }
+            ]
         },
-        scales: {
-            y: {
-                beginAtZero: true
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top'
+                },
+                tooltip: {
+                    enabled: true
+                }
+            },
+            scales: {
+                x: {
+                    display: true,
+                    title: {
+                        display: true,
+                        text: 'Дата'
+                    },
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 45
+                    }
+                },
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: {
+                        display: true,
+                        text: 'Количество пользователей'
+                    },
+                    beginAtZero: true
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'Конверсия (%)'
+                    },
+                    beginAtZero: true,
+                    max: 100,
+                    grid: {
+                        drawOnChartArea: false,
+                    },
+                }
             }
         }
-    }
-});
+    });
+}
 </script>
 {% endblock %}

@@ -1,14 +1,14 @@
 """Themes management views for admin panel."""
 
-from fastapi import APIRouter, Request, Query
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Request, Query, Path
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc, or_
 from typing import Optional
 
 from config.database import AsyncSessionLocal
-from database.models import ThemeRequest, User, GlobalTheme
+from database.models import ThemeRequest, User, GlobalTheme, UserIssuedTheme
 
 router = APIRouter()
 templates = Jinja2Templates(directory="admin_panel/templates")
@@ -85,3 +85,58 @@ async def themes_page(request: Request, status: Optional[str] = Query(None), pag
                 "global_themes_total": global_themes_total
             }
         )
+
+
+@router.get("/api/themes/request/{request_id}/details", response_class=JSONResponse)
+async def get_theme_request_details(request_id: int = Path(...)):
+    """Get theme request details with user's issued themes."""
+    async with AsyncSessionLocal() as session:
+        # Get theme request
+        theme_request_query = select(ThemeRequest).where(ThemeRequest.id == request_id)
+        theme_request_result = await session.execute(theme_request_query)
+        theme_request = theme_request_result.scalar_one_or_none()
+        
+        if not theme_request:
+            return JSONResponse(status_code=404, content={"error": "Theme request not found"})
+        
+        # Get user
+        user_query = select(User).where(User.id == theme_request.user_id)
+        user_result = await session.execute(user_query)
+        user = user_result.scalar_one_or_none()
+        
+        if not user:
+            return JSONResponse(status_code=404, content={"error": "User not found"})
+        
+        # Get all issued themes for this user with join to GlobalTheme
+        issued_themes_query = select(UserIssuedTheme, GlobalTheme).join(
+            GlobalTheme, UserIssuedTheme.theme_id == GlobalTheme.id
+        ).where(
+            UserIssuedTheme.user_id == theme_request.user_id
+        ).order_by(desc(UserIssuedTheme.issued_at))
+        
+        issued_themes_result = await session.execute(issued_themes_query)
+        issued_themes_data = []
+        
+        for user_theme, global_theme in issued_themes_result.all():
+            issued_themes_data.append({
+                "theme_name": global_theme.theme_name,
+                "issued_at": user_theme.issued_at.strftime('%d.%m.%Y %H:%M') if user_theme.issued_at else None,
+                "theme_id": global_theme.id
+            })
+        
+        return JSONResponse(content={
+            "request": {
+                "id": theme_request.id,
+                "theme_name": theme_request.theme_name,
+                "status": theme_request.status.value,
+                "created_at": theme_request.created_at.strftime('%d.%m.%Y %H:%M') if theme_request.created_at else None,
+                "updated_at": theme_request.updated_at.strftime('%d.%m.%Y %H:%M') if theme_request.updated_at else None
+            },
+            "user": {
+                "id": user.id,
+                "name": f"{user.first_name or ''} {user.last_name or ''}".strip() or user.username or f"User {user.id}",
+                "username": user.username,
+                "telegram_id": user.telegram_id
+            },
+            "issued_themes": issued_themes_data
+        })

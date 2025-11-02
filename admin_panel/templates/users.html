@@ -11,6 +11,12 @@
 {% endblock %}
 
 {% block content %}
+{% if request.query_params.get('success') == '1' %}
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+    <i class="fas fa-check-circle me-2"></i>Пользователь успешно обновлен!
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
 <!-- Фильтры и статистика -->
 <div class="row mb-4">
     <div class="col-md-8">
@@ -155,9 +161,9 @@
                         </td>
                         <td>
                             <div class="btn-group btn-group-sm">
-                                <a href="/admin/user/{{ item.user.id }}" class="btn btn-outline-primary" title="Просмотр">
+                                <button onclick="showUserActions({{ item.user.id }})" class="btn btn-outline-primary" title="Действия">
                                     <i class="fas fa-eye"></i>
-                                </a>
+                                </button>
                                 <a href="/admin/user/{{ item.user.id }}/edit" class="btn btn-outline-warning" title="Редактировать">
                                     <i class="fas fa-edit"></i>
                                 </a>
@@ -213,5 +219,157 @@
         {% endif %}
     </div>
 </div>
+
+<!-- User Actions Modal -->
+<div id="userActionsModal" class="modal fade" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Действия пользователя</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="userActionsContent">
+                <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Загрузка...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function showUserActions(userId) {
+    const modal = new bootstrap.Modal(document.getElementById('userActionsModal'));
+    const content = document.getElementById('userActionsContent');
+    
+    // Show loading state
+    content.innerHTML = '<div class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Загрузка...</span></div></div>';
+    modal.show();
+    
+    try {
+        const response = await fetch(`/api/users/${userId}/actions`);
+        if (!response.ok) {
+            throw new Error('Ошибка загрузки данных');
+        }
+        
+        const data = await response.json();
+        
+        // Build HTML content
+        let html = `
+            <div class="mb-3">
+                <h6>Информация о пользователе</h6>
+                <p class="mb-1"><strong>Имя:</strong> ${data.user.name}</p>
+                <p class="mb-1"><strong>Username:</strong> ${data.user.username ? '@' + data.user.username : 'Не указан'}</p>
+                <p class="mb-0"><strong>Telegram ID:</strong> <code>${data.user.telegram_id}</code></p>
+            </div>
+            
+            <div class="mb-3">
+                <h6>Статистика</h6>
+                <div class="row">
+                    <div class="col-md-6 mb-2">
+                        <strong>Аналитик:</strong> ${data.analytics.total}
+                        ${Object.keys(data.analytics.by_status).length > 0 ? 
+                            '<br><small class="text-muted">' + 
+                            Object.entries(data.analytics.by_status).map(([status, count]) => 
+                                `${status}: ${count}`
+                            ).join(', ') + 
+                            '</small>' : ''}
+                    </div>
+                    <div class="col-md-6 mb-2">
+                        <strong>Общий доход:</strong> $${data.total_revenue.toFixed(2)}
+                    </div>
+                    <div class="col-md-6 mb-2">
+                        <strong>Запросов тем:</strong> ${data.theme_requests_count}
+                    </div>
+                    <div class="col-md-6 mb-2">
+                        <strong>Выдано тем:</strong> ${data.issued_themes.length}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Subscriptions history
+        if (data.subscriptions.length > 0) {
+            html += `
+                <div class="mb-3">
+                    <h6>История подписок</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Тип</th>
+                                    <th>Начало</th>
+                                    <th>Окончание</th>
+                                    <th>Сумма</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+            `;
+            data.subscriptions.forEach(sub => {
+                html += `
+                    <tr>
+                        <td><span class="badge bg-primary">${sub.type}</span></td>
+                        <td>${sub.started_at || '-'}</td>
+                        <td>${sub.expires_at || '-'}</td>
+                        <td>${sub.amount > 0 ? sub.amount.toFixed(2) + '₽' : '-'}</td>
+                    </tr>
+                `;
+            });
+            html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Issued themes list
+        if (data.issued_themes.length > 0) {
+            html += `
+                <div class="mb-3">
+                    <h6>Выданные темы</h6>
+                    <ol class="list-group list-group-numbered">
+            `;
+            data.issued_themes.forEach((theme, index) => {
+                html += `
+                    <li class="list-group-item d-flex justify-content-between align-items-start">
+                        <div class="ms-2 me-auto">
+                            <div class="fw-bold">${theme.theme_name}</div>
+                            <small class="text-muted">${theme.issued_at || 'Дата не указана'}</small>
+                        </div>
+                    </li>
+                `;
+            });
+            html += `
+                    </ol>
+                </div>
+            `;
+        } else {
+            html += `
+                <div class="mb-3">
+                    <h6>Выданные темы</h6>
+                    <p class="text-muted">Пользователь еще не получал тем.</p>
+                </div>
+            `;
+        }
+        
+        content.innerHTML = html;
+    } catch (error) {
+        content.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                Ошибка загрузки данных: ${error.message}
+            </div>
+        `;
+    }
+}
+</script>
 {% endblock %}
 
