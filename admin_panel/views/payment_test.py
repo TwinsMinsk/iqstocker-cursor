@@ -53,7 +53,8 @@ async def simulate_payment(
     from api.webhooks.tribute import tribute_handler
     import uuid
     
-    if payment_id is None:
+    # Если payment_id не указан или пустой, генерируем новый
+    if not payment_id or payment_id.strip() == "":
         payment_id = f"test_{uuid.uuid4().hex[:16]}"
     
     # Создаем тестовый payload как от Tribute

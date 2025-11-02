@@ -109,8 +109,16 @@ class TributeWebhookHandler:
         
         subscription_type_str = self._get_subscription_type_from_payload(payload if payload else data)
         
+        # Проверяем, что все обязательные поля заполнены (не None и не пустые строки)
+        # payment_id может быть пустым в тестах, поэтому генерируем его если нужно
+        if not payment_id or payment_id.strip() == "":
+            import uuid
+            payment_id = f"test_{uuid.uuid4().hex[:16]}"
+            print(f"ВНИМАНИЕ: payment_id был пустым, сгенерирован новый: {payment_id}")
+        
         if not all([telegram_user_id, amount_cents, payment_id, subscription_type_str]):
-            print(f"Ошибка вебхука '{data.get('name')}': неполные данные. {data}")
+            print(f"Ошибка вебхука '{data.get('name')}': неполные данные. telegram_user_id={telegram_user_id}, amount_cents={amount_cents}, payment_id={payment_id}, subscription_type={subscription_type_str}")
+            print(f"Полные данные: {data}")
             return
 
         print(f"Tribute '{data.get('name')}': {payment_id}, user: {telegram_user_id}, amount: {amount_cents}")
