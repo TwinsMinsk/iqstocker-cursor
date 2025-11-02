@@ -137,12 +137,26 @@ class Settings:
         # App settings compatibility
         self.sentry_dsn = self.app.sentry_dsn
         self.debug = self.app.debug
+        self.log_level = self.app.log_level
+        self.upload_folder = self.app.upload_folder
+        self.max_file_size = self.app.max_file_size
+        self.adobe_stock_rate_limit = self.app.adobe_stock_rate_limit
+        self.redis_cache_ttl = self.app.redis_cache_ttl
+        self.proxy_file = self.app.proxy_file
+        self.host = self.app.host
+        self.port = self.app.port
+        self.test_pro_duration_days = self.app.test_pro_duration_days
         self.pro_discount_percent = self.app.pro_discount_percent
         self.free_discount_percent = self.app.free_discount_percent
+        self.free_analytics_limit = self.app.free_analytics_limit
+        self.free_themes_limit = self.app.free_themes_limit
+        self.test_pro_analytics_limit = self.app.test_pro_analytics_limit
+        self.test_pro_themes_limit = self.app.test_pro_themes_limit
         self.pro_analytics_limit = self.app.pro_analytics_limit
         self.pro_themes_limit = self.app.pro_themes_limit
         self.ultra_analytics_limit = self.app.ultra_analytics_limit
         self.ultra_themes_limit = self.app.ultra_themes_limit
+        self.new_works_id_prefix = self.app.new_works_id_prefix
 
 
 class AppSettings(BaseSettings):
