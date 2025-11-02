@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+
+{% block title %}Тестирование платежей - IQStocker Admin{% endblock %}
+
+{% block page_title %}
+<i class="fas fa-vial me-2"></i>Тестирование платежей Tribute
+{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item active">Тестирование платежей</li>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="fas fa-flask me-2"></i>Симуляция платежа</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning" role="alert">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>Внимание:</strong> Это тестовый инструмент для проверки интеграции с Tribute без реальной оплаты. 
+                    Все тестовые платежи помечаются префиксом "test_" в payment_id.
+                </div>
+                
+                <form id="testPaymentForm">
+                    <div class="mb-3">
+                        <label for="telegram_user_id" class="form-label">Telegram ID пользователя</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="telegram_user_id" name="telegram_user_id" required 
+                                   placeholder="Введите Telegram ID">
+                            <button type="button" class="btn btn-outline-secondary" onclick="loadUsers()">
+                                <i class="fas fa-list"></i> Выбрать из списка
+                            </button>
+                        </div>
+                        <small class="form-text text-muted">
+                            ID можно найти в разделе "Управление пользователями" или взять из таблицы ниже
+                        </small>
+                    </div>
+                    
+                    <div class="mb-3" id="usersDropdown" style="display: none;">
+                        <label class="form-label">Выбрать пользователя:</label>
+                        <select class="form-select" id="userSelect" onchange="selectUser()">
+                            <option value="">-- Выберите пользователя --</option>
+                            {% for user in users %}
+                            <option value="{{ user.telegram_id }}" data-username="{{ user.username or 'N/A' }}">
+                                {{ user.first_name or '' }} {{ user.last_name or '' }} (@{{ user.username or 'N/A' }}) - ID: {{ user.telegram_id }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="subscription_type" class="form-label">Тип подписки</label>
+                        <select class="form-select" id="subscription_type" name="subscription_type" required>
+                            <option value="">-- Выберите тип --</option>
+                            {% for sub_type in subscription_types %}
+                            <option value="{{ sub_type }}">{{ sub_type }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="amount" class="form-label">Сумма (рублей)</label>
+                        <input type="number" class="form-control" id="amount" name="amount" value="990" step="0.01" min="0" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="payment_id" class="form-label">Payment ID (опционально)</label>
+                        <input type="text" class="form-control" id="payment_id" name="payment_id" 
+                               placeholder="Оставьте пустым для автогенерации">
+                        <small class="form-text text-muted">Будет автоматически добавлен префикс "test_"</small>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-play me-2"></i>Отправить тестовый webhook
+                    </button>
+                    <button type="button" class="btn btn-secondary ms-2" onclick="checkUserStatus()">
+                        <i class="fas fa-check me-2"></i>Проверить статус пользователя
+                    </button>
+                </form>
+                
+                <div id="testResult" class="mt-4" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Инструкция</h5>
+            </div>
+            <div class="card-body">
+                <ol class="mb-0">
+                    <li>Выберите или введите Telegram ID пользователя</li>
+                    <li>Выберите тип подписки (PRO или ULTRA)</li>
+                    <li>Укажите сумму платежа</li>
+                    <li>Нажмите "Отправить тестовый webhook"</li>
+                    <li>Проверьте результат и статус пользователя</li>
+                    <li>Убедитесь, что в разделе "Платежи и подписки" появилась запись</li>
+                </ol>
+                
+                <hr>
+                
+                <h6>Что проверяется:</h6>
+                <ul class="mb-0">
+                    <li>✓ Обработка webhook от Tribute</li>
+                    <li>✓ Активация подписки для пользователя</li>
+                    <li>✓ Создание записи в таблице subscriptions</li>
+                    <li>✓ Обновление subscription_type и expires_at</li>
+                    <li>✓ Обновление лимитов пользователя</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="fas fa-history me-2"></i>Последние тестовые платежи</h5>
+            </div>
+            <div class="card-body">
+                {% if test_payments %}
+                <div class="list-group">
+                    {% for payment in test_payments[:5] %}
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <strong>{{ payment.subscription_type.value }}</strong>
+                                <br><small class="text-muted">ID: {{ payment.payment_id }}</small>
+                                <br><small class="text-muted">{{ payment.started_at.strftime('%d.%m.%Y %H:%M') }}</small>
+                            </div>
+                            {% if payment.amount %}
+                            <div class="text-end">
+                                <strong class="text-success">{{ "%.2f"|format(payment.amount) }} ₽</strong>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">Тестовых платежей еще не было</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function loadUsers() {
+    const dropdown = document.getElementById('usersDropdown');
+    dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+}
+
+function selectUser() {
+    const select = document.getElementById('userSelect');
+    const telegramId = select.value;
+    if (telegramId) {
+        document.getElementById('telegram_user_id').value = telegramId;
+    }
+}
+
+document.getElementById('testPaymentForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const submitBtn = this.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Отправка...';
+    
+    const resultDiv = document.getElementById('testResult');
+    resultDiv.style.display = 'block';
+    resultDiv.innerHTML = '<div class="alert alert-info"><i class="fas fa-spinner fa-spin me-2"></i>Отправка запроса...</div>';
+    
+    try {
+        const response = await fetch('/payment-test/simulate', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        let alertClass = result.status === 'success' ? 'alert-success' : 'alert-danger';
+        let icon = result.status === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
+        
+        let html = `<div class="alert ${alertClass}">
+            <i class="fas ${icon} me-2"></i><strong>${result.status === 'success' ? 'Успешно!' : 'Ошибка!'}</strong>
+            <p class="mb-1">${result.message}</p>
+        </div>`;
+        
+        if (result.database_check) {
+            html += `<div class="card mt-3">
+                <div class="card-header"><strong>Проверка в базе данных:</strong></div>
+                <div class="card-body">
+                    ${result.database_check.user_found ? 
+                        `<p><strong>Пользователь найден:</strong></p>
+                        <ul>
+                            <li>Тип подписки: <strong>${result.database_check.user_subscription_type || 'N/A'}</strong></li>
+                            <li>Истекает: ${result.database_check.subscription_expires_at || 'N/A'}</li>
+                            ${result.database_check.latest_subscription ? 
+                                `<li>Последняя подписка ID: ${result.database_check.latest_subscription.id}</li>
+                                <li>Сумма: ${result.database_check.latest_subscription.amount || 'N/A'} ₽</li>
+                                <li>Payment ID: ${result.database_check.latest_subscription.payment_id || 'N/A'}</li>` 
+                                : '<li>Подписка не найдена</li>'
+                            }
+                        </ul>` 
+                        : `<p class="text-danger">${result.database_check.message}</p>`
+                    }
+                </div>
+            </div>`;
+        }
+        
+        if (result.test_data) {
+            html += `<div class="card mt-3">
+                <div class="card-header"><strong>Тестовые данные:</strong></div>
+                <div class="card-body">
+                    <ul class="mb-0">
+                        <li>Telegram ID: ${result.test_data.telegram_user_id}</li>
+                        <li>Тип подписки: ${result.test_data.subscription_type}</li>
+                        <li>Payment ID: ${result.test_data.payment_id}</li>
+                        <li>Сумма: ${result.test_data.amount} ₽</li>
+                    </ul>
+                </div>
+            </div>`;
+        }
+        
+        resultDiv.innerHTML = html;
+        
+    } catch (error) {
+        resultDiv.innerHTML = `<div class="alert alert-danger">
+            <i class="fas fa-exclamation-circle me-2"></i><strong>Ошибка!</strong>
+            <p class="mb-0">${error.message}</p>
+        </div>`;
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
+    }
+});
+
+async function checkUserStatus() {
+    const telegramId = document.getElementById('telegram_user_id').value;
+    if (!telegramId) {
+        alert('Сначала введите Telegram ID пользователя');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/payment-test/check-user/${telegramId}`);
+        const data = await response.json();
+        
+        if (response.ok) {
+            let html = `<div class="alert alert-info">
+                <h6>Статус пользователя:</h6>
+                <p><strong>ID:</strong> ${data.user.id}</p>
+                <p><strong>Telegram ID:</strong> ${data.user.telegram_id}</p>
+                <p><strong>Username:</strong> @${data.user.username || 'N/A'}</p>
+                <p><strong>Имя:</strong> ${data.user.first_name || 'N/A'}</p>
+                <p><strong>Тип подписки:</strong> <span class="badge bg-primary">${data.user.subscription_type || 'N/A'}</span></p>
+                <p><strong>Подписка истекает:</strong> ${data.user.subscription_expires_at || 'N/A'}</p>
+            </div>`;
+            
+            if (data.latest_subscription) {
+                html += `<div class="alert alert-success">
+                    <h6>Последняя подписка:</h6>
+                    <p><strong>ID:</strong> ${data.latest_subscription.id}</p>
+                    <p><strong>Тип:</strong> ${data.latest_subscription.type}</p>
+                    <p><strong>Начало:</strong> ${data.latest_subscription.started_at}</p>
+                    <p><strong>Истекает:</strong> ${data.latest_subscription.expires_at || 'N/A'}</p>
+                    <p><strong>Сумма:</strong> ${data.latest_subscription.amount || 'N/A'} ₽</p>
+                    <p><strong>Payment ID:</strong> ${data.latest_subscription.payment_id || 'N/A'}</p>
+                </div>`;
+            }
+            
+            document.getElementById('testResult').innerHTML = html;
+            document.getElementById('testResult').style.display = 'block';
+        } else {
+            alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+        }
+    } catch (error) {
+        alert('Ошибка при проверке статуса: ' + error.message);
+    }
+}
+</script>
+{% endblock %}
+
