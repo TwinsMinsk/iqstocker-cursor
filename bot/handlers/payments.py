@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from config.database import SessionLocal
 from database.models import User, SubscriptionType, Limits
-from core.payments.boosty_handler import get_payment_handler
+from core.payments.tribute_handler import get_payment_handler
 from bot.keyboards.main_menu import get_main_menu_keyboard
 from bot.keyboards.callbacks import PaymentCallbackData
 from bot.lexicon import LEXICON_RU

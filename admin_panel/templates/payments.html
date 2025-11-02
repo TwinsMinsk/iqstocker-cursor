@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+
+{% block title %}Управление платежами - IQStocker Admin{% endblock %}
+
+{% block page_title %}
+<i class="fas fa-credit-card me-2"></i>Управление платежами
+{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item active">Управление платежами</li>
+{% endblock %}
+
+{% block content %}
+<!-- Statistics Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-primary mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Общий доход</h5>
+                <p class="card-text fs-3">{{ "%.2f"|format(total_revenue) }} ₽</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-success mb-3">
+            <div class="card-body">
+                <h5 class="card-title">За 30 дней</h5>
+                <p class="card-text fs-3">{{ "%.2f"|format(recent_revenue) }} ₽</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-info mb-3">
+            <div class="card-body">
+                <h5 class="card-title">За 7 дней</h5>
+                <p class="card-text fs-3">{{ "%.2f"|format(week_revenue) }} ₽</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-warning mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Активных подписок</h5>
+                <p class="card-text fs-3">{{ active_count }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Revenue by Subscription Type -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Доход по тарифам</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for sub_type in subscription_types %}
+                    {% if stats.get(sub_type) %}
+                    <div class="col-md-3 mb-3">
+                        <div class="border rounded p-3">
+                            <h6>{{ sub_type }}</h6>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span>Подписок:</span>
+                                <strong>{{ stats[sub_type]['count'] }}</strong>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mt-2">
+                                <span>Доход:</span>
+                                <strong class="text-success">{{ "%.2f"|format(stats[sub_type]['total_amount']) }} ₽</strong>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" action="/payments" class="row g-3">
+            <div class="col-md-3">
+                <label for="subscription_type" class="form-label">Тариф</label>
+                <select class="form-select" id="subscription_type" name="subscription_type">
+                    <option value="ALL" {% if selected_subscription_type == "ALL" %}selected{% endif %}>Все тарифы</option>
+                    {% for sub_type in subscription_types %}
+                    <option value="{{ sub_type }}" {% if selected_subscription_type == sub_type %}selected{% endif %}>
+                        {{ sub_type }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="per_page" class="form-label">На странице</label>
+                <select class="form-select" id="per_page" name="per_page">
+                    <option value="20" {% if per_page == 20 %}selected{% endif %}>20</option>
+                    <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+                    <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+                </select>
+            </div>
+            <div class="col-md-6 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary me-2">
+                    <i class="fas fa-filter me-1"></i>Применить фильтры
+                </button>
+                <a href="/payments" class="btn btn-secondary">
+                    <i class="fas fa-times me-1"></i>Сбросить
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Subscriptions Table -->
+<div class="card">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fas fa-list me-2"></i>Подписки и платежи</h5>
+        <span class="badge bg-light text-dark">Всего: {{ total }}</span>
+    </div>
+    <div class="card-body">
+        {% if subscriptions %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Пользователь</th>
+                        <th>Тариф</th>
+                        <th>Сумма</th>
+                        <th>Скидка</th>
+                        <th>Payment ID</th>
+                        <th>Начало</th>
+                        <th>Окончание</th>
+                        <th>Статус</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sub in subscriptions %}
+                    <tr>
+                        <td>{{ sub.id }}</td>
+                        <td>
+                            {% if sub.user %}
+                            <div>
+                                <strong>{{ sub.user.first_name or '' }} {{ sub.user.last_name or '' }}</strong>
+                                {% if sub.user.username %}
+                                <br><small class="text-muted">@{{ sub.user.username }}</small>
+                                {% endif %}
+                                <br><small class="text-muted">ID: {{ sub.user.telegram_id }}</small>
+                            </div>
+                            {% else %}
+                            <span class="text-muted">User ID: {{ sub.user_id }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if sub.subscription_type == 'PRO' %}
+                            <span class="badge bg-primary">PRO</span>
+                            {% elif sub.subscription_type == 'ULTRA' %}
+                            <span class="badge bg-warning">ULTRA</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ sub.subscription_type }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if sub.amount %}
+                            <strong>{{ "%.2f"|format(sub.amount) }} ₽</strong>
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if sub.discount_percent > 0 %}
+                            <span class="badge bg-success">{{ sub.discount_percent }}%</span>
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <small class="text-muted">{{ sub.payment_id or '—' }}</small>
+                        </td>
+                        <td>{{ sub.started_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                        <td>
+                            {% if sub.expires_at %}
+                            {{ sub.expires_at.strftime('%d.%m.%Y %H:%M') }}
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if sub.expires_at %}
+                                {% if sub.expires_at > current_time %}
+                                <span class="badge bg-success">Активна</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Истекла</span>
+                                {% endif %}
+                            {% else %}
+                            <span class="badge bg-info">Без срока</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        {% if total_pages > 1 %}
+        <nav aria-label="Page navigation" class="mt-3">
+            <ul class="pagination justify-content-center">
+                <li class="page-item {% if page == 1 %}disabled{% endif %}">
+                    <a class="page-link" href="?page={{ page - 1 }}&per_page={{ per_page }}&subscription_type={{ selected_subscription_type }}">Предыдущая</a>
+                </li>
+                {% for p in range(1, total_pages + 1) %}
+                {% if p == page %}
+                <li class="page-item active">
+                    <span class="page-link">{{ p }}</span>
+                </li>
+                {% else %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ p }}&per_page={{ per_page }}&subscription_type={{ selected_subscription_type }}">{{ p }}</a>
+                </li>
+                {% endif %}
+                {% endfor %}
+                <li class="page-item {% if page == total_pages %}disabled{% endif %}">
+                    <a class="page-link" href="?page={{ page + 1 }}&per_page={{ per_page }}&subscription_type={{ selected_subscription_type }}">Следующая</a>
+                </li>
+            </ul>
+        </nav>
+        {% endif %}
+        {% else %}
+        <div class="alert alert-info" role="alert">
+            <i class="fas fa-info-circle me-2"></i>Подписок не найдено
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Добавить datetime в контекст для шаблона
+const now = new Date();
+</script>
+{% endblock %}
+

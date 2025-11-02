@@ -88,12 +88,16 @@ class PaymentSettings(BaseSettings):
         env_file_encoding='utf-8',
         extra='ignore'
     )
-    
-    boosty_api_key: Optional[str] = Field(None, env="BOOSTY_API_KEY")
-    boosty_client_id: Optional[str] = Field(None, env="BOOSTY_CLIENT_ID")
-    boosty_client_secret: Optional[str] = Field(None, env="BOOSTY_CLIENT_SECRET")
-    boosty_webhook_secret: Optional[str] = Field(None, env="BOOSTY_WEBHOOK_SECRET")
-    webhook_url: str = Field("https://example.com/boosty_webhook", env="WEBHOOK_URL")
+
+    # Tribute API Key (используется как секрет для вебхуков)
+    tribute_api_key: Optional[str] = Field(None, env="TRIBUTE_API_KEY")
+
+    # Прямые ссылки на страницы оплаты продуктов в Tribute (заглушки до получения реальных ссылок)
+    tribute_pro_link: str = Field("https://t.me/tribute_bot/app?startapp=PLACEHOLDER_PRO", env="TRIBUTE_PRO_LINK")
+    tribute_ultra_link: str = Field("https://t.me/tribute_bot/app?startapp=PLACEHOLDER_ULTRA", env="TRIBUTE_ULTRA_LINK")
+
+    # URL, который мы сообщим Tribute (куда слать вебхуки)
+    webhook_url: str = Field("https://example.com/webhook/tribute", env="WEBHOOK_URL")
 
 
 class Settings:
@@ -106,6 +110,7 @@ class Settings:
         self.admin = AdminSettings()
         self.ai = AISettings()
         self.payment = PaymentSettings()
+        self.app = AppSettings()
         
         # Backward compatibility properties
         self.bot_token = self.bot.token
@@ -116,11 +121,28 @@ class Settings:
         self.admin_password = self.admin.password
         self.openai_api_key = self.ai.openai_api_key
         self.anthropic_api_key = self.ai.anthropic_api_key
-        self.boosty_api_key = self.payment.boosty_api_key
-        self.boosty_client_id = self.payment.boosty_client_id
-        self.boosty_client_secret = self.payment.boosty_client_secret
-        self.boosty_webhook_secret = self.payment.boosty_webhook_secret
+        
+        # Обновленные свойства платежей (Tribute)
+        self.tribute_api_key = self.payment.tribute_api_key
+        self.tribute_pro_link = self.payment.tribute_pro_link
+        self.tribute_ultra_link = self.payment.tribute_ultra_link
         self.webhook_url = self.payment.webhook_url
+        
+        # Обратная совместимость (можно удалить позже)
+        self.boosty_api_key = None
+        self.boosty_client_id = None
+        self.boosty_client_secret = None
+        self.boosty_webhook_secret = None
+        
+        # App settings compatibility
+        self.sentry_dsn = self.app.sentry_dsn
+        self.debug = self.app.debug
+        self.pro_discount_percent = self.app.pro_discount_percent
+        self.free_discount_percent = self.app.free_discount_percent
+        self.pro_analytics_limit = self.app.pro_analytics_limit
+        self.pro_themes_limit = self.app.pro_themes_limit
+        self.ultra_analytics_limit = self.app.ultra_analytics_limit
+        self.ultra_themes_limit = self.app.ultra_themes_limit
 
 
 class AppSettings(BaseSettings):
@@ -177,56 +199,6 @@ class AppSettings(BaseSettings):
     new_works_id_prefix: str = Field("1490000000", env="NEW_WORKS_ID_PREFIX")
 
 
-class Settings:
-    """Главный класс настроек, объединяющий все остальные."""
-    
-    def __init__(self):
-        self.bot = BotSettings()
-        self.db = DBSettings()
-        self.redis = RedisSettings()
-        self.admin = AdminSettings()
-        self.ai = AISettings()
-        self.payment = PaymentSettings()
-        self.app = AppSettings()
-        
-        # Backward compatibility properties
-        self.bot_token = self.bot.token
-        self.database_url = self.db.url
-        self.redis_url = self.redis.url
-        self.admin_secret_key = self.admin.secret_key
-        self.admin_username = self.admin.username
-        self.admin_password = self.admin.password
-        self.openai_api_key = self.ai.openai_api_key
-        self.anthropic_api_key = self.ai.anthropic_api_key
-        self.boosty_api_key = self.payment.boosty_api_key
-        self.boosty_client_id = self.payment.boosty_client_id
-        self.boosty_client_secret = self.payment.boosty_client_secret
-        self.boosty_webhook_secret = self.payment.boosty_webhook_secret
-        self.webhook_url = self.payment.webhook_url
-        
-        # App settings compatibility
-        self.sentry_dsn = self.app.sentry_dsn
-        self.log_level = self.app.log_level
-        self.upload_folder = self.app.upload_folder
-        self.max_file_size = self.app.max_file_size
-        self.adobe_stock_rate_limit = self.app.adobe_stock_rate_limit
-        self.redis_cache_ttl = self.app.redis_cache_ttl
-        self.proxy_file = self.app.proxy_file
-        self.debug = self.app.debug
-        self.host = self.app.host
-        self.port = self.app.port
-        self.test_pro_duration_days = self.app.test_pro_duration_days
-        self.pro_discount_percent = self.app.pro_discount_percent
-        self.free_discount_percent = self.app.free_discount_percent
-        self.free_analytics_limit = self.app.free_analytics_limit
-        self.free_themes_limit = self.app.free_themes_limit
-        self.test_pro_analytics_limit = self.app.test_pro_analytics_limit
-        self.test_pro_themes_limit = self.app.test_pro_themes_limit
-        self.pro_analytics_limit = self.app.pro_analytics_limit
-        self.pro_themes_limit = self.app.pro_themes_limit
-        self.ultra_analytics_limit = self.app.ultra_analytics_limit
-        self.ultra_themes_limit = self.app.ultra_themes_limit
-        self.new_works_id_prefix = self.app.new_works_id_prefix
 
 
 # Global settings instance

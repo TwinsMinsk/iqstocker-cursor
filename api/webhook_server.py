@@ -7,69 +7,33 @@ import json
 import hmac
 import hashlib
 from typing import Dict, Any
-from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi import APIRouter, Request, HTTPException, Depends
 from fastapi.responses import JSONResponse
 
-from core.payments.boosty_handler import get_payment_handler
+from api.webhooks.tribute import tribute_webhook
 from config.settings import settings
 
 
-# Create FastAPI app for webhooks
-webhook_app = FastAPI(title="IQStocker Webhooks", version="1.0.0")
+# Create router for webhooks (to be included in main app)
+webhook_router = APIRouter()
 
 
-@webhook_app.post("/webhook/boosty")
-async def boosty_webhook(request: Request):
-    """Handle Boosty payment webhooks."""
-    
-    try:
-        # Get raw body
-        body = await request.body()
-        
-        # Get signature header
-        signature = request.headers.get("X-Boosty-Signature")
-        if not signature:
-            raise HTTPException(status_code=400, detail="Missing signature")
-        
-        # Verify webhook signature
-        payment_handler = get_payment_handler()
-        if not await payment_handler.verify_webhook(body.decode(), signature):
-            raise HTTPException(status_code=401, detail="Invalid signature")
-        
-        # Parse webhook data
-        webhook_data = json.loads(body.decode())
-        
-        # Process payment webhook
-        success = await payment_handler.process_payment_webhook(webhook_data)
-        
-        if success:
-            return JSONResponse(
-                status_code=200,
-                content={"status": "success", "message": "Webhook processed"}
-            )
-        else:
-            return JSONResponse(
-                status_code=400,
-                content={"status": "error", "message": "Failed to process webhook"}
-            )
-            
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="Invalid JSON")
-    except Exception as e:
-        print(f"Error processing Boosty webhook: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+@webhook_router.post("/webhook/tribute")
+async def handle_tribute_webhook(request: Request):
+    """Handle Tribute payment webhooks."""
+    return await tribute_webhook(request)
 
 
-@webhook_app.get("/webhook/boosty")
-async def boosty_webhook_get():
+@webhook_router.get("/webhook/tribute")
+async def tribute_webhook_get():
     """Handle GET requests to webhook endpoint (for verification)."""
     return JSONResponse(
         status_code=200,
-        content={"status": "ok", "message": "Webhook endpoint is active"}
+        content={"status": "ok", "message": "Tribute webhook endpoint is active"}
     )
 
 
-@webhook_app.post("/webhook/test")
+@webhook_router.post("/webhook/test")
 async def test_webhook(request: Request):
     """Test webhook endpoint for development."""
     
@@ -90,7 +54,7 @@ async def test_webhook(request: Request):
 
 
 # Health check endpoint
-@webhook_app.get("/health")
+@webhook_router.get("/health")
 async def health_check():
     """Health check endpoint."""
     return JSONResponse(
@@ -99,34 +63,18 @@ async def health_check():
     )
 
 
-# Payment status check endpoint
-@webhook_app.get("/payment/status/{payment_id}")
-async def check_payment_status(payment_id: str):
-    """Check payment status."""
-    
-    try:
-        payment_handler = get_payment_handler()
-        status = await payment_handler.get_payment_status(payment_id)
-        
-        if status:
-            return JSONResponse(
-                status_code=200,
-                content={"status": "success", "payment": status}
-            )
-        else:
-            return JSONResponse(
-                status_code=404,
-                content={"status": "error", "message": "Payment not found"}
-            )
-            
-    except Exception as e:
-        print(f"Error checking payment status: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+# Payment status check endpoint removed - Tribute doesn't use this logic
 
 
+# For backward compatibility, create app instance if running standalone
 if __name__ == "__main__":
+    from fastapi import FastAPI
     import uvicorn
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    
+    webhook_app = FastAPI(title="IQStocker Webhooks", version="1.0.0")
+    webhook_app.include_router(webhook_router)
+    
     uvicorn.run(
         webhook_app,
         host="0.0.0.0",

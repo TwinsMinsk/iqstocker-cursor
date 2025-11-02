@@ -44,6 +44,10 @@
                 <i class="fas fa-history"></i>
                 <span>История рассылок</span>
             </a>
+            <a class="nav-link {% if request.url.path == '/payments' or '/payments' in request.url.path %}active{% endif %}" href="/payments">
+                <i class="fas fa-credit-card"></i>
+                <span>Платежи и подписки</span>
+            </a>
             <div class="mt-auto px-3 py-2">
                 <a href="/admin/logout" class="btn btn-outline-light btn-sm w-100">
                     <i class="fas fa-sign-out-alt me-1"></i>Выход
