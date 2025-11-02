@@ -20,6 +20,63 @@ templates = Jinja2Templates(directory="admin_panel/templates")
 logger = logging.getLogger(__name__)
 
 
+def convert_quill_html_to_telegram(html: str) -> str:
+    """
+    Convert Quill HTML to Telegram-compatible HTML.
+    Telegram supports: <b>, <i>, <u>, <s>, <a>, <code>, <pre>
+    """
+    import re
+    
+    if not html:
+        return html
+    
+    # Remove Quill-specific attributes and classes
+    html = re.sub(r' class="[^"]*"', '', html)
+    html = re.sub(r' style="[^"]*"', '', html)
+    
+    # Convert <strong> to <b>
+    html = re.sub(r'<strong>', '<b>', html, flags=re.IGNORECASE)
+    html = re.sub(r'</strong>', '</b>', html, flags=re.IGNORECASE)
+    
+    # Convert <em> to <i>
+    html = re.sub(r'<em>', '<i>', html, flags=re.IGNORECASE)
+    html = re.sub(r'</em>', '</i>', html, flags=re.IGNORECASE)
+    
+    # Remove unsupported tags but keep content
+    unsupported_tags = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div', 'span', 'blockquote']
+    for tag in unsupported_tags:
+        html = re.sub(rf'<{tag}[^>]*>', '', html, flags=re.IGNORECASE)
+        html = re.sub(rf'</{tag}>', '', html, flags=re.IGNORECASE)
+    
+    # Convert <p> tags to newlines (Telegram uses \n for line breaks)
+    html = re.sub(r'</p>\s*<p>', '\n', html)
+    html = re.sub(r'<p>', '', html)
+    html = re.sub(r'</p>', '\n', html)
+    
+    # Convert <br> to newline
+    html = re.sub(r'<br\s*/?>', '\n', html)
+    
+    # Convert <ul> and <ol> lists - convert to simple text with newlines
+    html = re.sub(r'<li>', '• ', html)
+    html = re.sub(r'</li>', '\n', html)
+    html = re.sub(r'<ul[^>]*>', '', html)
+    html = re.sub(r'</ul>', '\n', html)
+    html = re.sub(r'<ol[^>]*>', '', html)
+    html = re.sub(r'</ol>', '\n', html)
+    
+    # Clean up multiple newlines
+    html = re.sub(r'\n{3,}', '\n\n', html)
+    
+    # Remove empty paragraphs
+    html = re.sub(r'<p><br></p>', '', html)
+    html = re.sub(r'<p></p>', '', html)
+    
+    # Strip whitespace
+    html = html.strip()
+    
+    return html
+
+
 def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
     """Organize lexicon entries by category."""
     try:
@@ -148,6 +205,7 @@ async def update_lexicon_entry(
 ):
     """Update a single lexicon entry and save to file."""
     import re
+    import importlib
     from pathlib import Path
     
     try:
@@ -161,48 +219,95 @@ async def update_lexicon_entry(
             
             # Save to file using safer method
             lexicon_file = Path("bot/lexicon/lexicon_ru.py")
-            if lexicon_file.exists():
-                content = lexicon_file.read_text(encoding='utf-8')
+            if not lexicon_file.exists():
+                raise ValueError("Lexicon file not found")
+            
+            content = lexicon_file.read_text(encoding='utf-8')
+            
+            # Find the key and its value - handle multi-line values with triple quotes
+            # Pattern to match: 'key': 'value' or 'key': '''multi-line value'''
+            pattern = rf"(\s+'{re.escape(key)}':\s+)(['\"](?:[^'\"]|\\.)*['\"]|'''[^']*?'''|\"\"\"[^\"]*?\"\"\"|\([^\)]*?\))"
+            
+            # Format new value - always use triple quotes for HTML content
+            value_str = str(value) if not isinstance(value, str) else value
+            
+            # Convert Quill HTML to Telegram-compatible HTML
+            value_str = convert_quill_html_to_telegram(value_str)
+            
+            # Escape triple quotes
+            formatted_value = value_str.replace("'''", "\\'''")
+            # Escape backslashes that are not part of escaped quotes
+            formatted_value = formatted_value.replace("\\", "\\\\").replace("\\'''", "'''")
+            new_entry = f"\\1'''{formatted_value}'''"
+            
+            new_content = re.sub(pattern, new_entry, content, flags=re.MULTILINE | re.DOTALL)
+            
+            if new_content == content:
+                # Fallback: manual line-by-line replacement
+                lines = content.split('\n')
+                key_found = False
+                in_multiline = False
+                multiline_start = -1
                 
-                # Find the line with the key and replace its value
-                # Pattern: 'key': "value" or 'key': 'value' or 'key': """value""" or 'key': '''value'''
-                # Match single or triple quotes, handle escaping
-                pattern = rf"(\s+'{re.escape(key)}':\s+)(['\"](?:[^'\"]|\\.)*['\"]|'''[^']*'''|\"\"\"[^\"]*\"\"\")"
-                
-                # Format new value - escape properly
-                # If contains newlines or is long, use triple quotes
-                # Ensure value is a string, not a function
-                value_str = str(value) if not isinstance(value, str) else value
-                if '\n' in value_str or len(value_str) > 80:
-                    # Use triple single quotes for multi-line
-                    # Escape triple quotes if they exist in value
-                    formatted_value = value_str.replace("'''", "\\'''")
-                    new_entry = f"\\1'''{formatted_value}'''"
-                else:
-                    # Escape single quotes and backslashes
-                    escaped_value = value_str.replace("\\", "\\\\").replace("'", "\\'")
-                    new_entry = f"\\1'{escaped_value}'"
-                
-                new_content = re.sub(pattern, new_entry, content, flags=re.MULTILINE | re.DOTALL)
-                
-                if new_content != content:
-                    lexicon_file.write_text(new_content, encoding='utf-8')
-                else:
-                    # Fallback: try to find and replace manually if regex didn't match
-                    lines = content.split('\n')
-                    for i, line in enumerate(lines):
-                        if f"'{key}':" in line:
-                            # Found the line, replace the value part
-                            # Ensure value is a string, not a function
-                            value_str = str(value) if not isinstance(value, str) else value
-                            if '\n' in value_str or len(value_str) > 80:
+                for i, line in enumerate(lines):
+                    # Check if this line starts the key
+                    if f"'{key}':" in line:
+                        key_found = True
+                        # Check if it's a multi-line value
+                        if "'''" in line or '"""' in line:
+                            # Check if triple quote is closed on same line
+                            quote_count = line.count("'''") + line.count('"""')
+                            if quote_count >= 2:
+                                # Single line with triple quotes
                                 formatted_value = value_str.replace("'''", "\\'''")
-                                lines[i] = re.sub(r":\s+['\"].*['\"]", f": '''{formatted_value}'''", line)
+                                lines[i] = re.sub(r":\s+.*", f": '''{formatted_value}'''", line)
                             else:
-                                escaped_value = value_str.replace("\\", "\\\\").replace("'", "\\'")
-                                lines[i] = re.sub(r":\s+['\"].*['\"]", f": '{escaped_value}'", line)
+                                # Multi-line starts here
+                                multiline_start = i
+                                in_multiline = True
+                                # Replace the line with new value
+                                formatted_value = value_str.replace("'''", "\\'''")
+                                lines[i] = re.sub(r":\s+.*", f": '''{formatted_value}'''", line)
+                                # Check if closes on same line
+                                if line.count("'''") >= 2 or line.count('"""') >= 2:
+                                    in_multiline = False
+                        else:
+                            # Single line value - replace it
+                            formatted_value = value_str.replace("'''", "\\'''")
+                            lines[i] = re.sub(r":\s+['\"].*['\"]", f": '''{formatted_value}'''", line)
+                        break
+                    elif in_multiline and multiline_start >= 0:
+                        # Check if this line closes the multiline
+                        if "'''" in line or '"""' in line:
+                            in_multiline = False
+                            # Replace lines from multiline_start to i with new value
+                            formatted_value = value_str.replace("'''", "\\'''")
+                            # Remove old multiline and add new one
+                            lines[multiline_start] = re.sub(r":\s+.*", f": '''{formatted_value}'''", lines[multiline_start])
+                            # Remove intermediate lines if any
+                            if i > multiline_start:
+                                lines = lines[:multiline_start+1] + lines[i+1:]
                             break
-                    lexicon_file.write_text('\n'.join(lines), encoding='utf-8')
+                
+                if not key_found:
+                    raise ValueError(f"Key '{key}' not found in file")
+                
+                new_content = '\n'.join(lines)
+            
+            # Write updated content
+            lexicon_file.write_text(new_content, encoding='utf-8')
+            
+            # Reload lexicon module
+            try:
+                import bot.lexicon.lexicon_ru as lexicon_module
+                importlib.reload(lexicon_module)
+                # Update global references
+                global LEXICON_COMMANDS_RU
+                LEXICON_COMMANDS_RU = lexicon_module.LEXICON_COMMANDS_RU
+            except Exception as reload_error:
+                logger.warning(f"Failed to reload lexicon module: {reload_error}")
+                # Continue anyway - file was saved
+            
         else:
             if key not in LEXICON_RU:
                 raise HTTPException(status_code=404, detail=f"Key {key} not found in LEXICON_RU")
@@ -212,59 +317,93 @@ async def update_lexicon_entry(
             
             # Save to file - handle both single line and multi-line values
             lexicon_file = Path("bot/lexicon/lexicon_ru.py")
-            if lexicon_file.exists():
-                content = lexicon_file.read_text(encoding='utf-8')
+            if not lexicon_file.exists():
+                raise ValueError("Lexicon file not found")
+            
+            content = lexicon_file.read_text(encoding='utf-8')
+            
+            # Find the key and its value - handle multi-line values with triple quotes
+            pattern = rf"(\s+'{re.escape(key)}':\s+)(['\"](?:[^'\"]|\\.)*['\"]|'''[^']*?'''|\"\"\"[^\"]*?\"\"\"|\([^\)]*?\))"
+            
+            # Format new value - always use triple quotes for HTML content
+            value_str = str(value) if not isinstance(value, str) else value
+            
+            # Convert Quill HTML to Telegram-compatible HTML
+            value_str = convert_quill_html_to_telegram(value_str)
+            
+            # Escape triple quotes properly
+            formatted_value = value_str.replace("'''", "\\'''")
+            # Escape backslashes
+            formatted_value = formatted_value.replace("\\", "\\\\").replace("\\'''", "'''")
+            new_entry = f"\\1'''{formatted_value}'''"
+            
+            new_content = re.sub(pattern, new_entry, content, flags=re.MULTILINE | re.DOTALL)
+            
+            if new_content == content:
+                # Fallback: manual line-by-line replacement
+                lines = content.split('\n')
+                key_found = False
+                in_multiline = False
+                multiline_start = -1
                 
-                # Pattern for finding the key and its value
-                # Handle: 'key': "value", 'key': 'value', 'key': """value""", 'key': '''value''', 'key': (value)
-                pattern = rf"(\s+'{re.escape(key)}':\s+)(['\"](?:[^'\"]|\\.)*['\"]|'''[^']*'''|\"\"\"[^\"]*\"\"\"|\([^\)]*\))"
-                
-                # Format new value
-                # Ensure value is a string, not a function
-                value_str = str(value) if not isinstance(value, str) else value
-                if '\n' in value_str or len(value_str) > 80:
-                    # Use triple single quotes
-                    formatted_value = value_str.replace("'''", "\\'''")
-                    new_entry = f"\\1'''{formatted_value}'''"
-                elif value_str.strip().startswith('(') and value_str.strip().endswith(')'):
-                    # Already formatted as tuple
-                    new_entry = f"\\1{value_str}"
-                else:
-                    escaped_value = value_str.replace("\\", "\\\\").replace("'", "\\'")
-                    new_entry = f"\\1'{escaped_value}'"
-                
-                new_content = re.sub(pattern, new_entry, content, flags=re.MULTILINE | re.DOTALL)
-                
-                if new_content != content:
-                    lexicon_file.write_text(new_content, encoding='utf-8')
-                else:
-                    # Fallback: manual replacement
-                    lines = content.split('\n')
-                    key_found = False
-                    for i, line in enumerate(lines):
-                        if f"'{key}':" in line:
-                            key_found = True
-                            # Ensure value is a string, not a function
-                            value_str = str(value) if not isinstance(value, str) else value
-                            if '\n' in value_str or len(value_str) > 80:
+                for i, line in enumerate(lines):
+                    if f"'{key}':" in line:
+                        key_found = True
+                        # Check if it's a multi-line value
+                        if "'''" in line or '"""' in line:
+                            quote_count = line.count("'''") + line.count('"""')
+                            if quote_count >= 2:
+                                # Single line with triple quotes
                                 formatted_value = value_str.replace("'''", "\\'''")
-                                lines[i] = re.sub(r":\s+['\"].*['\"]", f": '''{formatted_value}'''", line)
+                                lines[i] = re.sub(r":\s+.*", f": '''{formatted_value}'''", line)
                             else:
-                                escaped_value = value_str.replace("\\", "\\\\").replace("'", "\\'")
-                                lines[i] = re.sub(r":\s+['\"].*['\"]", f": '{escaped_value}'", line)
+                                # Multi-line starts
+                                multiline_start = i
+                                in_multiline = True
+                                formatted_value = value_str.replace("'''", "\\'''")
+                                lines[i] = re.sub(r":\s+.*", f": '''{formatted_value}'''", line)
+                                if line.count("'''") >= 2 or line.count('"""') >= 2:
+                                    in_multiline = False
+                        else:
+                            # Single line value
+                            formatted_value = value_str.replace("'''", "\\'''")
+                            lines[i] = re.sub(r":\s+['\"].*['\"]", f": '''{formatted_value}'''", line)
+                        break
+                    elif in_multiline and multiline_start >= 0:
+                        if "'''" in line or '"""' in line:
+                            in_multiline = False
+                            formatted_value = value_str.replace("'''", "\\'''")
+                            lines[multiline_start] = re.sub(r":\s+.*", f": '''{formatted_value}'''", lines[multiline_start])
+                            if i > multiline_start:
+                                lines = lines[:multiline_start+1] + lines[i+1:]
                             break
-                    
-                    if key_found:
-                        lexicon_file.write_text('\n'.join(lines), encoding='utf-8')
-                    else:
-                        raise ValueError(f"Key '{key}' not found in file structure")
+                
+                if not key_found:
+                    raise ValueError(f"Key '{key}' not found in file")
+                
+                new_content = '\n'.join(lines)
+            
+            # Write updated content
+            lexicon_file.write_text(new_content, encoding='utf-8')
+            
+            # Reload lexicon module
+            try:
+                import bot.lexicon.lexicon_ru as lexicon_module
+                importlib.reload(lexicon_module)
+                # Update global references
+                global LEXICON_RU
+                LEXICON_RU = lexicon_module.LEXICON_RU
+            except Exception as reload_error:
+                logger.warning(f"Failed to reload lexicon module: {reload_error}")
+                # Continue anyway - file was saved
         
         return JSONResponse({
             "success": True,
-            "message": f"Ключ '{key}' успешно обновлен и сохранен в файл"
+            "message": f"Ключ '{key}' успешно обновлен и сохранен в файл. Изменения применены в боте."
         })
     except Exception as e:
         import traceback
+        logger.error(f"Error updating lexicon: {str(e)}\n{traceback.format_exc()}")
         return JSONResponse({
             "success": False,
             "message": f"Ошибка: {str(e)}"

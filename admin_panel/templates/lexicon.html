@@ -2,6 +2,56 @@
 
 {% block title %}Управление сообщениями - IQStocker Admin{% endblock %}
 
+{% block extra_css %}
+<!-- Quill Editor CSS -->
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+<style>
+.lexicon-editor {
+    margin-bottom: 1rem;
+}
+.lexicon-key {
+    font-weight: 600;
+    color: #667eea;
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
+    font-family: 'Monaco', 'Courier New', monospace;
+}
+.lexicon-preview {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1rem;
+    min-height: 60px;
+    margin-bottom: 0.5rem;
+}
+.lexicon-preview:empty::before {
+    content: "Нажмите на сообщение для редактирования...";
+    color: #9ca3af;
+    font-style: italic;
+}
+.quill-editor-container {
+    display: none;
+    margin-bottom: 0.5rem;
+}
+.lexicon-editor.editing .quill-editor-container {
+    display: block;
+}
+.lexicon-editor.editing .lexicon-preview {
+    display: none;
+}
+.ql-editor {
+    min-height: 150px;
+    font-size: 14px;
+}
+.ql-toolbar {
+    border-radius: 8px 8px 0 0;
+}
+.ql-container {
+    border-radius: 0 0 8px 8px;
+}
+</style>
+{% endblock %}
+
 {% block page_title %}
 <i class="fas fa-comments me-2"></i>Управление сообщениями
 {% endblock %}
@@ -76,12 +126,15 @@
                                 <div class="lexicon-key mb-2">
                                     <i class="fas fa-key me-1"></i><strong>{{ key }}</strong>
                                 </div>
-                                <div class="lexicon-value" 
-                                     contenteditable="false" 
-                                     id="value-{{ key }}"
-                                     onclick="enableEdit('{{ key }}', '{{ cat_key }}')"
-                                     style="min-height: 40px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; white-space: pre-wrap; word-wrap: break-word;">
-                                    {{ value }}
+                                <!-- Preview mode (read-only) -->
+                                <div class="lexicon-preview" 
+                                     id="preview-{{ key }}"
+                                     onclick="enableEdit('{{ key }}', '{{ cat_key }}')">
+                                    {{ value|safe }}
+                                </div>
+                                <!-- Editor mode (Quill) -->
+                                <div class="quill-editor-container">
+                                    <div id="editor-{{ key }}"></div>
                                 </div>
                                 <div class="mt-2 d-none" id="actions-{{ key }}">
                                     <button class="btn btn-sm btn-success" onclick="saveLexicon('{{ key }}', '{{ cat_key }}')">
@@ -105,55 +158,107 @@
     {% endfor %}
 </div>
 
+<!-- Quill Editor JS -->
+<script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
 <script>
+let quillEditors = {};
 let originalValues = {};
 
+// Initialize Quill editor when editing starts
 function enableEdit(key, category) {
-    const element = document.getElementById(`value-${key}`);
+    const editorContainer = document.getElementById(`editor-${key}`);
+    const preview = document.getElementById(`preview-${key}`);
     const actionsDiv = document.getElementById(`actions-${key}`);
+    const parentEditor = preview.closest('.lexicon-editor');
     
-    // Сохраняем оригинальное значение
-    originalValues[key] = element.textContent;
+    // Get original HTML content
+    const originalHtml = preview.innerHTML;
+    originalValues[key] = originalHtml;
     
-    // Делаем редактируемым
-    element.contentEditable = 'true';
-    element.classList.add('editing');
+    // Initialize Quill if not already initialized
+    if (!quillEditors[key]) {
+        quillEditors[key] = new Quill(editorContainer, {
+            theme: 'snow',
+            modules: {
+                toolbar: [
+                    [{ 'header': [1, 2, 3, false] }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                    [{ 'color': [] }, { 'background': [] }],
+                    ['link'],
+                    ['clean']
+                ]
+            },
+            placeholder: 'Введите текст сообщения...'
+        });
+        
+        // Convert HTML to Quill content
+        quillEditors[key].root.innerHTML = originalHtml;
+    }
+    
+    // Show editor, hide preview
+    parentEditor.classList.add('editing');
     actionsDiv.classList.remove('d-none');
     
-    // Фокус на элементе
-    element.focus();
+    // Focus on editor
+    quillEditors[key].focus();
 }
 
 function cancelEdit(key) {
-    const element = document.getElementById(`value-${key}`);
+    const preview = document.getElementById(`preview-${key}`);
     const actionsDiv = document.getElementById(`actions-${key}`);
+    const parentEditor = preview.closest('.lexicon-editor');
     
-    // Восстанавливаем оригинальное значение
-    element.textContent = originalValues[key];
+    // Restore original preview content
+    if (originalValues[key] !== undefined) {
+        preview.innerHTML = originalValues[key];
+    }
     
-    // Убираем редактирование
-    element.contentEditable = 'false';
-    element.classList.remove('editing');
+    // Hide editor, show preview
+    parentEditor.classList.remove('editing');
     actionsDiv.classList.add('d-none');
     
+    // Clear original value
     delete originalValues[key];
+    
+    // Destroy Quill editor instance
+    if (quillEditors[key]) {
+        quillEditors[key] = null;
+        delete quillEditors[key];
+        const editorContainer = document.getElementById(`editor-${key}`);
+        editorContainer.innerHTML = '';
+    }
 }
 
 async function saveLexicon(key, category) {
-    const element = document.getElementById(`value-${key}`);
+    const preview = document.getElementById(`preview-${key}`);
     const actionsDiv = document.getElementById(`actions-${key}`);
-    const newValue = element.textContent.trim();
+    const quill = quillEditors[key];
+    
+    if (!quill) {
+        showNotification('Ошибка: редактор не инициализирован', 'error');
+        return;
+    }
+    
+    // Get HTML content from Quill
+    const htmlContent = quill.root.innerHTML;
+    const textContent = quill.getText().trim();
+    
+    if (!textContent) {
+        showNotification('Ошибка: сообщение не может быть пустым', 'error');
+        return;
+    }
     
     // Показываем загрузку
     const saveBtn = actionsDiv.querySelector('.btn-success');
     const originalText = saveBtn.innerHTML;
-    saveBtn.innerHTML = '<span class="loading"></span> Сохранение...';
+    saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Сохранение...';
     saveBtn.disabled = true;
     
     try {
         const formData = new FormData();
         formData.append('key', key);
-        formData.append('value', newValue);
+        formData.append('value', htmlContent);
         formData.append('category', category);
         
         const response = await fetch('/lexicon/update', {
@@ -164,14 +269,25 @@ async function saveLexicon(key, category) {
         const result = await response.json();
         
         if (result.success) {
-            // Успешно сохранено
-            element.contentEditable = 'false';
-            element.classList.remove('editing');
+            // Update preview with new content
+            preview.innerHTML = htmlContent;
+            
+            // Hide editor, show preview
+            const parentEditor = preview.closest('.lexicon-editor');
+            parentEditor.classList.remove('editing');
             actionsDiv.classList.add('d-none');
+            
+            // Clear original value
             delete originalValues[key];
             
+            // Destroy Quill editor
+            quillEditors[key] = null;
+            delete quillEditors[key];
+            const editorContainer = document.getElementById(`editor-${key}`);
+            editorContainer.innerHTML = '';
+            
             // Показываем уведомление
-            showNotification('Успешно сохранено!', 'success');
+            showNotification('Успешно сохранено! Изменения применены в боте.', 'success');
         } else {
             throw new Error(result.message || 'Ошибка при сохранении');
         }
@@ -201,11 +317,16 @@ function showNotification(message, type) {
 
 // Предотвращаем потерю фокуса при клике вне
 document.addEventListener('click', function(e) {
-    if (!e.target.closest('.lexicon-value') && !e.target.closest('.btn')) {
+    if (!e.target.closest('.lexicon-preview') && 
+        !e.target.closest('.quill-editor-container') && 
+        !e.target.closest('.btn') &&
+        !e.target.closest('.ql-toolbar')) {
         // Закрываем все редактируемые элементы
-        document.querySelectorAll('.lexicon-value.editing').forEach(el => {
-            const key = el.id.replace('value-', '');
-            cancelEdit(key);
+        document.querySelectorAll('.lexicon-editor.editing').forEach(el => {
+            const key = el.dataset.key;
+            if (key) {
+                cancelEdit(key);
+            }
         });
     }
 });
