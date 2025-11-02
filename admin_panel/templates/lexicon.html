@@ -23,6 +23,13 @@
     padding: 1rem;
     min-height: 60px;
     margin-bottom: 0.5rem;
+    cursor: pointer;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+.lexicon-preview:hover {
+    background: #f3f4f6;
+    border-color: #d1d5db;
 }
 .lexicon-preview:empty::before {
     content: "Нажмите на сообщение для редактирования...";
@@ -171,28 +178,58 @@ function enableEdit(key, category) {
     const actionsDiv = document.getElementById(`actions-${key}`);
     const parentEditor = preview.closest('.lexicon-editor');
     
-    // Get original HTML content
-    const originalHtml = preview.innerHTML;
+    // Close any other open editors first
+    document.querySelectorAll('.lexicon-editor.editing').forEach(el => {
+        const otherKey = el.dataset.key;
+        if (otherKey && otherKey !== key) {
+            cancelEdit(otherKey);
+        }
+    });
+    
+    // Destroy existing Quill instance if it exists
+    if (quillEditors[key]) {
+        try {
+            // Quill doesn't have a destroy method, so we manually clean up
+            const existingContainer = document.getElementById(`editor-${key}`);
+            if (existingContainer) {
+                existingContainer.innerHTML = '';
+                // Remove toolbar if it exists
+                const toolbar = existingContainer.previousElementSibling;
+                if (toolbar && toolbar.classList.contains('ql-toolbar')) {
+                    toolbar.remove();
+                }
+            }
+        } catch (e) {
+            console.warn('Error cleaning up existing editor:', e);
+        }
+        delete quillEditors[key];
+    }
+    
+    // Get original HTML content from preview (which should have raw HTML)
+    const originalHtml = preview.innerHTML.trim();
     originalValues[key] = originalHtml;
     
-    // Initialize Quill if not already initialized
-    if (!quillEditors[key]) {
-        quillEditors[key] = new Quill(editorContainer, {
-            theme: 'snow',
-            modules: {
-                toolbar: [
-                    [{ 'header': [1, 2, 3, false] }],
-                    ['bold', 'italic', 'underline', 'strike'],
-                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                    [{ 'color': [] }, { 'background': [] }],
-                    ['link'],
-                    ['clean']
-                ]
-            },
-            placeholder: 'Введите текст сообщения...'
-        });
-        
-        // Convert HTML to Quill content
+    // Clear container before creating new editor
+    editorContainer.innerHTML = '';
+    
+    // Initialize new Quill editor
+    quillEditors[key] = new Quill(editorContainer, {
+        theme: 'snow',
+        modules: {
+            toolbar: [
+                [{ 'header': [1, 2, 3, false] }],
+                ['bold', 'italic', 'underline', 'strike'],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                [{ 'color': [] }, { 'background': [] }],
+                ['link'],
+                ['clean']
+            ]
+        },
+        placeholder: 'Введите текст сообщения...'
+    });
+    
+    // Set content from preview HTML (which is already HTML formatted)
+    if (originalHtml) {
         quillEditors[key].root.innerHTML = originalHtml;
     }
     
@@ -200,8 +237,12 @@ function enableEdit(key, category) {
     parentEditor.classList.add('editing');
     actionsDiv.classList.remove('d-none');
     
-    // Focus on editor
-    quillEditors[key].focus();
+    // Focus on editor after a small delay to ensure it's rendered
+    setTimeout(() => {
+        if (quillEditors[key]) {
+            quillEditors[key].focus();
+        }
+    }, 100);
 }
 
 function cancelEdit(key) {
@@ -221,12 +262,25 @@ function cancelEdit(key) {
     // Clear original value
     delete originalValues[key];
     
-    // Destroy Quill editor instance
+    // Properly destroy Quill editor instance
     if (quillEditors[key]) {
+        const editorContainer = document.getElementById(`editor-${key}`);
+        
+        // Find and remove toolbar (it's created before the container)
+        const parent = editorContainer.parentElement;
+        const toolbar = parent.querySelector('.ql-toolbar');
+        if (toolbar) {
+            toolbar.remove();
+        }
+        
+        // Clear container
+        if (editorContainer) {
+            editorContainer.innerHTML = '';
+        }
+        
+        // Clear reference
         quillEditors[key] = null;
         delete quillEditors[key];
-        const editorContainer = document.getElementById(`editor-${key}`);
-        editorContainer.innerHTML = '';
     }
 }
 
@@ -269,8 +323,23 @@ async function saveLexicon(key, category) {
         const result = await response.json();
         
         if (result.success) {
-            // Update preview with new content
-            preview.innerHTML = htmlContent;
+            // Reload the preview content from server to get the saved version
+            // The server returns converted HTML, so we need to fetch fresh data
+            fetch(`/lexicon/${key}?category=${category}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Update preview with saved content (will be HTML from server)
+                        preview.innerHTML = data.value || htmlContent;
+                    } else {
+                        // Fallback to current HTML content
+                        preview.innerHTML = htmlContent;
+                    }
+                })
+                .catch(() => {
+                    // Fallback to current HTML content if fetch fails
+                    preview.innerHTML = htmlContent;
+                });
             
             // Hide editor, show preview
             const parentEditor = preview.closest('.lexicon-editor');
@@ -280,11 +349,24 @@ async function saveLexicon(key, category) {
             // Clear original value
             delete originalValues[key];
             
-            // Destroy Quill editor
+            // Properly destroy Quill editor
+            const editorContainer = document.getElementById(`editor-${key}`);
+            
+            // Find and remove toolbar
+            const parent = editorContainer.parentElement;
+            const toolbar = parent.querySelector('.ql-toolbar');
+            if (toolbar) {
+                toolbar.remove();
+            }
+            
+            // Clear container
+            if (editorContainer) {
+                editorContainer.innerHTML = '';
+            }
+            
+            // Clear reference
             quillEditors[key] = null;
             delete quillEditors[key];
-            const editorContainer = document.getElementById(`editor-${key}`);
-            editorContainer.innerHTML = '';
             
             // Показываем уведомление
             showNotification('Успешно сохранено! Изменения применены в боте.', 'success');

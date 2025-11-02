@@ -1,7 +1,22 @@
 """Validator for lexicon keys to prevent KeyError at runtime."""
 
 from typing import List, Set
-from bot.lexicon.lexicon_ru import LEXICON_RU
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Try to load from database first, fallback to file
+try:
+    from core.lexicon.service import LexiconService
+    service = LexiconService()
+    lexicon_data = service.load_lexicon()
+    LEXICON_RU = lexicon_data.get('LEXICON_RU', {})
+except Exception as e:
+    logger.warning(f"Failed to load lexicon from service for validation: {e}")
+    try:
+        from bot.lexicon.lexicon_ru import LEXICON_RU
+    except ImportError:
+        LEXICON_RU = {}
 
 # Define all required keys for different modules
 REQUIRED_KEYS = {

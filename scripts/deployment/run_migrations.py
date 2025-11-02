@@ -91,7 +91,10 @@ def run_migrations():
     except Exception as e:
         logger.error(f"❌ Migration failed: {e}")
         import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
+        error_trace = traceback.format_exc()
+        logger.error(f"Traceback: {error_trace}")
+        print(f"\n❌ ERROR: {e}")
+        print(error_trace)
         return False
     finally:
         print("=" * 60)
