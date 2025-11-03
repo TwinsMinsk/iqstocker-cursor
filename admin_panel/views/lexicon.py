@@ -127,8 +127,9 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
         categories = {
             'main': {'name': 'Основные сообщения', 'items': {}},
             'analytics': {'name': 'Аналитика портфеля', 'items': {}},
-            'recommendations': {'name': 'Рекомендации', 'items': {}},
-            'themes': {'name': 'Темы и тренды', 'items': {}},
+            'themes': {'name': 'Темы', 'items': {}},
+            'tg_channel': {'name': 'ТГ-канал', 'items': {}},
+            'referral': {'name': 'Реферальная', 'items': {}},
             'lessons': {'name': 'Уроки', 'items': {}},
             'profile': {'name': 'Профиль', 'items': {}},
             'payments': {'name': 'Платежи', 'items': {}},
@@ -142,12 +143,25 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
         if LEXICON_RU:
             for key, value in LEXICON_RU.items():
                 try:
-                    if key.startswith('analytics') or key.startswith('sold_portfolio') or key.startswith('new_works') or key.startswith('upload_limit'):
+                    # Analytics category (includes recommendations keys)
+                    if (key.startswith('analytics') or key.startswith('sold_portfolio') or 
+                        key.startswith('new_works') or key.startswith('upload_limit') or
+                        key.startswith('portfolio_rate') or key.startswith('new_work_rate') or
+                        key in ['ask_portfolio_size', 'ask_monthly_limit', 'ask_monthly_uploads', 
+                                'ask_profit_percentage', 'ask_content_type', 'processing_csv', 
+                                'csv_upload_prompt', 'csv_instruction', 'final_analytics_report', 
+                                'limits_analytics_exhausted']):
                         categories['analytics']['items'][key] = value
-                    elif key.startswith('portfolio_rate') or key.startswith('new_work_rate'):
-                        categories['recommendations']['items'][key] = value
-                    elif key.startswith('themes'):
+                    # Themes category
+                    elif key.startswith('themes') or key == 'limits_themes_exhausted':
                         categories['themes']['items'][key] = value
+                    # TG Channel category
+                    elif key == 'tg_channel_info':
+                        categories['tg_channel']['items'][key] = value
+                    # Referral category
+                    elif key == 'invite_friend_dev':
+                        categories['referral']['items'][key] = value
+                    # Other categories
                     elif key.startswith('lessons'):
                         categories['lessons']['items'][key] = value
                     elif key.startswith('profile'):
@@ -181,8 +195,9 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
         return {
             'main': {'name': 'Основные сообщения', 'items': {}},
             'analytics': {'name': 'Аналитика портфеля', 'items': {}},
-            'recommendations': {'name': 'Рекомендации', 'items': {}},
-            'themes': {'name': 'Темы и тренды', 'items': {}},
+            'themes': {'name': 'Темы', 'items': {}},
+            'tg_channel': {'name': 'ТГ-канал', 'items': {}},
+            'referral': {'name': 'Реферальная', 'items': {}},
             'lessons': {'name': 'Уроки', 'items': {}},
             'profile': {'name': 'Профиль', 'items': {}},
             'payments': {'name': 'Платежи', 'items': {}},
