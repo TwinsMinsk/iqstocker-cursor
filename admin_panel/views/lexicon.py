@@ -29,31 +29,30 @@ def convert_quill_html_to_telegram(html: str) -> str:
     """
     Convert Quill HTML to Telegram-compatible HTML.
     Telegram supports: <b>, <i>, <u>, <s>, <a>, <code>, <pre>
-    Keeps Telegram-compatible tags for proper display in both preview and bot.
-    Aggressively removes empty paragraphs and excessive whitespace.
+    Preserves all spaces and line breaks exactly as set by admin.
+    Only removes truly empty paragraphs (without any content).
     """
     import re
     
     if not html:
         return html
     
-    # Remove Quill-specific attributes and classes
+    # Remove Quill-specific attributes and classes (but preserve content)
     html = re.sub(r' class="[^"]*"', '', html)
     html = re.sub(r' style="[^"]*"', '', html)
     
-    # Convert non-breaking spaces and other whitespace entities to regular spaces
+    # Convert non-breaking spaces to regular spaces (preserve spacing intent)
     html = re.sub(r'&nbsp;', ' ', html, flags=re.IGNORECASE)
     html = re.sub(r'&#160;', ' ', html)
     
-    # First, aggressively remove empty paragraphs BEFORE processing other tags
-    # Remove paragraphs that contain only whitespace, br tags, or nbsp
-    html = re.sub(r'<p[^>]*>\s*(?:<br\s*/?>|&nbsp;|\s)*</p>', '', html, flags=re.IGNORECASE)
-    html = re.sub(r'<p[^>]*></p>', '', html, flags=re.IGNORECASE)
-    html = re.sub(r'<p[^>]*>\s*&nbsp;\s*</p>', '', html, flags=re.IGNORECASE)
+    # Remove ONLY truly empty paragraphs (no text, no formatting, just empty or only whitespace)
+    # This regex matches <p> tags that contain ONLY whitespace, <br>, or nbsp, and no other content
+    # We do this BEFORE converting tags to preserve structure
+    html = re.sub(r'<p[^>]*>\s*(?:<br\s*/?>|\s|&nbsp;)*(?:<br\s*/?>)?\s*</p>', '', html, flags=re.IGNORECASE)
     
-    # Remove paragraphs that contain only formatting tags without content
-    # This handles cases like <p><b></b></p> or <p><i> </i></p>
-    html = re.sub(r'<p[^>]*>\s*(?:<(?:b|i|u|s)>)?\s*(?:</(?:b|i|u|s)>)?\s*</p>', '', html, flags=re.IGNORECASE)
+    # Remove paragraphs that contain ONLY empty formatting tags (like <p><b></b></p>)
+    # But preserve paragraphs with any actual content, even if it's just a space
+    html = re.sub(r'<p[^>]*>\s*(?:<(?:b|i|u|s|a)[^>]*>\s*</(?:b|i|u|s|a)>)+</p>', '', html, flags=re.IGNORECASE)
     
     # Convert <strong> to <b>
     html = re.sub(r'<strong>', '<b>', html, flags=re.IGNORECASE)
@@ -81,39 +80,23 @@ def convert_quill_html_to_telegram(html: str) -> str:
     html = re.sub(r'</li>', '\n', html, flags=re.IGNORECASE)
     
     # Convert <p> tags to newlines (Telegram uses \n for line breaks)
-    # But preserve formatting inside paragraphs
-    # First, handle adjacent paragraphs
+    # Preserve all paragraph breaks exactly as they are
+    # First, handle adjacent paragraphs (preserve the whitespace between them)
     html = re.sub(r'</p>\s*<p[^>]*>', '\n', html, flags=re.IGNORECASE)
     # Then remove remaining opening p tags
     html = re.sub(r'<p[^>]*>', '', html, flags=re.IGNORECASE)
-    # Remove closing p tags
+    # Remove closing p tags (convert to newline)
     html = re.sub(r'</p>', '\n', html, flags=re.IGNORECASE)
     
-    # Convert <br> to newline
+    # Convert <br> to newline (preserve all line breaks)
     html = re.sub(r'<br\s*/?>', '\n', html, flags=re.IGNORECASE)
     
-    # Clean up whitespace inside formatting tags
-    # Remove leading/trailing whitespace from lines while preserving formatting
-    lines = html.split('\n')
-    cleaned_lines = []
-    for line in lines:
-        # If line contains formatting tags, preserve structure but clean whitespace carefully
-        if re.search(r'<(b|i|u|s|a|code|pre)', line, re.IGNORECASE):
-            # Remove leading/trailing whitespace but keep formatting tags
-            line = line.strip()
-        else:
-            # For plain text lines, just strip
-            line = line.strip()
-        if line:  # Only add non-empty lines
-            cleaned_lines.append(line)
+    # DO NOT strip whitespace from lines - preserve all spaces as set by admin
+    # DO NOT remove empty lines - preserve all line breaks as set by admin
+    # DO NOT limit multiple newlines - preserve all spacing as set by admin
     
-    html = '\n'.join(cleaned_lines)
-    
-    # Aggressively clean up multiple newlines (keep max 2 consecutive)
-    html = re.sub(r'\n{3,}', '\n\n', html)
-    
-    # Remove newlines at the very start and end
-    html = html.strip()
+    # Only remove leading/trailing newlines from the entire text (but preserve internal ones)
+    html = html.strip('\n')
     
     return html
 

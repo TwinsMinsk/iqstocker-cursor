@@ -171,8 +171,8 @@
 let quillEditors = {};
 let originalValues = {};
 
-// Normalize HTML content before loading into Quill
-// Removes empty paragraphs, excessive whitespace, and invisible characters
+// Minimal normalization: only remove truly empty paragraphs, preserve all spaces and line breaks
+// This ensures HTML is loaded into Quill exactly as saved, maintaining all formatting
 function normalizeHtmlForQuill(html) {
     if (!html) return html;
     
@@ -180,42 +180,40 @@ function normalizeHtmlForQuill(html) {
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = html;
     
-    // Remove empty paragraphs (containing only whitespace, br, or nbsp)
+    // Remove ONLY completely empty paragraphs (no text, no formatting tags, just empty)
+    // Preserve paragraphs with any content, even if it's just whitespace or a single space
     const paragraphs = tempDiv.querySelectorAll('p');
     paragraphs.forEach(p => {
-        const text = p.textContent.trim();
-        const hasOnlyBr = p.innerHTML.trim() === '<br>' || p.innerHTML.trim() === '<br/>';
-        const hasOnlyNbsp = text === '' && (p.innerHTML.includes('&nbsp;') || p.innerHTML.includes('\u00A0'));
+        // Get text content (without HTML tags)
+        const textContent = p.textContent || '';
+        // Get inner HTML to check for formatting tags
+        const innerHTML = p.innerHTML.trim();
         
-        if (text === '' || hasOnlyBr || hasOnlyNbsp) {
-            p.remove();
+        // Remove only if:
+        // 1. No text content AND
+        // 2. Only contains <br> tags (no other formatting or content) OR completely empty
+        const hasOnlyBr = innerHTML === '<br>' || innerHTML === '<br/>';
+        const isCompletelyEmpty = innerHTML === '' && textContent.trim() === '';
+        
+        if (isCompletelyEmpty || hasOnlyBr) {
+            // Check if there are any formatting tags - if yes, preserve the paragraph
+            const hasFormatting = /<(b|i|u|s|a|strong|em)[^>]*>/.test(innerHTML);
+            if (!hasFormatting) {
+                p.remove();
+            }
         }
     });
     
-    // Remove non-breaking spaces and convert to regular spaces
+    // Convert &nbsp; to regular spaces (preserve spacing intent)
     let normalized = tempDiv.innerHTML;
     normalized = normalized.replace(/&nbsp;/g, ' ');
     normalized = normalized.replace(/\u00A0/g, ' ');
     
-    // Clean up multiple consecutive <br> tags (keep max 2)
-    normalized = normalized.replace(/(<br\s*\/?>){3,}/gi, '<br><br>');
+    // DO NOT remove multiple <br> tags - preserve all line breaks as set by admin
+    // DO NOT remove <br> tags near paragraphs - preserve structure
+    // DO NOT clean up paragraphs again - already done above
     
-    // Remove <br> tags that are immediately before or after closing/opening paragraph tags
-    normalized = normalized.replace(/(<\/p>\s*<br\s*\/?>\s*<p[^>]*>)/gi, '</p><p>');
-    normalized = normalized.replace(/(<p[^>]*>\s*<br\s*\/?>\s*)/gi, '<p>');
-    normalized = normalized.replace(/(\s*<br\s*\/?>\s*<\/p>)/gi, '</p>');
-    
-    // Clean up paragraphs that only contain <br> after normalization
-    tempDiv.innerHTML = normalized;
-    const remainingParagraphs = tempDiv.querySelectorAll('p');
-    remainingParagraphs.forEach(p => {
-        const inner = p.innerHTML.trim();
-        if (inner === '' || inner === '<br>' || inner === '<br/>') {
-            p.remove();
-        }
-    });
-    
-    return tempDiv.innerHTML;
+    return normalized;
 }
 
 // Initialize Quill editor when editing starts
@@ -256,7 +254,8 @@ function enableEdit(key, category) {
     const originalHtml = preview.innerHTML.trim();
     originalValues[key] = originalHtml;
     
-    // Normalize HTML before loading into Quill to remove empty paragraphs and excessive whitespace
+    // Minimal normalization: remove only truly empty paragraphs, preserve all spaces and line breaks
+    // This ensures HTML is loaded into Quill exactly as saved, maintaining admin's formatting
     const normalizedHtml = normalizeHtmlForQuill(originalHtml);
     
     // Clear container before creating new editor
@@ -359,6 +358,12 @@ async function saveLexicon(key, category) {
     saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Сохранение...';
     saveBtn.disabled = true;
     
+    // Функция для восстановления кнопки
+    const restoreButton = () => {
+        saveBtn.innerHTML = originalText;
+        saveBtn.disabled = false;
+    };
+    
     try {
         const formData = new FormData();
         formData.append('key', key);
@@ -389,6 +394,10 @@ async function saveLexicon(key, category) {
                 .catch(() => {
                     // Fallback to current HTML content if fetch fails
                     preview.innerHTML = htmlContent;
+                })
+                .finally(() => {
+                    // Восстанавливаем кнопку после обновления preview (или ошибки)
+                    restoreButton();
                 });
             
             // Hide editor, show preview
@@ -420,14 +429,17 @@ async function saveLexicon(key, category) {
             
             // Показываем уведомление
             showNotification('Успешно сохранено! Изменения применены в боте.', 'success');
+            
+            // Восстанавливаем кнопку сразу после успешного сохранения
+            // (если fetch еще не завершился, он восстановит кнопку в finally)
+            restoreButton();
         } else {
             throw new Error(result.message || 'Ошибка при сохранении');
         }
     } catch (error) {
         showNotification('Ошибка: ' + error.message, 'error');
-        // Восстанавливаем кнопку
-        saveBtn.innerHTML = originalText;
-        saveBtn.disabled = false;
+        // Восстанавливаем кнопку при ошибке
+        restoreButton();
     }
 }
 
