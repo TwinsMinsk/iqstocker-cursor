@@ -167,15 +167,15 @@ class LexiconService:
         
         # Try cache first (unless force_refresh)
         if not force_refresh:
-        try:
-            cached_data = self.redis_client.get(cache_key)
-            if cached_data:
-                logger.info("Lexicon loaded from Redis cache")
-                return json.loads(cached_data)
-        except Exception as e:
-            logger.warning(f"Failed to load from cache: {e}")
+            try:
+                cached_data = self.redis_client.get(cache_key)
+                if cached_data:
+                    logger.info("Lexicon loaded from Redis cache")
+                    return json.loads(cached_data)
+            except Exception as e:
+                logger.warning(f"Failed to load from cache: {e}")
         
-        # Load from database
+        # Load from database if cache miss or force_refresh
         try:
             if session is None:
                 with SessionLocal() as db_session:
@@ -220,9 +220,13 @@ class LexiconService:
         
         return result
     
-    def load_lexicon(self) -> Dict[str, Dict[str, str]]:
-        """Load lexicon (sync wrapper, for backwards compatibility)."""
-        return self.load_lexicon_sync()
+    def load_lexicon(self, force_refresh: bool = False) -> Dict[str, Dict[str, str]]:
+        """Load lexicon (sync wrapper, for backwards compatibility).
+        
+        Args:
+            force_refresh: If True, skip cache and load fresh from database
+        """
+        return self.load_lexicon_sync(force_refresh=force_refresh)
     
     async def get_value_async(self, key: str, category: str, session: Optional[AsyncSession] = None) -> Optional[str]:
         """Get a single lexicon value (async)."""
