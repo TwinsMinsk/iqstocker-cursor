@@ -432,6 +432,7 @@ LEXICON_RU = {
     ),
     'admin_tariff_error_user': "❌ Профиль администратора не найден в базе.",
     'admin_tariff_error_unknown': "❌ Не удалось изменить тариф. Попробуйте позже.",
+    'service_temporarily_unavailable': "⏳ Сервис временно недоступен, попробуйте ещё раз через минуту.",
     'admin_tariff_expires_unlimited': "бессрочно",
     'subscription_label_FREE': "FREE",
     'subscription_label_TEST_PRO': "TEST_PRO",

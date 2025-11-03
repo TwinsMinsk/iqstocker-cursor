@@ -151,9 +151,12 @@ if is_postgresql:
         async_engine_kwargs.pop("max_overflow", None)
         async_engine_kwargs.pop("pool_timeout", None)
         
-        # Set connection timeout for asyncpg to prevent long waits
-        async_engine_kwargs["connect_args"]["timeout"] = 10
-        db_logger.info("Configured NullPool and 10s timeout for Supabase async engine")
+        # Set aggressive connection timeout for asyncpg to fail fast when pooler is overloaded
+        # 5 seconds is enough to detect connectivity issues without blocking too long
+        async_engine_kwargs["connect_args"]["timeout"] = 5
+        # Command timeout to prevent queries from hanging
+        async_engine_kwargs["connect_args"]["command_timeout"] = 10
+        db_logger.info("Configured NullPool, 5s connection timeout, 10s command timeout for Supabase async engine")
     
     # Disable statement cache for pgbouncer compatibility
     # Many cloud PostgreSQL providers (Railway, Supabase, etc.) use pgbouncer or similar poolers
@@ -172,7 +175,8 @@ if is_postgresql:
     else:
         async_engine_kwargs["connect_args"].setdefault("ssl", True)
         # Set timeout for non-Supabase PostgreSQL as well
-        async_engine_kwargs["connect_args"]["timeout"] = 10
+        async_engine_kwargs["connect_args"]["timeout"] = 5
+        async_engine_kwargs["connect_args"]["command_timeout"] = 10
     
     # Log final connection args for debugging (without sensitive data)
     db_logger.info(
@@ -199,8 +203,9 @@ db_logger.info(f"Async engine created successfully with URL: {async_database_url
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 # For Supabase, limit concurrent connections to avoid MaxClientsInSessionMode
-# Using 3 as default allows some concurrency while staying under typical Supabase limits
-SUPABASE_SESSION_LIMIT = int(os.getenv("SUPABASE_SESSION_LIMIT", "3" if is_supabase else "10"))
+# Using 2 as default to be more conservative with Supabase's strict session pool limits
+# This ensures we stay well below the typical pool_size limit (often 4-5 for free tier)
+SUPABASE_SESSION_LIMIT = int(os.getenv("SUPABASE_SESSION_LIMIT", "2" if is_supabase else "10"))
 db_logger.info(f"Using SUPABASE_SESSION_LIMIT={SUPABASE_SESSION_LIMIT} for concurrent async sessions")
 _async_session_semaphore = asyncio.Semaphore(SUPABASE_SESSION_LIMIT)
 

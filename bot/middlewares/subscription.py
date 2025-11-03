@@ -33,11 +33,16 @@ class SubscriptionMiddleware(BaseMiddleware):
             # Получаем async сессию из data (должна быть установлена DatabaseMiddleware)
             session: AsyncSession = data.get("session")
             if session:
-                # Создаем асинхронный запрос
-                stmt = select(User).where(User.telegram_id == user_id)
-                result = await session.execute(stmt)
-                user = result.scalar_one_or_none()  # Получаем одного юзера или None
-                if user:
-                    data["user"] = user  # Кладем юзера в data для хэндлеров
+                try:
+                    # Создаем асинхронный запрос
+                    stmt = select(User).where(User.telegram_id == user_id)
+                    result = await session.execute(stmt)
+                    user = result.scalar_one_or_none()  # Получаем одного юзера или None
+                    if user:
+                        data["user"] = user  # Кладем юзера в data для хэндлеров
+                except Exception:
+                    # Если ошибка при получении пользователя, просто продолжаем без user
+                    # DatabaseMiddleware уже обработает ошибку подключения
+                    pass
         
         return await handler(event, data)

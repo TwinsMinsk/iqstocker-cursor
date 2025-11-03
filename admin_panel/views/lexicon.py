@@ -30,6 +30,7 @@ def convert_quill_html_to_telegram(html: str) -> str:
     Convert Quill HTML to Telegram-compatible HTML.
     Telegram supports: <b>, <i>, <u>, <s>, <a>, <code>, <pre>
     Keeps Telegram-compatible tags for proper display in both preview and bot.
+    Aggressively removes empty paragraphs and excessive whitespace.
     """
     import re
     
@@ -39,6 +40,20 @@ def convert_quill_html_to_telegram(html: str) -> str:
     # Remove Quill-specific attributes and classes
     html = re.sub(r' class="[^"]*"', '', html)
     html = re.sub(r' style="[^"]*"', '', html)
+    
+    # Convert non-breaking spaces and other whitespace entities to regular spaces
+    html = re.sub(r'&nbsp;', ' ', html, flags=re.IGNORECASE)
+    html = re.sub(r'&#160;', ' ', html)
+    
+    # First, aggressively remove empty paragraphs BEFORE processing other tags
+    # Remove paragraphs that contain only whitespace, br tags, or nbsp
+    html = re.sub(r'<p[^>]*>\s*(?:<br\s*/?>|&nbsp;|\s)*</p>', '', html, flags=re.IGNORECASE)
+    html = re.sub(r'<p[^>]*></p>', '', html, flags=re.IGNORECASE)
+    html = re.sub(r'<p[^>]*>\s*&nbsp;\s*</p>', '', html, flags=re.IGNORECASE)
+    
+    # Remove paragraphs that contain only formatting tags without content
+    # This handles cases like <p><b></b></p> or <p><i> </i></p>
+    html = re.sub(r'<p[^>]*>\s*(?:<(?:b|i|u|s)>)?\s*(?:</(?:b|i|u|s)>)?\s*</p>', '', html, flags=re.IGNORECASE)
     
     # Convert <strong> to <b>
     html = re.sub(r'<strong>', '<b>', html, flags=re.IGNORECASE)
@@ -60,7 +75,6 @@ def convert_quill_html_to_telegram(html: str) -> str:
         html = re.sub(rf'</{tag}>', '', html, flags=re.IGNORECASE)
     
     # Handle lists - convert to simple text with bullets
-    # First, extract list items with their formatting
     html = re.sub(r'<ul[^>]*>|</ul>', '\n', html, flags=re.IGNORECASE)
     html = re.sub(r'<ol[^>]*>|</ol>', '\n', html, flags=re.IGNORECASE)
     html = re.sub(r'<li[^>]*>', '• ', html, flags=re.IGNORECASE)
@@ -68,26 +82,37 @@ def convert_quill_html_to_telegram(html: str) -> str:
     
     # Convert <p> tags to newlines (Telegram uses \n for line breaks)
     # But preserve formatting inside paragraphs
-    html = re.sub(r'</p>\s*<p>', '\n', html)
+    # First, handle adjacent paragraphs
+    html = re.sub(r'</p>\s*<p[^>]*>', '\n', html, flags=re.IGNORECASE)
+    # Then remove remaining opening p tags
     html = re.sub(r'<p[^>]*>', '', html, flags=re.IGNORECASE)
-    html = re.sub(r'</p>', '\n', html)
+    # Remove closing p tags
+    html = re.sub(r'</p>', '\n', html, flags=re.IGNORECASE)
     
     # Convert <br> to newline
-    html = re.sub(r'<br\s*/?>', '\n', html)
+    html = re.sub(r'<br\s*/?>', '\n', html, flags=re.IGNORECASE)
     
-    # Clean up multiple newlines (keep max 2 consecutive)
-    html = re.sub(r'\n{3,}', '\n\n', html)
-    
-    # Remove empty paragraphs
-    html = re.sub(r'<p><br></p>', '', html)
-    html = re.sub(r'<p></p>', '', html)
-    
-    # Clean up whitespace at start and end of lines, but preserve intentional formatting
+    # Clean up whitespace inside formatting tags
+    # Remove leading/trailing whitespace from lines while preserving formatting
     lines = html.split('\n')
-    cleaned_lines = [line.strip() if not re.search(r'<(b|i|u|s|a|code|pre)', line, re.IGNORECASE) else line for line in lines]
+    cleaned_lines = []
+    for line in lines:
+        # If line contains formatting tags, preserve structure but clean whitespace carefully
+        if re.search(r'<(b|i|u|s|a|code|pre)', line, re.IGNORECASE):
+            # Remove leading/trailing whitespace but keep formatting tags
+            line = line.strip()
+        else:
+            # For plain text lines, just strip
+            line = line.strip()
+        if line:  # Only add non-empty lines
+            cleaned_lines.append(line)
+    
     html = '\n'.join(cleaned_lines)
     
-    # Final strip
+    # Aggressively clean up multiple newlines (keep max 2 consecutive)
+    html = re.sub(r'\n{3,}', '\n\n', html)
+    
+    # Remove newlines at the very start and end
     html = html.strip()
     
     return html

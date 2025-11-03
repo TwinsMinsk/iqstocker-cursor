@@ -171,6 +171,53 @@
 let quillEditors = {};
 let originalValues = {};
 
+// Normalize HTML content before loading into Quill
+// Removes empty paragraphs, excessive whitespace, and invisible characters
+function normalizeHtmlForQuill(html) {
+    if (!html) return html;
+    
+    // Create a temporary div to work with HTML
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+    
+    // Remove empty paragraphs (containing only whitespace, br, or nbsp)
+    const paragraphs = tempDiv.querySelectorAll('p');
+    paragraphs.forEach(p => {
+        const text = p.textContent.trim();
+        const hasOnlyBr = p.innerHTML.trim() === '<br>' || p.innerHTML.trim() === '<br/>';
+        const hasOnlyNbsp = text === '' && (p.innerHTML.includes('&nbsp;') || p.innerHTML.includes('\u00A0'));
+        
+        if (text === '' || hasOnlyBr || hasOnlyNbsp) {
+            p.remove();
+        }
+    });
+    
+    // Remove non-breaking spaces and convert to regular spaces
+    let normalized = tempDiv.innerHTML;
+    normalized = normalized.replace(/&nbsp;/g, ' ');
+    normalized = normalized.replace(/\u00A0/g, ' ');
+    
+    // Clean up multiple consecutive <br> tags (keep max 2)
+    normalized = normalized.replace(/(<br\s*\/?>){3,}/gi, '<br><br>');
+    
+    // Remove <br> tags that are immediately before or after closing/opening paragraph tags
+    normalized = normalized.replace(/(<\/p>\s*<br\s*\/?>\s*<p[^>]*>)/gi, '</p><p>');
+    normalized = normalized.replace(/(<p[^>]*>\s*<br\s*\/?>\s*)/gi, '<p>');
+    normalized = normalized.replace(/(\s*<br\s*\/?>\s*<\/p>)/gi, '</p>');
+    
+    // Clean up paragraphs that only contain <br> after normalization
+    tempDiv.innerHTML = normalized;
+    const remainingParagraphs = tempDiv.querySelectorAll('p');
+    remainingParagraphs.forEach(p => {
+        const inner = p.innerHTML.trim();
+        if (inner === '' || inner === '<br>' || inner === '<br/>') {
+            p.remove();
+        }
+    });
+    
+    return tempDiv.innerHTML;
+}
+
 // Initialize Quill editor when editing starts
 function enableEdit(key, category) {
     const editorContainer = document.getElementById(`editor-${key}`);
@@ -209,6 +256,9 @@ function enableEdit(key, category) {
     const originalHtml = preview.innerHTML.trim();
     originalValues[key] = originalHtml;
     
+    // Normalize HTML before loading into Quill to remove empty paragraphs and excessive whitespace
+    const normalizedHtml = normalizeHtmlForQuill(originalHtml);
+    
     // Clear container before creating new editor
     editorContainer.innerHTML = '';
     
@@ -228,9 +278,9 @@ function enableEdit(key, category) {
         placeholder: 'Введите текст сообщения...'
     });
     
-    // Set content from preview HTML (which is already HTML formatted)
-    if (originalHtml) {
-        quillEditors[key].root.innerHTML = originalHtml;
+    // Set normalized content from preview HTML
+    if (normalizedHtml) {
+        quillEditors[key].root.innerHTML = normalizedHtml;
     }
     
     // Show editor, hide preview
