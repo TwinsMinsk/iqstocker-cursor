@@ -167,13 +167,13 @@ class LexiconService:
         
         # Try cache first (unless force_refresh)
         if not force_refresh:
-            try:
-                cached_data = self.redis_client.get(cache_key)
-                if cached_data:
-                    logger.info("Lexicon loaded from Redis cache")
-                    return json.loads(cached_data)
-            except Exception as e:
-                logger.warning(f"Failed to load from cache: {e}")
+        try:
+            cached_data = self.redis_client.get(cache_key)
+            if cached_data:
+                logger.info("Lexicon loaded from Redis cache")
+                return json.loads(cached_data)
+        except Exception as e:
+            logger.warning(f"Failed to load from cache: {e}")
         
         # Load from database
         try:

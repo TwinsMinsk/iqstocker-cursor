@@ -191,8 +191,10 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
                         categories['lessons']['items'][key] = value
                     elif key.startswith('profile'):
                         categories['profile']['items'][key] = value
-                    elif (key.startswith('payment') or key.startswith('upgrade') or 
-                          key.startswith('compare')):
+                    # Payments category - only specific keys
+                    elif key in ['payment_pro_std_details', 'payment_ultra_std_details', 
+                                'payment_link_error', 'payment_pro_test_discount', 
+                                'payment_ultra_test_discount']:
                         categories['payments']['items'][key] = value
                     elif key.startswith('faq'):
                         categories['faq']['items'][key] = value
