@@ -1,31 +1,54 @@
 """Database session middleware."""
 
-from typing import Callable, Dict, Any, Awaitable
+import asyncio
+import logging
+from typing import Any, Awaitable, Callable, Dict
+
 from aiogram import BaseMiddleware
-from aiogram.types import TelegramObject
-from sqlalchemy.ext.asyncio import AsyncSession
+from aiogram.types import CallbackQuery, Message, TelegramObject
+from sqlalchemy.exc import OperationalError, TimeoutError as SQLAlchemyTimeout
 
 from config.database import AsyncSessionLocal
 
+logger = logging.getLogger(__name__)
+
 
 class DatabaseMiddleware(BaseMiddleware):
-    """Middleware to inject database session."""
-    
+    """Middleware to inject database session with throttling and graceful degradation."""
+
+    _semaphore = asyncio.Semaphore(2)
+
     async def __call__(
         self,
         handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
         event: TelegramObject,
-        data: Dict[str, Any]
+        data: Dict[str, Any],
     ) -> Any:
-        """Process middleware and inject session."""
-        
-        # Создаем асинхронную сессию для каждого запроса
-        async with AsyncSessionLocal() as session:
-            # Передаем сессию в data, чтобы она была доступна в хэндлерах и других middleware
-            data["session"] = session
-            # Вызываем следующий middleware или хэндлер
-            result = await handler(event, data)
-            # Коммитить или откатывать здесь НЕ нужно, если только нет специфичной логики.
-            # Обычно коммит делается в репозитории или хэндлере.
-        return result
+        """Wrap handler with DB session acquisition."""
 
+        try:
+            async with self._semaphore:
+                async with AsyncSessionLocal() as session:
+                    data["session"] = session
+                    return await handler(event, data)
+        except (SQLAlchemyTimeout, OperationalError) as exc:
+            logger.error("Database unavailable: %s", exc)
+            await self._notify_user(event)
+            return None
+
+    @staticmethod
+    async def _notify_user(event: TelegramObject) -> None:
+        """Notify user when database is temporarily unavailable."""
+
+        message = "Сервис временно недоступен, попробуйте ещё раз через минуту."
+
+        if isinstance(event, CallbackQuery):
+            try:
+                await event.answer(message, show_alert=True)
+            except Exception:
+                pass
+        elif isinstance(event, Message):
+            try:
+                await event.answer(message)
+            except Exception:
+                pass

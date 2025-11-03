@@ -13,7 +13,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import NullPool, StaticPool
 
 from config.settings import settings
 
@@ -131,11 +131,16 @@ if is_postgresql:
     parsed_async_url = urlparse(async_database_url)
     is_supabase = parsed_async_url.hostname and "supabase.com" in parsed_async_url.hostname
     if is_supabase:
-        # Supabase session poolers allow only a few concurrent clients; keep pools tiny
-        engine_kwargs["pool_size"] = 1
-        engine_kwargs["max_overflow"] = 0
-        async_engine_kwargs["pool_size"] = 1
-        async_engine_kwargs["max_overflow"] = 0
+        # Supabase session poolers work best without long-lived pools; use NullPool
+        engine_kwargs["poolclass"] = NullPool
+        engine_kwargs.pop("pool_size", None)
+        engine_kwargs.pop("max_overflow", None)
+        engine_kwargs.pop("pool_timeout", None)
+
+        async_engine_kwargs["poolclass"] = NullPool
+        async_engine_kwargs.pop("pool_size", None)
+        async_engine_kwargs.pop("max_overflow", None)
+        async_engine_kwargs.pop("pool_timeout", None)
     
     # Disable statement cache for pgbouncer compatibility
     # Many cloud PostgreSQL providers (Railway, Supabase, etc.) use pgbouncer or similar poolers
@@ -178,7 +183,12 @@ async_engine = create_async_engine(async_database_url, **async_engine_kwargs)
 db_logger.info(f"Async engine created successfully with URL: {async_database_url[:50]}...")
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-AsyncSessionLocal = async_sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
+AsyncSessionLocal = async_sessionmaker(
+    async_engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autoflush=False,
+)
 Base = declarative_base()
 
 

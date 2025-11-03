@@ -75,3 +75,20 @@ def get_theme_cooldown_message_sync() -> str:
             db.close()
     except Exception:
         return DEFAULT_THEME_COOLDOWN_MESSAGE
+
+
+async def get_theme_cooldown_days_for_session(session: AsyncSession, user_id: Optional[int] = None) -> int:
+    """Get cooldown days using provided async session to avoid opening new connections."""
+    if user_id is None:
+        return DEFAULT_THEME_COOLDOWN_DAYS
+
+    try:
+        result = await session.execute(
+            select(Limits.theme_cooldown_days).where(Limits.user_id == user_id)
+        )
+        cooldown = result.scalar_one_or_none()
+        if cooldown is not None:
+            return cooldown
+    except Exception:
+        pass
+    return DEFAULT_THEME_COOLDOWN_DAYS

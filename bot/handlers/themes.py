@@ -7,8 +7,6 @@ from sqlalchemy import select, func, desc
 import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from config.database import AsyncSessionLocal
 from database.models import User, SubscriptionType, Limits, ThemeRequest
 from bot.lexicon import LEXICON_RU
 from bot.keyboards.main_menu import get_main_menu_keyboard
@@ -16,7 +14,7 @@ from bot.keyboards.callbacks import ThemesCallback
 from bot.keyboards.themes import get_themes_menu_keyboard
 from bot.keyboards.common import create_cooldown_keyboard, create_archive_navigation_keyboard
 from bot.utils.safe_edit import safe_edit_message
-from core.theme_settings import get_theme_cooldown_days_sync
+from core.theme_settings import get_theme_cooldown_days_for_session
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -45,7 +43,7 @@ async def themes_callback(callback: CallbackQuery, user: User, session: AsyncSes
     last_request = result.scalar_one_or_none()
     
     if last_request:
-        cooldown_days = get_theme_cooldown_days_sync(user.id)
+        cooldown_days = await get_theme_cooldown_days_for_session(session, user.id)
         last_request_time = last_request.created_at.replace(tzinfo=timezone.utc)
         now = datetime.now(timezone.utc)
         time_diff = now - last_request_time
@@ -72,7 +70,13 @@ async def themes_callback(callback: CallbackQuery, user: User, session: AsyncSes
 
 
 @router.callback_query(ThemesCallback.filter(F.action == "generate"))
-async def generate_themes_callback(callback: CallbackQuery, callback_data: ThemesCallback, user: User, limits: Limits):
+async def generate_themes_callback(
+    callback: CallbackQuery,
+    callback_data: ThemesCallback,
+    user: User,
+    limits: Limits,
+    session: AsyncSession,
+):
     """Handle get themes callback - generate and show themes list."""
     
     logger.info(f"Generate themes callback triggered for user {user.id}, action: {callback_data.action}")
@@ -86,7 +90,7 @@ async def generate_themes_callback(callback: CallbackQuery, callback_data: Theme
         )
         return
     
-    async with AsyncSessionLocal() as session:
+    try:
         # Check cooldown again
         query = select(ThemeRequest).where(
             ThemeRequest.user_id == user.id,
@@ -96,7 +100,7 @@ async def generate_themes_callback(callback: CallbackQuery, callback_data: Theme
         last_request = result.scalar_one_or_none()
         
         if last_request:
-            cooldown_days = get_theme_cooldown_days_sync(user.id)
+            cooldown_days = await get_theme_cooldown_days_for_session(session, user.id)
             last_request_time = last_request.created_at.replace(tzinfo=timezone.utc)
             now = datetime.now(timezone.utc)
             time_diff = now - last_request_time
@@ -191,71 +195,80 @@ async def generate_themes_callback(callback: CallbackQuery, callback_data: Theme
         )
         session.add(new_theme_request)
         
-        # Обновляем лимиты тем
-        limits_query = select(Limits).where(Limits.user_id == user.id)
-        limits_result = await session.execute(limits_query)
-        user_limits = limits_result.scalar_one_or_none()
-        
-        if user_limits:
-            user_limits.themes_used += 1
-            user_limits.last_theme_request_at = datetime.utcnow()
-            session.add(user_limits)
+        # Обновляем лимиты тем (используем объект из middleware)
+        limits.themes_used += 1
+        limits.last_theme_request_at = datetime.utcnow()
+        session.add(limits)
         
         await session.commit()
         
-        logger.info(f"Successfully generated themes for user {user.id}, themes_used: {user_limits.themes_used}/{user_limits.themes_total}")
+        logger.info(
+            f"Successfully generated themes for user {user.id}, "
+            f"themes_used: {limits.themes_used}/{limits.themes_total}"
+        )
         
         await safe_edit_message(
             callback=callback,
             text=out,
             reply_markup=get_themes_menu_keyboard(has_archive=True)
         )
+    except Exception:
+        await session.rollback()
+        raise
 
 
 @router.callback_query(ThemesCallback.filter(F.action == "archive"))
-async def archive_themes_callback(callback: CallbackQuery, callback_data: ThemesCallback, user: User):
+async def archive_themes_callback(
+    callback: CallbackQuery,
+    callback_data: ThemesCallback,
+    user: User,
+    session: AsyncSession,
+):
     """Show themes archive - first page (most recent)."""
     
     logger.info(f"Archive themes callback triggered for user {user.id}, action: {callback_data.action}")
     
-    async with AsyncSessionLocal() as session:
-        # Get all issued themes sorted by date (newest first)
-        query = select(ThemeRequest).where(
-            ThemeRequest.user_id == user.id,
-            ThemeRequest.status == "ISSUED"
-        ).order_by(desc(ThemeRequest.created_at))
-        
-        result = await session.execute(query)
-        all_requests = result.scalars().all()
-        
-        if not all_requests:
-            await safe_edit_message(
-                callback=callback,
-                text=LEXICON_RU['themes_archive_empty'],
-                reply_markup=get_themes_menu_keyboard(has_archive=False)
-            )
-            return
-        
-        # Show first page (index 0 - most recent)
-        await show_archive_page(callback, user, all_requests, page=0)
+    # Get all issued themes sorted by date (newest first)
+    query = select(ThemeRequest).where(
+        ThemeRequest.user_id == user.id,
+        ThemeRequest.status == "ISSUED"
+    ).order_by(desc(ThemeRequest.created_at))
+    
+    result = await session.execute(query)
+    all_requests = result.scalars().all()
+    
+    if not all_requests:
+        await safe_edit_message(
+            callback=callback,
+            text=LEXICON_RU['themes_archive_empty'],
+            reply_markup=get_themes_menu_keyboard(has_archive=False)
+        )
+        return
+    
+    # Show first page (index 0 - most recent)
+    await show_archive_page(callback, user, all_requests, page=0)
 
 
 @router.callback_query(ThemesCallback.filter(F.action == "archive_page"))
-async def archive_navigation_callback(callback: CallbackQuery, callback_data: ThemesCallback, user: User):
+async def archive_navigation_callback(
+    callback: CallbackQuery,
+    callback_data: ThemesCallback,
+    user: User,
+    session: AsyncSession,
+):
     """Handle archive page navigation."""
     
-    async with AsyncSessionLocal() as session:
-        # Get all issued themes sorted by date (newest first)
-        query = select(ThemeRequest).where(
-            ThemeRequest.user_id == user.id,
-            ThemeRequest.status == "ISSUED"
-        ).order_by(desc(ThemeRequest.created_at))
-        
-        result = await session.execute(query)
-        all_requests = result.scalars().all()
-        
-        # Show requested page
-        await show_archive_page(callback, user, all_requests, page=callback_data.page or 0)
+    # Get all issued themes sorted by date (newest first)
+    query = select(ThemeRequest).where(
+        ThemeRequest.user_id == user.id,
+        ThemeRequest.status == "ISSUED"
+    ).order_by(desc(ThemeRequest.created_at))
+    
+    result = await session.execute(query)
+    all_requests = result.scalars().all()
+    
+    # Show requested page
+    await show_archive_page(callback, user, all_requests, page=callback_data.page or 0)
 
 
 async def show_archive_page(callback: CallbackQuery, user: User, history: list, page: int):
