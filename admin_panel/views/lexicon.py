@@ -144,8 +144,11 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
         if LEXICON_RU:
             for key, value in LEXICON_RU.items():
                 try:
+                    # Broadcast category (notifications) - check FIRST before other categories
+                    if key.startswith('notification_'):
+                        categories['broadcast']['items'][key] = value
                     # Analytics category (includes recommendations keys)
-                    if (key.startswith('analytics') or key.startswith('sold_portfolio') or 
+                    elif (key.startswith('analytics') or key.startswith('sold_portfolio') or 
                         key.startswith('new_works') or key.startswith('upload_limit') or
                         key.startswith('portfolio_rate') or key.startswith('new_work_rate') or
                         key in ['ask_portfolio_size', 'ask_monthly_limit', 'ask_monthly_uploads', 
@@ -162,9 +165,6 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
                     # Referral category
                     elif key == 'invite_friend_dev':
                         categories['referral']['items'][key] = value
-                    # Broadcast category (notifications)
-                    elif key.startswith('notification_'):
-                        categories['broadcast']['items'][key] = value
                     # Other categories
                     elif key.startswith('lessons'):
                         categories['lessons']['items'][key] = value
