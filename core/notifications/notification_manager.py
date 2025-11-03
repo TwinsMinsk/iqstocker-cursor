@@ -51,55 +51,71 @@ class NotificationManager:
     async def send_test_pro_expiring_notifications(self, session: AsyncSession) -> int:
         """Send notifications about expiring TEST_PRO subscriptions."""
         
+        from bot.lexicon import LEXICON_RU, LEXICON_COMMANDS_RU
+        
         sent_count = 0
         # Use naive datetime for comparison with database (TIMESTAMP WITHOUT TIME ZONE)
         now = datetime.utcnow()
         
-        # Users with TEST_PRO expiring in 7 days
-        seven_days_later = now + timedelta(days=7)
+        # Users with TEST_PRO expiring in 4 days
+        four_days_later = now + timedelta(days=4)
+        five_days_later = now + timedelta(days=5)
         stmt = select(User).filter(
             User.subscription_type == SubscriptionType.TEST_PRO,
-            User.subscription_expires_at <= seven_days_later,
+            User.subscription_expires_at >= four_days_later,
+            User.subscription_expires_at < five_days_later,
             User.subscription_expires_at > now
         )
         result = await session.execute(stmt)
-        users_7_days = result.scalars().all()
+        users_4_days = result.scalars().all()
         
-        for user in users_7_days:
-            message = """⏳ **Осталась всего неделя бесплатного PRO**
-
-Через 7 дней большинство функций станет недоступно.
-
-👉 Оформи PRO сегодня, чтобы ничего не потерять."""
+        for user in users_4_days:
+            try:
+                message = LEXICON_RU['notification_test_pro_4_days']
+            except KeyError:
+                # Fallback if key not found
+                message = "⏳ Осталось всего 4 дня бесплатного PRO.\nЧерез 4 дня большинство функций станет недоступно.\n\n👉 Оформи PRO сегодня, чтобы ничего не потерять."
             
             from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            try:
+                button_text = LEXICON_COMMANDS_RU['button_subscribe_pro_compare']
+            except KeyError:
+                button_text = "🔓 Перейти на PRO"
+            
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🏆 Перейти на PRO", callback_data="upgrade_pro")]
+                [InlineKeyboardButton(text=button_text, callback_data="upgrade_pro")]
             ])
             
             if await self.send_notification(user.telegram_id, message, keyboard):
                 sent_count += 1
         
-        # Users with TEST_PRO expiring in 2 days
+        # Users with TEST_PRO expiring in 1 day
+        one_day_later = now + timedelta(days=1)
         two_days_later = now + timedelta(days=2)
         stmt = select(User).filter(
             User.subscription_type == SubscriptionType.TEST_PRO,
-            User.subscription_expires_at <= two_days_later,
+            User.subscription_expires_at >= one_day_later,
+            User.subscription_expires_at < two_days_later,
             User.subscription_expires_at > now
         )
         result = await session.execute(stmt)
-        users_2_days = result.scalars().all()
+        users_1_day = result.scalars().all()
         
-        for user in users_2_days:
-            message = """🔔 **48 часов до конца бесплатного PRO**
-
-Потом доступ к ключевым функциям исчезнет.
-
-👉 Оформи PRO сейчас и используй все возможности дальше."""
+        for user in users_1_day:
+            try:
+                message = LEXICON_RU['notification_test_pro_1_day']
+            except KeyError:
+                # Fallback if key not found
+                message = "⚠️ Осталось 24 часа до конца бесплатного PRO!\n\nПотом доступ к ключевым функциям исчезнет.\n\n👉 Оформи PRO сейчас и используй все возможности дальше."
             
             from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            try:
+                button_text = LEXICON_COMMANDS_RU['button_subscribe_pro_compare']
+            except KeyError:
+                button_text = "🔓 Перейти на PRO"
+            
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🏆 Перейти на PRO", callback_data="upgrade_pro")]
+                [InlineKeyboardButton(text=button_text, callback_data="upgrade_pro")]
             ])
             
             if await self.send_notification(user.telegram_id, message, keyboard):
@@ -109,6 +125,8 @@ class NotificationManager:
     
     async def send_marketing_notifications(self, session: AsyncSession) -> int:
         """Send marketing notifications to FREE users."""
+        
+        from bot.lexicon import LEXICON_RU, LEXICON_COMMANDS_RU
         
         sent_count = 0
         
@@ -125,16 +143,23 @@ class NotificationManager:
         free_users = result.scalars().all()
         
         for user in free_users:
-            message = """🔥 **Хочешь больше продаж?**
-
-📣 Только сейчас у тебя есть шанс протестировать PRO подписку со скидкой 50%
-
-Но не жди долго - через 48 часов скидка пропадет."""
+            try:
+                message = LEXICON_RU['notification_free_monthly_promo']
+            except KeyError:
+                # Fallback if key not found
+                message = "🚀 Хочешь больше продаж?\n\n🔥 Только сейчас у тебя есть шанс протестировать PRO подписку со скидкой 50%\n\nНо не жди долго - через 48 часов скидка пропадет."
             
             from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            try:
+                button_pro_text = LEXICON_COMMANDS_RU['button_subscribe_pro_compare']
+                button_compare_text = LEXICON_COMMANDS_RU['button_compare_free_pro']
+            except KeyError:
+                button_pro_text = "🔓 Перейти на PRO"
+                button_compare_text = "📊 Сравнить Free и PRO"
+            
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🏆 Перейти на PRO", callback_data="upgrade_pro")],
-                [InlineKeyboardButton(text="📊 Сравнить Free и PRO", callback_data="compare_free_pro")]
+                [InlineKeyboardButton(text=button_pro_text, callback_data="upgrade_pro")],
+                [InlineKeyboardButton(text=button_compare_text, callback_data="compare_free_pro")]
             ])
             
             if await self.send_notification(user.telegram_id, message, keyboard):

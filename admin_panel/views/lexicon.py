@@ -130,6 +130,7 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
             'themes': {'name': 'Темы', 'items': {}},
             'tg_channel': {'name': 'ТГ-канал', 'items': {}},
             'referral': {'name': 'Реферальная', 'items': {}},
+            'broadcast': {'name': 'Рассылка', 'items': {}},
             'lessons': {'name': 'Уроки', 'items': {}},
             'profile': {'name': 'Профиль', 'items': {}},
             'payments': {'name': 'Платежи', 'items': {}},
@@ -161,6 +162,9 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
                     # Referral category
                     elif key == 'invite_friend_dev':
                         categories['referral']['items'][key] = value
+                    # Broadcast category (notifications)
+                    elif key.startswith('notification_'):
+                        categories['broadcast']['items'][key] = value
                     # Other categories
                     elif key.startswith('lessons'):
                         categories['lessons']['items'][key] = value
@@ -198,6 +202,7 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
             'themes': {'name': 'Темы', 'items': {}},
             'tg_channel': {'name': 'ТГ-канал', 'items': {}},
             'referral': {'name': 'Реферальная', 'items': {}},
+            'broadcast': {'name': 'Рассылка', 'items': {}},
             'lessons': {'name': 'Уроки', 'items': {}},
             'profile': {'name': 'Профиль', 'items': {}},
             'payments': {'name': 'Платежи', 'items': {}},
