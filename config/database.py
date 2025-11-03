@@ -48,24 +48,34 @@ if not is_postgresql and not database_url.startswith("sqlite://"):
         f"Unknown database URL format: {database_url[:50]}... - treating as SQLite"
     )
 
+# Check if Supabase early to configure pools correctly
+parsed_url = urlparse(database_url)
+is_supabase = parsed_url.hostname and "supabase.com" in parsed_url.hostname
+
 engine_kwargs = {
     "pool_pre_ping": True,
     "echo": settings.debug,
 }
 
 if is_postgresql:
-    # PostgreSQL specific settings
-    engine_kwargs.update(
-        {
-            "pool_size": 10,
-            "max_overflow": 20,
-            "pool_recycle": 3600,
-            "pool_timeout": 30,
-        }
-    )
-    engine_kwargs.setdefault("connect_args", {})
-    engine_kwargs["connect_args"].setdefault("sslmode", "require")
-    db_logger.info("Using PostgreSQL engine configuration")
+    if is_supabase:
+        # Supabase session poolers work best without long-lived pools; use NullPool
+        # This prevents "MaxClientsInSessionMode" errors
+        engine_kwargs["poolclass"] = NullPool
+        db_logger.info("Using Supabase PostgreSQL configuration with NullPool")
+    else:
+        # Regular PostgreSQL specific settings
+        engine_kwargs.update(
+            {
+                "pool_size": 10,
+                "max_overflow": 20,
+                "pool_recycle": 3600,
+                "pool_timeout": 10,  # Reduced from 30 to fail faster
+            }
+        )
+        engine_kwargs.setdefault("connect_args", {})
+        engine_kwargs["connect_args"].setdefault("sslmode", "require")
+        db_logger.info("Using PostgreSQL engine configuration")
 else:
     # SQLite specific settings
     engine_kwargs["poolclass"] = StaticPool
@@ -130,18 +140,20 @@ if is_postgresql:
     async_engine_kwargs.setdefault("connect_args", {})
     
     parsed_async_url = urlparse(async_database_url)
-    is_supabase = parsed_async_url.hostname and "supabase.com" in parsed_async_url.hostname
-    if is_supabase:
+    # Re-check Supabase for async URL (should match, but be safe)
+    is_supabase_async = parsed_async_url.hostname and "supabase.com" in parsed_async_url.hostname
+    
+    if is_supabase_async:
         # Supabase session poolers work best without long-lived pools; use NullPool
-        engine_kwargs["poolclass"] = NullPool
-        engine_kwargs.pop("pool_size", None)
-        engine_kwargs.pop("max_overflow", None)
-        engine_kwargs.pop("pool_timeout", None)
-
+        # This prevents "MaxClientsInSessionMode" errors
         async_engine_kwargs["poolclass"] = NullPool
         async_engine_kwargs.pop("pool_size", None)
         async_engine_kwargs.pop("max_overflow", None)
         async_engine_kwargs.pop("pool_timeout", None)
+        
+        # Set connection timeout for asyncpg to prevent long waits
+        async_engine_kwargs["connect_args"]["timeout"] = 10
+        db_logger.info("Configured NullPool and 10s timeout for Supabase async engine")
     
     # Disable statement cache for pgbouncer compatibility
     # Many cloud PostgreSQL providers (Railway, Supabase, etc.) use pgbouncer or similar poolers
@@ -150,7 +162,7 @@ if is_postgresql:
     async_engine_kwargs["connect_args"]["statement_cache_size"] = 0
     db_logger.info("Disabled asyncpg statement cache for pgbouncer/connection pooler compatibility")
     
-    if is_supabase:
+    if is_supabase_async:
         # For Supabase: disable SSL verification (Supabase pooler certificates)
         supabase_ssl_context = ssl.create_default_context()
         supabase_ssl_context.check_hostname = False
@@ -159,6 +171,8 @@ if is_postgresql:
         db_logger.info("Configured SSL context with disabled verification for Supabase pooler host")
     else:
         async_engine_kwargs["connect_args"].setdefault("ssl", True)
+        # Set timeout for non-Supabase PostgreSQL as well
+        async_engine_kwargs["connect_args"]["timeout"] = 10
     
     # Log final connection args for debugging (without sensitive data)
     db_logger.info(
@@ -184,7 +198,10 @@ async_engine = create_async_engine(async_database_url, **async_engine_kwargs)
 db_logger.info(f"Async engine created successfully with URL: {async_database_url[:50]}...")
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-SUPABASE_SESSION_LIMIT = int(os.getenv("SUPABASE_SESSION_LIMIT", "1" if is_supabase else "10"))
+# For Supabase, limit concurrent connections to avoid MaxClientsInSessionMode
+# Using 3 as default allows some concurrency while staying under typical Supabase limits
+SUPABASE_SESSION_LIMIT = int(os.getenv("SUPABASE_SESSION_LIMIT", "3" if is_supabase else "10"))
+db_logger.info(f"Using SUPABASE_SESSION_LIMIT={SUPABASE_SESSION_LIMIT} for concurrent async sessions")
 _async_session_semaphore = asyncio.Semaphore(SUPABASE_SESSION_LIMIT)
 
 

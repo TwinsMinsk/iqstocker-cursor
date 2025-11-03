@@ -16,21 +16,23 @@ logger = logging.getLogger(__name__)
 class DatabaseMiddleware(BaseMiddleware):
     """Middleware to inject database session with throttling and graceful degradation."""
 
-    _semaphore = asyncio.Semaphore(2)
-
     async def __call__(
         self,
         handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
         event: TelegramObject,
         data: Dict[str, Any],
     ) -> Any:
-        """Wrap handler with DB session acquisition."""
+        """Wrap handler with DB session acquisition.
+        
+        Note: Throttling is handled by ManagedAsyncSession's semaphore,
+        so we don't need an additional semaphore here.
+        """
 
         try:
-            async with self._semaphore:
-                async with AsyncSessionLocal() as session:
-                    data["session"] = session
-                    return await handler(event, data)
+            # ManagedAsyncSession already handles semaphore throttling
+            async with AsyncSessionLocal() as session:
+                data["session"] = session
+                return await handler(event, data)
         except (SQLAlchemyTimeout, OperationalError) as exc:
             logger.error("Database unavailable: %s", exc)
             await self._notify_user(event)
