@@ -1,5 +1,6 @@
 """Database configuration and session management."""
 
+import asyncio
 import logging
 import os
 import ssl
@@ -183,9 +184,48 @@ async_engine = create_async_engine(async_database_url, **async_engine_kwargs)
 db_logger.info(f"Async engine created successfully with URL: {async_database_url[:50]}...")
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+SUPABASE_SESSION_LIMIT = int(os.getenv("SUPABASE_SESSION_LIMIT", "1" if is_supabase else "10"))
+_async_session_semaphore = asyncio.Semaphore(SUPABASE_SESSION_LIMIT)
+
+
+class ManagedAsyncSession(AsyncSession):
+    """Async session that throttles concurrent DB connections via semaphore."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._semaphore_acquired = False
+
+    async def __aenter__(self):
+        await _async_session_semaphore.acquire()
+        self._semaphore_acquired = True
+        try:
+            return await super().__aenter__()
+        except Exception:
+            self._release_semaphore()
+            raise
+
+    async def __aexit__(self, exc_type, exc, tb):
+        try:
+            return await super().__aexit__(exc_type, exc, tb)
+        finally:
+            self._release_semaphore()
+
+    async def close(self):
+        """Ensure semaphore released even if session closed manually."""
+        try:
+            await super().close()
+        finally:
+            self._release_semaphore()
+
+    def _release_semaphore(self):
+        if self._semaphore_acquired:
+            self._semaphore_acquired = False
+            _async_session_semaphore.release()
+
+
 AsyncSessionLocal = async_sessionmaker(
     async_engine,
-    class_=AsyncSession,
+    class_=ManagedAsyncSession,
     expire_on_commit=False,
     autoflush=False,
 )
