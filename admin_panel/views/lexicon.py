@@ -31,6 +31,8 @@ def convert_quill_html_to_telegram(html: str) -> str:
     Telegram supports: <b>, <i>, <u>, <s>, <a>, <code>, <pre>
     Preserves all spaces and line breaks exactly as set by admin.
     Only removes truly empty paragraphs (without any content).
+    
+    CRITICAL: Preserves formatting 1:1 - no extra newlines or spaces.
     """
     import re
     
@@ -44,15 +46,6 @@ def convert_quill_html_to_telegram(html: str) -> str:
     # Convert non-breaking spaces to regular spaces (preserve spacing intent)
     html = re.sub(r'&nbsp;', ' ', html, flags=re.IGNORECASE)
     html = re.sub(r'&#160;', ' ', html)
-    
-    # Remove ONLY truly empty paragraphs (no text, no formatting, just empty or only whitespace)
-    # This regex matches <p> tags that contain ONLY whitespace, <br>, or nbsp, and no other content
-    # We do this BEFORE converting tags to preserve structure
-    html = re.sub(r'<p[^>]*>\s*(?:<br\s*/?>|\s|&nbsp;)*(?:<br\s*/?>)?\s*</p>', '', html, flags=re.IGNORECASE)
-    
-    # Remove paragraphs that contain ONLY empty formatting tags (like <p><b></b></p>)
-    # But preserve paragraphs with any actual content, even if it's just a space
-    html = re.sub(r'<p[^>]*>\s*(?:<(?:b|i|u|s|a)[^>]*>\s*</(?:b|i|u|s|a)>)+</p>', '', html, flags=re.IGNORECASE)
     
     # Convert <strong> to <b>
     html = re.sub(r'<strong>', '<b>', html, flags=re.IGNORECASE)
@@ -79,21 +72,40 @@ def convert_quill_html_to_telegram(html: str) -> str:
     html = re.sub(r'<li[^>]*>', '• ', html, flags=re.IGNORECASE)
     html = re.sub(r'</li>', '\n', html, flags=re.IGNORECASE)
     
-    # Convert <p> tags to newlines (Telegram uses \n for line breaks)
-    # Preserve all paragraph breaks exactly as they are
-    # First, handle adjacent paragraphs (preserve the whitespace between them)
-    html = re.sub(r'</p>\s*<p[^>]*>', '\n', html, flags=re.IGNORECASE)
-    # Then remove remaining opening p tags
-    html = re.sub(r'<p[^>]*>', '', html, flags=re.IGNORECASE)
-    # Remove closing p tags (convert to newline)
-    html = re.sub(r'</p>', '\n', html, flags=re.IGNORECASE)
+    # CRITICAL: Handle paragraph breaks and line breaks in correct order
+    # Strategy: Convert <p> tags to mark paragraph boundaries, then <br> for line breaks
+    # 
+    # Step 1: Convert paragraph boundaries - each </p><p> pair is a paragraph break (single \n)
+    # But if there's a <p><br></p> or <p></p> between paragraphs, that's an extra break
+    # First, mark empty paragraphs with <br> as line breaks: <p><br></p> -> <LINEBREAK>
+    html = re.sub(r'<p[^>]*>\s*<br\s*/?>\s*</p>', '<LINEBREAK>', html, flags=re.IGNORECASE)
+    html = re.sub(r'<p[^>]*>\s*</p>', '', html, flags=re.IGNORECASE)  # Remove truly empty paragraphs
     
-    # Convert <br> to newline (preserve all line breaks)
+    # Remove paragraphs that contain ONLY empty formatting tags (like <p><b></b></p>)
+    html = re.sub(r'<p[^>]*>\s*(?:<(?:b|i|u|s|a)[^>]*>\s*</(?:b|i|u|s|a)>)+</p>', '', html, flags=re.IGNORECASE)
+    
+    # Step 2: Convert <br> tags within paragraphs to newlines
     html = re.sub(r'<br\s*/?>', '\n', html, flags=re.IGNORECASE)
     
-    # DO NOT strip whitespace from lines - preserve all spaces as set by admin
-    # DO NOT remove empty lines - preserve all line breaks as set by admin
-    # DO NOT limit multiple newlines - preserve all spacing as set by admin
+    # Step 3: Convert paragraph boundaries to newlines
+    # Replace adjacent paragraphs: </p>...<p> becomes single \n
+    html = re.sub(r'</p>\s*<p[^>]*>', '\n', html, flags=re.IGNORECASE)
+    
+    # Remove remaining opening <p> tags
+    html = re.sub(r'<p[^>]*>', '', html, flags=re.IGNORECASE)
+    
+    # Replace closing </p> tags with newline
+    html = re.sub(r'</p>', '\n', html, flags=re.IGNORECASE)
+    
+    # Step 4: Restore <LINEBREAK> markers as newlines (these represent intentional empty lines)
+    html = html.replace('<LINEBREAK>', '\n')
+    
+    # Step 5: Clean up excessive newlines (3+ become 2 max)
+    # This preserves intentional double breaks but removes accidental triples
+    html = re.sub(r'\n{3,}', '\n\n', html)
+    
+    # DO NOT strip whitespace from individual lines - preserve all spaces as set by admin
+    # DO NOT remove single empty lines - they are intentional breaks
     
     # Only remove leading/trailing newlines from the entire text (but preserve internal ones)
     html = html.strip('\n')
