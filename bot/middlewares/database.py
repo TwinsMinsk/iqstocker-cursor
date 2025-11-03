@@ -7,7 +7,11 @@ from typing import Any, Awaitable, Callable, Dict
 from aiogram import BaseMiddleware
 from aiogram.types import CallbackQuery, Message, TelegramObject
 from sqlalchemy.exc import OperationalError, TimeoutError as SQLAlchemyTimeout
-import asyncpg
+
+try:
+    import asyncpg  # pyright: ignore[reportMissingImports]  # basedpyright: ignore[reportMissingImports]
+except ImportError:
+    asyncpg = None  # type: ignore
 
 from config.database import AsyncSessionLocal
 from bot.lexicon.lexicon_ru import LEXICON_RU
@@ -42,11 +46,16 @@ class DatabaseMiddleware(BaseMiddleware):
             logger.error("Handler execution timed out after 8 seconds")
             await self._notify_user(event)
             return None
-        except (SQLAlchemyTimeout, OperationalError, asyncpg.exceptions.TooManyConnectionsError) as exc:
+        except (SQLAlchemyTimeout, OperationalError) as exc:
             logger.error("Database unavailable: %s", exc)
             await self._notify_user(event)
             return None
         except Exception as exc:
+            # Check for asyncpg-specific errors if asyncpg is available
+            if asyncpg and isinstance(exc, asyncpg.exceptions.TooManyConnectionsError):
+                logger.error("Database unavailable (too many connections): %s", exc)
+                await self._notify_user(event)
+                return None
             # Catch any other database-related exceptions
             if "MaxClientsInSessionMode" in str(exc) or "timeout" in str(exc).lower():
                 logger.error("Database connection error: %s", exc)

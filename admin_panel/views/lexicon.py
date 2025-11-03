@@ -107,9 +107,25 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
         # Load lexicon from database or file
         if lexicon_service:
             try:
-                lexicon_data = lexicon_service.load_lexicon()
+                # Invalidate cache first to ensure fresh data
+                try:
+                    lexicon_service.invalidate_cache()
+                    logger.debug("Cache invalidated before loading lexicon")
+                except Exception as cache_error:
+                    logger.warning(f"Failed to invalidate cache (non-critical): {cache_error}")
+                
+                # Use force_refresh to bypass cache and get fresh data
+                lexicon_data = lexicon_service.load_lexicon(force_refresh=True)
                 LEXICON_RU = lexicon_data.get('LEXICON_RU', {})
                 LEXICON_COMMANDS_RU = lexicon_data.get('LEXICON_COMMANDS_RU', {})
+                
+                # Debug: Check if notification keys are in loaded data
+                notification_keys_in_data = [k for k in LEXICON_RU.keys() if k.startswith('notification_')]
+                if notification_keys_in_data:
+                    logger.info(f"Notification keys found in lexicon_data: {notification_keys_in_data}")
+                else:
+                    logger.warning(f"No notification keys in lexicon_data! Total keys: {len(LEXICON_RU)}")
+                    
             except Exception as e:
                 logger.warning(f"Failed to load from service, using file: {e}")
                 try:
@@ -141,12 +157,17 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
         }
         
         # Categorize LEXICON_RU
+        logger.info(f"Total LEXICON_RU keys to categorize: {len(LEXICON_RU) if LEXICON_RU else 0}")
+        notification_keys_found = []
+        
         if LEXICON_RU:
             for key, value in LEXICON_RU.items():
                 try:
                     # Broadcast category (notifications) - check FIRST before other categories
                     if key.startswith('notification_'):
                         categories['broadcast']['items'][key] = value
+                        notification_keys_found.append(key)
+                        logger.debug(f"Added to broadcast category: {key}")
                     # Analytics category (includes recommendations keys)
                     elif (key.startswith('analytics') or key.startswith('sold_portfolio') or 
                         key.startswith('new_works') or key.startswith('upload_limit') or
@@ -192,6 +213,23 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
                 except Exception as e:
                     logger.warning(f"Error categorizing button {key}: {e}")
         
+        # Log broadcast category status
+        broadcast_count = len(categories['broadcast']['items'])
+        logger.info(f"Broadcast category items count: {broadcast_count}")
+        if notification_keys_found:
+            logger.info(f"Notification keys categorized: {notification_keys_found}")
+        else:
+            logger.warning("No notification keys found in LEXICON_RU!")
+            # Try to find notification keys manually
+            if LEXICON_RU:
+                manual_found = [k for k in LEXICON_RU.keys() if k.startswith('notification_')]
+                if manual_found:
+                    logger.warning(f"But notification keys exist in LEXICON_RU: {manual_found}")
+                    # Force add them
+                    for key in manual_found:
+                        categories['broadcast']['items'][key] = LEXICON_RU[key]
+                        logger.info(f"Manually added to broadcast: {key}")
+        
         return categories
     except Exception as e:
         logger.error(f"Error in get_lexicon_categories: {e}")
@@ -217,7 +255,31 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
 async def lexicon_page(request: Request, category: str = "main", search: str = ""):
     """Lexicon management page."""
     try:
+        # Force cache invalidation to get fresh data
+        if lexicon_service:
+            try:
+                lexicon_service.invalidate_cache()
+                logger.debug("Cache invalidated for lexicon page")
+            except Exception as e:
+                logger.warning(f"Failed to invalidate cache (non-critical): {e}")
+        
+        # Load lexicon with force_refresh to bypass cache
+        if lexicon_service:
+            try:
+                # Force refresh to ensure we get fresh data including new notification keys
+                lexicon_data = lexicon_service.load_lexicon_sync(force_refresh=True)
+                logger.info("Lexicon loaded with force_refresh=True")
+            except Exception as e:
+                logger.warning(f"Failed to force refresh lexicon: {e}")
+        
         categories = get_lexicon_categories()
+        
+        # Debug: Log broadcast category
+        broadcast_cat = categories.get('broadcast', {})
+        broadcast_items = broadcast_cat.get('items', {})
+        logger.info(f"Lexicon page: broadcast category has {len(broadcast_items)} items")
+        if len(broadcast_items) > 0:
+            logger.info(f"Broadcast items: {list(broadcast_items.keys())}")
         
         # Filter items if search provided
         filtered_categories = {}

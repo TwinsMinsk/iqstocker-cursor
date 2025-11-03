@@ -8,7 +8,10 @@ import uuid
 from typing import Generator
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
-import asyncpg  # noqa: F401 - imported for its side effects in asyncpg URL handling
+try:
+    import asyncpg  # pyright: ignore[reportMissingImports]  # basedpyright: ignore[reportMissingImports]  # noqa: F401 - imported for its side effects in asyncpg URL handling
+except ImportError:
+    asyncpg = None  # type: ignore
 import redis
 from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine

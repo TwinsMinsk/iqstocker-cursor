@@ -148,17 +148,32 @@ class LexiconService:
         except Exception as exc:
             logger.warning(f"Failed to write lexicon cache file: {exc}")
     
-    def load_lexicon_sync(self, session: Optional[Session] = None) -> Dict[str, Dict[str, str]]:
-        """Load all lexicon entries from database with caching (sync)."""
-        # Try cache first
+    def load_lexicon_sync(self, session: Optional[Session] = None, force_refresh: bool = False) -> Dict[str, Dict[str, str]]:
+        """Load all lexicon entries from database with caching (sync).
+        
+        Args:
+            session: Optional database session
+            force_refresh: If True, skip cache and load fresh from database
+        """
         cache_key = self._get_cache_key()
-        try:
-            cached_data = self.redis_client.get(cache_key)
-            if cached_data:
-                logger.info("Lexicon loaded from Redis cache")
-                return json.loads(cached_data)
-        except Exception as e:
-            logger.warning(f"Failed to load from cache: {e}")
+        
+        # If force_refresh is True, clear cache first
+        if force_refresh:
+            try:
+                self.redis_client.delete(cache_key)
+                logger.info("Cache cleared due to force_refresh=True")
+            except Exception as e:
+                logger.warning(f"Failed to clear cache for refresh: {e}")
+        
+        # Try cache first (unless force_refresh)
+        if not force_refresh:
+            try:
+                cached_data = self.redis_client.get(cache_key)
+                if cached_data:
+                    logger.info("Lexicon loaded from Redis cache")
+                    return json.loads(cached_data)
+            except Exception as e:
+                logger.warning(f"Failed to load from cache: {e}")
         
         # Load from database
         try:
