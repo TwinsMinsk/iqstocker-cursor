@@ -43,32 +43,16 @@ async def upgrade_pro_callback(callback: CallbackQuery, user: User):
     subscription_data = payment_handler._get_subscription_data(SubscriptionType.PRO, discount_percent)
     
     if discount_percent > 0:
-        payment_text = f"""🏆 **Переход на PRO**
-
-**Тариф PRO включает:**
-• 2 аналитики в месяц
-• 5 тем в неделю
-• Топ-5 тем по продажам
-• Расширенный календарь стокера
-• Все видеоуроки
-
-**Цена:** ~~{subscription_data['original_price']}~~ **{subscription_data['price']} RUB**
-**Скидка:** {discount_percent}% (экономия {subscription_data['discount_amount']} RUB)
-
-Нажми кнопку ниже для оплаты:"""
+        payment_text = LEXICON_RU['payment_pro_with_discount'].format(
+            original_price=subscription_data['original_price'],
+            price=subscription_data['price'],
+            discount_percent=discount_percent,
+            discount_amount=subscription_data['discount_amount']
+        )
     else:
-        payment_text = f"""🏆 **Переход на PRO**
-
-**Тариф PRO включает:**
-• 2 аналитики в месяц
-• 5 тем в неделю
-• Топ-5 тем по продажам
-• Расширенный календарь стокера
-• Все видеоуроки
-
-**Цена:** {subscription_data['price']} RUB
-
-Нажми кнопку ниже для оплаты:"""
+        payment_text = LEXICON_RU['payment_pro_without_discount'].format(
+            price=subscription_data['price']
+        )
     
     keyboard = [
         [
@@ -118,32 +102,16 @@ async def upgrade_ultra_callback(callback: CallbackQuery, user: User):
     subscription_data = payment_handler._get_subscription_data(SubscriptionType.ULTRA, discount_percent)
     
     if discount_percent > 0:
-        payment_text = f"""🚀 **Переход на ULTRA**
-
-**Тариф ULTRA включает:**
-• 4 аналитики в месяц
-• 10 тем в неделю
-• Топ-10 тем по продажам
-• Расширенный календарь стокера
-• Все видеоуроки
-
-**Цена:** ~~{subscription_data['original_price']}~~ **{subscription_data['price']} RUB**
-**Скидка:** {discount_percent}% (экономия {subscription_data['discount_amount']} RUB)
-
-Нажми кнопку ниже для оплаты:"""
+        payment_text = LEXICON_RU['payment_ultra_with_discount'].format(
+            original_price=subscription_data['original_price'],
+            price=subscription_data['price'],
+            discount_percent=discount_percent,
+            discount_amount=subscription_data['discount_amount']
+        )
     else:
-        payment_text = f"""🚀 **Переход на ULTRA**
-
-**Тариф ULTRA включает:**
-• 4 аналитики в месяц
-• 10 тем в неделю
-• Топ-10 тем по продажам
-• Расширенный календарь стокера
-• Все видеоуроки
-
-**Цена:** {subscription_data['price']} RUB
-
-Нажми кнопку ниже для оплаты:"""
+        payment_text = LEXICON_RU['payment_ultra_without_discount'].format(
+            price=subscription_data['price']
+        )
     
     keyboard = [
         [
@@ -178,32 +146,17 @@ async def compare_subscriptions_callback(callback: CallbackQuery, user: User):
     pro_data = payment_handler._get_subscription_data(SubscriptionType.PRO, pro_discount)
     ultra_data = payment_handler._get_subscription_data(SubscriptionType.ULTRA, ultra_discount)
     
-    comparison_text = f"""📊 **Сравнение тарифов**
-
-**FREE** (текущий)
-• 1 тема в неделю
-• Сокращенный календарь
-• Базовые видеоуроки
-• ❌ Аналитика недоступна
-• ❌ Топ темы недоступны
-
-**PRO** {'(со скидкой ' + str(pro_discount) + '%)' if pro_discount > 0 else ''}
-• 2 аналитики в месяц
-• 5 тем в неделю
-• Топ-5 тем по продажам
-• Расширенный календарь
-• Все видеоуроки
-• **Цена:** {'~~' + str(pro_data['original_price']) + '~~ ' if pro_discount > 0 else ''}{pro_data['price']} RUB
-
-**ULTRA** {'(со скидкой ' + str(ultra_discount) + '%)' if ultra_discount > 0 else ''}
-• 4 аналитики в месяц
-• 10 тем в неделю
-• Топ-10 тем по продажам
-• Расширенный календарь
-• Все видеоуроки
-• **Цена:** {'~~' + str(ultra_data['original_price']) + '~~ ' if ultra_discount > 0 else ''}{ultra_data['price']} RUB
-
-Выбери подходящий тариф:"""
+    pro_discount_text = f'(со скидкой {pro_discount}%)' if pro_discount > 0 else ''
+    ultra_discount_text = f'(со скидкой {ultra_discount}%)' if ultra_discount > 0 else ''
+    pro_price_text = f"~~{pro_data['original_price']}~~ {pro_data['price']}" if pro_discount > 0 else str(pro_data['price'])
+    ultra_price_text = f"~~{ultra_data['original_price']}~~ {ultra_data['price']}" if ultra_discount > 0 else str(ultra_data['price'])
+    
+    comparison_text = LEXICON_RU['compare_subscriptions_text'].format(
+        pro_discount_text=pro_discount_text,
+        ultra_discount_text=ultra_discount_text,
+        pro_price_text=pro_price_text,
+        ultra_price_text=ultra_price_text
+    )
     
     keyboard = [
         [
@@ -233,31 +186,13 @@ async def compare_free_pro_callback(callback: CallbackQuery, user: User):
     discount_percent = payment_handler.calculate_discount(user, SubscriptionType.PRO)
     subscription_data = payment_handler._get_subscription_data(SubscriptionType.PRO, discount_percent)
     
-    comparison_text = f"""📊 **Сравнение FREE и PRO**
-
-**FREE** (текущий)
-• 1 тема в неделю
-• Сокращенный календарь стокера
-• Только базовые видеоуроки
-• ❌ Аналитика портфеля недоступна
-• ❌ Топ темы недоступны
-
-**PRO** {'(со скидкой ' + str(discount_percent) + '%)' if discount_percent > 0 else ''}
-• 2 аналитики в месяц
-• 5 тем в неделю
-• Топ-5 тем по продажам
-• Расширенный календарь стокера
-• Все видеоуроки
-• **Цена:** {'~~' + str(subscription_data['original_price']) + '~~ ' if discount_percent > 0 else ''}{subscription_data['price']} RUB
-
-**Что ты получишь с PRO:**
-✅ Полный анализ твоего портфеля
-✅ Персональные темы на основе твоих продаж
-✅ Топ тем, которые реально работают
-✅ Расширенные сезонные подсказки
-✅ Доступ ко всем обучающим материалам
-
-Готов перейти на PRO? 🚀"""
+    discount_text = f'(со скидкой {discount_percent}%)' if discount_percent > 0 else ''
+    price_text = f"~~{subscription_data['original_price']}~~ {subscription_data['price']}" if discount_percent > 0 else str(subscription_data['price'])
+    
+    comparison_text = LEXICON_RU['compare_free_pro_text'].format(
+        discount_text=discount_text,
+        price_text=price_text
+    )
     
     keyboard = [
         [
@@ -284,30 +219,13 @@ async def compare_pro_ultra_callback(callback: CallbackQuery, user: User):
     ultra_discount = payment_handler.calculate_discount(user, SubscriptionType.ULTRA)
     ultra_data = payment_handler._get_subscription_data(SubscriptionType.ULTRA, ultra_discount)
     
-    comparison_text = f"""📊 **Сравнение PRO и ULTRA**
-
-**PRO** (текущий)
-• 2 аналитики в месяц
-• 5 тем в неделю
-• Топ-5 тем по продажам
-• Расширенный календарь
-• Все видеоуроки
-
-**ULTRA** {'(со скидкой ' + str(ultra_discount) + '%)' if ultra_discount > 0 else ''}
-• 4 аналитики в месяц
-• 10 тем в неделю
-• Топ-10 тем по продажам
-• Расширенный календарь
-• Все видеоуроки
-• **Цена:** {'~~' + str(ultra_data['original_price']) + '~~ ' if ultra_discount > 0 else ''}{ultra_data['price']} RUB
-
-**Дополнительно с ULTRA:**
-✅ В 2 раза больше аналитики
-✅ В 2 раза больше тем
-✅ В 2 раза больше топ тем
-✅ Максимальная эффективность
-
-Готов перейти на ULTRA? 🚀"""
+    discount_text = f'(со скидкой {ultra_discount}%)' if ultra_discount > 0 else ''
+    price_text = f"~~{ultra_data['original_price']}~~ {ultra_data['price']}" if ultra_discount > 0 else str(ultra_data['price'])
+    
+    comparison_text = LEXICON_RU['compare_pro_ultra_text'].format(
+        discount_text=discount_text,
+        price_text=price_text
+    )
     
     keyboard = [
         [
@@ -352,20 +270,12 @@ async def payment_pro_test_discount_callback(callback: CallbackQuery, user: User
     
     # Show payment information with 50% discount
     base_price = 990
-    discounted_price = base_price * 0.5
+    discounted_price = int(base_price * 0.5)
     
-    payment_text = f"""🏆 <b>Переход на PRO</b>
-
-<b>Тариф PRO включает:</b>
-• 1 аналитика в месяц
-• 5 тем в неделю
-• Расширенный календарь стокера
-• Все видеоуроки
-
-<b>Цена:</b> ~~{base_price}₽~~ <b>{discounted_price:.0f}₽/месяц</b>
-🎉 <b>Скидка 50% для тестового периода!</b>
-
-Для оформления подписки перейди по ссылке ниже:"""
+    payment_text = LEXICON_RU['payment_pro_test_discount'].format(
+        original_price=base_price,
+        discounted_price=discounted_price
+    )
     
     keyboard = [
         [
@@ -445,20 +355,12 @@ async def payment_ultra_test_discount_callback(callback: CallbackQuery, user: Us
     
     # Show payment information with 50% discount
     base_price = 1990
-    discounted_price = base_price * 0.5
+    discounted_price = int(base_price * 0.5)
     
-    payment_text = f"""🚀 <b>Переход на ULTRA</b>
-
-<b>Тариф ULTRA включает:</b>
-• 2 аналитики в месяц
-• 10 тем в неделю
-• Расширенный календарь стокера
-• Все видеоуроки
-
-<b>Цена:</b> ~~{base_price}₽~~ <b>{discounted_price:.0f}₽/месяц</b>
-🎉 <b>Скидка 50% для тестового периода!</b>
-
-Для оформления подписки перейди по ссылке ниже:"""
+    payment_text = LEXICON_RU['payment_ultra_test_discount'].format(
+        original_price=base_price,
+        discounted_price=discounted_price
+    )
     
     keyboard = [
         [

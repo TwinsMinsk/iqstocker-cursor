@@ -320,17 +320,10 @@ async def upgrade_pro_callback(callback: CallbackQuery, user: User):
         price_text = f"<b>{base_price}₽/месяц</b>"
         discount_message = ""
     
-    upgrade_text = f"""🏆 <b>Переход на PRO</b>
-
-PRO подписка включает:
-• 1 аналитика в месяц
-• 5 тем в неделю
-• Расширенный календарь стокера
-• Все видеоуроки
-
-<b>Цена:</b> {price_text}{discount_message}
-
-Для оформления подписки перейди по ссылке: [Boosty PRO](https://boosty.to/iqstocker/pro)"""
+    upgrade_text = LEXICON_RU['upgrade_pro_text'].format(
+        price_text=price_text,
+        discount_message=discount_message
+    )
     
     await safe_edit_message(
         callback=callback,
@@ -358,17 +351,10 @@ async def upgrade_ultra_callback(callback: CallbackQuery, user: User):
         price_text = f"<b>{base_price}₽/месяц</b>"
         discount_message = ""
     
-    upgrade_text = f"""🚀 <b>Переход на ULTRA</b>
-
-ULTRA подписка включает:
-• 2 аналитики в месяц
-• 10 тем в неделю
-• Расширенный календарь стокера
-• Все видеоуроки
-
-<b>Цена:</b> {price_text}{discount_message}
-
-Для оформления подписки перейди по ссылке: [Boosty ULTRA](https://boosty.to/iqstocker/ultra)"""
+    upgrade_text = LEXICON_RU['upgrade_ultra_text'].format(
+        price_text=price_text,
+        discount_message=discount_message
+    )
     
     await safe_edit_message(
         callback=callback,
