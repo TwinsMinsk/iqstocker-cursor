@@ -79,6 +79,9 @@
                     <i class="fas fa-shield-alt me-2"></i>Администраторы
                     <span class="badge bg-danger ms-2">{{ admins_data|length }}</span>
                 </h6>
+                <button class="btn btn-sm btn-outline-primary" onclick="showAdminManagementModal()" title="Управление администраторами">
+                    <i class="fas fa-cog me-1"></i>Управление
+                </button>
             </div>
             <div class="card-body">
                 {% if admins_data %}
@@ -90,13 +93,11 @@
                             {% if admin.username %}
                             <br><small class="text-muted">@{{ admin.username }}</small>
                             {% endif %}
+                            {% if not admin.registered %}
+                            <br><small class="text-warning"><i class="fas fa-exclamation-triangle"></i> Не зарегистрирован в боте</small>
+                            {% endif %}
                             <br><small class="text-muted"><code>{{ admin.telegram_id }}</code></small>
                         </div>
-                        <button class="btn btn-sm btn-outline-danger" 
-                                onclick="toggleAdmin({{ admin.user.id }}, {% if admin.user.is_admin %}true{% else %}false{% endif %})"
-                                title="{% if admin.user.is_admin %}Убрать админа{% else %}Сделать админом{% endif %}">
-                            <i class="fas {% if admin.user.is_admin %}fa-user-times{% else %}fa-user-shield{% endif %}"></i>
-                        </button>
                     </div>
                     {% endfor %}
                 </div>
@@ -275,6 +276,38 @@
         </div>
     </div>
 </div>
+
+<!-- Admin Management Modal -->
+<div id="adminManagementModal" class="modal fade" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-shield-alt me-2"></i>Управление администраторами
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="adminManagementError" class="alert alert-danger" style="display: none;"></div>
+                <div id="adminManagementForm">
+                    <p class="text-muted mb-3">Укажите Telegram ID администраторов. Каждый ID на новой строке или через запятую.</p>
+                    <div id="adminIdsContainer">
+                        <!-- Admin ID inputs will be dynamically added here -->
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="addAdminIdField()">
+                        <i class="fas fa-plus me-1"></i>Добавить администратора
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="saveAdminIds()">
+                    <i class="fas fa-save me-1"></i>Сохранить
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -447,6 +480,155 @@ function showNotification(message, type) {
     setTimeout(() => {
         notification.remove();
     }, 3000);
+}
+
+// Admin Management Modal Functions
+function showAdminManagementModal() {
+    const modal = new bootstrap.Modal(document.getElementById('adminManagementModal'));
+    const container = document.getElementById('adminIdsContainer');
+    const errorDiv = document.getElementById('adminManagementError');
+    
+    // Clear previous content
+    container.innerHTML = '';
+    errorDiv.style.display = 'none';
+    errorDiv.textContent = '';
+    
+    // Load current admin IDs from the page data
+    const currentAdminIds = [
+        {% for admin in admins_data %}
+        {{ admin.telegram_id }}{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+    
+    // Create input fields for each admin ID
+    if (currentAdminIds.length > 0 && currentAdminIds[0] !== undefined) {
+        currentAdminIds.forEach(adminId => {
+            addAdminIdField(adminId);
+        });
+    } else {
+        // Add at least one empty field
+        addAdminIdField();
+    }
+    
+    modal.show();
+}
+
+function addAdminIdField(value = '') {
+    const container = document.getElementById('adminIdsContainer');
+    const fieldId = 'admin_id_' + Date.now();
+    
+    const fieldDiv = document.createElement('div');
+    fieldDiv.className = 'input-group mb-2';
+    fieldDiv.id = 'field_' + fieldId;
+    
+    fieldDiv.innerHTML = `
+        <input type="number" 
+               class="form-control admin-id-input" 
+               id="${fieldId}"
+               placeholder="Telegram ID (например: 811079407)" 
+               value="${value}"
+               min="1"
+               step="1">
+        <button class="btn btn-outline-danger" 
+                type="button" 
+                onclick="removeAdminIdField('field_${fieldId}')"
+                title="Удалить">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+    
+    container.appendChild(fieldDiv);
+}
+
+function removeAdminIdField(fieldId) {
+    const container = document.getElementById('adminIdsContainer');
+    const field = document.getElementById(fieldId);
+    if (field) {
+        field.remove();
+        
+        // Ensure at least one field remains
+        if (container.children.length === 0) {
+            addAdminIdField();
+        }
+    }
+}
+
+async function saveAdminIds() {
+    const errorDiv = document.getElementById('adminManagementError');
+    errorDiv.style.display = 'none';
+    errorDiv.textContent = '';
+    
+    // Collect all admin IDs from input fields
+    const inputs = document.querySelectorAll('.admin-id-input');
+    const adminIds = [];
+    
+    for (const input of inputs) {
+        const value = input.value.trim();
+        if (value) {
+            const id = parseInt(value, 10);
+            if (isNaN(id) || id <= 0) {
+                errorDiv.textContent = `Некорректное значение: "${value}". Введите положительное целое число.`;
+                errorDiv.style.display = 'block';
+                return;
+            }
+            adminIds.push(id);
+        }
+    }
+    
+    // Validation
+    if (adminIds.length === 0) {
+        errorDiv.textContent = 'Нельзя удалить всех администраторов. Должен остаться минимум 1 администратор.';
+        errorDiv.style.display = 'block';
+        return;
+    }
+    
+    if (adminIds.length > 50) {
+        errorDiv.textContent = 'Максимум 50 администраторов разрешено.';
+        errorDiv.style.display = 'block';
+        return;
+    }
+    
+    // Remove duplicates
+    const uniqueIds = [...new Set(adminIds)];
+    
+    // Show loading state
+    const saveButton = document.querySelector('#adminManagementModal .btn-primary');
+    const originalText = saveButton.innerHTML;
+    saveButton.disabled = true;
+    saveButton.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Сохранение...';
+    
+    try {
+        const response = await fetch('/api/admins/update', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ admin_ids: uniqueIds })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification(result.message, 'success');
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('adminManagementModal'));
+            modal.hide();
+            // Reload page after short delay
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            errorDiv.textContent = result.message || 'Ошибка при сохранении';
+            errorDiv.style.display = 'block';
+            saveButton.disabled = false;
+            saveButton.innerHTML = originalText;
+        }
+    } catch (error) {
+        errorDiv.textContent = 'Ошибка: ' + error.message;
+        errorDiv.style.display = 'block';
+        saveButton.disabled = false;
+        saveButton.innerHTML = originalText;
+    }
 }
 </script>
 {% endblock %}

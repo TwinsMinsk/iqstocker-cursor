@@ -1,16 +1,20 @@
 """Enhanced users management views for admin panel."""
 
-from fastapi import APIRouter, Request, Query, Path, Form
+import json
+import logging
+from fastapi import APIRouter, Request, Query, Path, Form, Body, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, desc, and_
-from typing import Optional
+from sqlalchemy import select, func, desc, and_, update
+from typing import Optional, List
 from datetime import datetime, timedelta
 
-from config.database import AsyncSessionLocal
-from database.models import User, SubscriptionType
+from config.database import AsyncSessionLocal, redis_client
+from database.models import User, SubscriptionType, SystemSettings
 from database.models import Limits, CSVAnalysis, Subscription, AnalyticsReport, ThemeRequest
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 templates = Jinja2Templates(directory="admin_panel/templates")
@@ -99,18 +103,54 @@ async def users_page(
         stats_result = await session.execute(stats_query)
         stats_by_type = dict(stats_result.fetchall())
         
-        # Get list of administrators
-        admins_query = select(User).where(User.is_admin == True).order_by(User.created_at)
-        admins_result = await session.execute(admins_query)
-        admins = admins_result.scalars().all()
+        # Get list of administrators from SystemSettings
+        admin_ids = []
+        try:
+            setting_query = select(SystemSettings).where(SystemSettings.key == "admin_ids")
+            setting_result = await session.execute(setting_query)
+            setting = setting_result.scalar_one_or_none()
+            
+            if setting:
+                admin_ids = json.loads(setting.value)
+            else:
+                # Fallback to hardcoded list if not in database
+                admin_ids = [811079407, 441882529]
+                logger.warning("admin_ids not found in SystemSettings, using fallback")
+        except Exception as e:
+            logger.error(f"Failed to load admin_ids from SystemSettings: {e}")
+            admin_ids = [811079407, 441882529]  # Fallback
+        
+        # Build admins_data by finding users for each admin_id
         admins_data = []
-        for admin in admins:
-            admins_data.append({
-                'user': admin,
-                'name': f"{admin.first_name or ''} {admin.last_name or ''}".strip() or admin.username or f"User {admin.id}",
-                'username': admin.username,
-                'telegram_id': admin.telegram_id
-            })
+        for admin_id in admin_ids:
+            # Find user by telegram_id
+            user_query = select(User).where(User.telegram_id == admin_id)
+            user_result = await session.execute(user_query)
+            user = user_result.scalar_one_or_none()
+            
+            if user:
+                # Sync is_admin flag
+                if not user.is_admin:
+                    user.is_admin = True
+                    await session.commit()
+                    await session.refresh(user)
+                
+                admins_data.append({
+                    'user': user,
+                    'name': f"{user.first_name or ''} {user.last_name or ''}".strip() or user.username or f"User {user.id}",
+                    'username': user.username,
+                    'telegram_id': user.telegram_id,
+                    'registered': True
+                })
+            else:
+                # Admin not registered in bot yet
+                admins_data.append({
+                    'user': None,
+                    'name': f"Не зарегистрирован",
+                    'username': None,
+                    'telegram_id': admin_id,
+                    'registered': False
+                })
         
         total_pages = (total_count + per_page - 1) // per_page
         
@@ -411,5 +451,99 @@ async def toggle_admin_status(user_id: int = Path(...)):
             return JSONResponse(
                 status_code=500,
                 content={"success": False, "message": f"Ошибка: {str(e)}"}
+            )
+
+
+@router.post("/api/admins/update", response_class=JSONResponse)
+async def update_admin_ids(request_body: dict = Body(...)):
+    """Update admin_ids list in SystemSettings."""
+    async with AsyncSessionLocal() as session:
+        try:
+            # Validate input
+            if "admin_ids" not in request_body:
+                raise HTTPException(status_code=400, detail="admin_ids field is required")
+            
+            admin_ids = request_body["admin_ids"]
+            
+            # Validation
+            if not isinstance(admin_ids, list):
+                raise HTTPException(status_code=400, detail="admin_ids must be a list")
+            
+            if len(admin_ids) == 0:
+                raise HTTPException(status_code=400, detail="Нельзя удалить всех администраторов. Должен остаться минимум 1 администратор.")
+            
+            if len(admin_ids) > 50:
+                raise HTTPException(status_code=400, detail="Максимум 50 администраторов разрешено.")
+            
+            # Validate each ID is a positive integer
+            validated_ids = []
+            for admin_id in admin_ids:
+                if not isinstance(admin_id, int) or admin_id <= 0:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Все admin_ids должны быть положительными целыми числами. Получено: {admin_id}"
+                    )
+                validated_ids.append(admin_id)
+            
+            # Remove duplicates while preserving order
+            validated_ids = list(dict.fromkeys(validated_ids))
+            
+            # Get or create SystemSettings entry
+            setting_query = select(SystemSettings).where(SystemSettings.key == "admin_ids")
+            setting_result = await session.execute(setting_query)
+            setting = setting_result.scalar_one_or_none()
+            
+            if setting:
+                # Update existing
+                setting.value = json.dumps(validated_ids)
+                setting.updated_at = datetime.utcnow()
+            else:
+                # Create new
+                setting = SystemSettings(
+                    key="admin_ids",
+                    value=json.dumps(validated_ids)
+                )
+                session.add(setting)
+            
+            await session.commit()
+            
+            # Sync User.is_admin flags
+            # Set is_admin=True for all users whose telegram_id is in validated_ids
+            all_users_query = select(User)
+            all_users_result = await session.execute(all_users_query)
+            all_users = all_users_result.scalars().all()
+            
+            for user in all_users:
+                if user.telegram_id in validated_ids:
+                    if not user.is_admin:
+                        user.is_admin = True
+                else:
+                    if user.is_admin:
+                        user.is_admin = False
+            
+            await session.commit()
+            
+            # Invalidate Redis cache
+            try:
+                cache_key = "admin_ids:list"
+                redis_client.delete(cache_key)
+                logger.info("Invalidated Redis cache for admin_ids")
+            except Exception as e:
+                logger.warning(f"Failed to invalidate Redis cache: {e}")
+            
+            return JSONResponse(content={
+                "success": True,
+                "message": f"Список администраторов успешно обновлен. Всего: {len(validated_ids)}",
+                "admin_ids": validated_ids
+            })
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            await session.rollback()
+            logger.error(f"Error updating admin_ids: {e}", exc_info=True)
+            return JSONResponse(
+                status_code=500,
+                content={"success": False, "message": f"Ошибка при обновлении: {str(e)}"}
             )
 

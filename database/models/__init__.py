@@ -16,6 +16,7 @@ from .audit_log import AuditLog
 from .llm_settings import LLMSettings, LLMProviderType
 from .asset_details import AssetDetails
 from .system_message import SystemMessage
+from .system_settings import SystemSettings
 from .lexicon_entry import LexiconEntry, LexiconCategory
 
 __all__ = [
@@ -39,6 +40,7 @@ __all__ = [
     "LLMProviderType",
     "AssetDetails",
     "SystemMessage",
+    "SystemSettings",
     "LexiconEntry",
     "LexiconCategory",
 ]

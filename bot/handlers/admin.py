@@ -1,6 +1,8 @@
 """Admin commands for bot management."""
 
 import asyncio
+import json
+import logging
 from datetime import datetime, timezone, timedelta
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -8,17 +10,19 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from sqlalchemy.orm import Session
 
-from config.database import SessionLocal
+from config.database import SessionLocal, redis_client
 from config.settings import settings
 from database.models import (
     User, SubscriptionType, ThemeRequest, UserIssuedTheme,
-    AnalyticsReport, CSVAnalysis, Limits
+    AnalyticsReport, CSVAnalysis, Limits, SystemSettings
 )
 from core.admin.broadcast_manager import get_broadcast_manager
 from bot.keyboards.main_menu import get_main_menu_keyboard
 from bot.lexicon import LEXICON_RU, LEXICON_COMMANDS_RU
 from bot.keyboards.admin import get_admin_tariff_keyboard
 from bot.keyboards.callbacks import ActionCallback
+
+logger = logging.getLogger(__name__)
 
 router = Router()
 
@@ -29,13 +33,52 @@ class AdminStates(StatesGroup):
 
 
 def is_admin(user_id: int) -> bool:
-    """Check if user is admin."""
-    import os
-    # Список ID админов
-    admin_ids = [
-        811079407,  # Основной админ
-        441882529,  # Новый админ
-    ]
+    """Check if user is admin.
+    
+    Loads admin IDs from database with Redis caching (TTL 1 hour).
+    Falls back to hardcoded list if database is unavailable.
+    """
+    cache_key = "admin_ids:list"
+    cache_ttl = 3600  # 1 hour
+    
+    # Try Redis cache first
+    try:
+        cached_data = redis_client.get(cache_key)
+        if cached_data:
+            admin_ids = json.loads(cached_data)
+            return user_id in admin_ids
+    except Exception as e:
+        logger.warning(f"Failed to load admin_ids from Redis cache: {e}")
+    
+    # Load from database
+    admin_ids = None
+    try:
+        db = SessionLocal()
+        try:
+            setting = db.query(SystemSettings).filter(
+                SystemSettings.key == "admin_ids"
+            ).first()
+            
+            if setting:
+                admin_ids = json.loads(setting.value)
+                # Cache the result
+                try:
+                    redis_client.setex(cache_key, cache_ttl, setting.value)
+                except Exception as e:
+                    logger.warning(f"Failed to cache admin_ids: {e}")
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"Failed to load admin_ids from database: {e}")
+    
+    # Fallback to hardcoded list if database unavailable or no setting found
+    if admin_ids is None:
+        logger.warning("Using fallback hardcoded admin_ids list")
+        admin_ids = [
+            811079407,  # Основной админ
+            441882529,  # Новый админ
+        ]
+    
     return user_id in admin_ids
 
 
