@@ -206,7 +206,10 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
                     # Payments category - only specific keys
                     elif key in ['payment_pro_std_details', 'payment_ultra_std_details', 
                                 'payment_link_error', 'payment_pro_test_discount', 
-                                'payment_ultra_test_discount']:
+                                'payment_ultra_test_discount',
+                                'payment_pro_with_discount', 'payment_pro_without_discount',
+                                'payment_ultra_with_discount', 'payment_ultra_without_discount',
+                                'payment_pro_analytics_upgrade']:
                         categories['payments']['items'][key] = value
                     elif key.startswith('faq'):
                         categories['faq']['items'][key] = value

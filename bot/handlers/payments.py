@@ -15,6 +15,64 @@ from bot.utils.safe_edit import safe_edit_message
 router = Router()
 
 
+@router.callback_query(F.data == "upgrade_pro_from_analytics")
+async def upgrade_pro_from_analytics_callback(callback: CallbackQuery, user: User):
+    """Handle PRO subscription upgrade from Analytics section."""
+    
+    payment_handler = get_payment_handler()
+    discount_percent = payment_handler.calculate_discount(user, SubscriptionType.PRO)
+    
+    # Create payment link
+    async with payment_handler as handler:
+        payment_url = await handler.create_subscription_link(
+            user.id, 
+            SubscriptionType.PRO, 
+            discount_percent
+        )
+    
+    if not payment_url:
+        await safe_edit_message(
+            callback=callback,
+            text=LEXICON_RU['payment_link_error'],
+            reply_markup=get_main_menu_keyboard(user.subscription_type)
+        )
+        await callback.answer()
+        return
+    
+    # Get subscription data for price formatting
+    subscription_data = payment_handler._get_subscription_data(SubscriptionType.PRO, discount_percent)
+    
+    # Format price text
+    if discount_percent > 0:
+        price_text = f"~~{subscription_data['original_price']}₽~~ <b>{subscription_data['price']}₽</b> ({discount_percent}% скидка)"
+        discount_message = f"\n🎉 <b>Скидка {discount_percent}%!</b>"
+    else:
+        price_text = f"<b>{subscription_data['price']}₽/месяц</b>"
+        discount_message = ""
+    
+    # Use single message key for analytics upgrade
+    payment_text = LEXICON_RU['payment_pro_analytics_upgrade'].format(
+        price_text=price_text,
+        discount_message=discount_message
+    )
+    
+    keyboard = [
+        [
+            InlineKeyboardButton(text="💳 Оплатить", url=payment_url)
+        ],
+        [
+            InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
+        ]
+    ]
+    
+    await safe_edit_message(
+        callback=callback,
+        text=payment_text,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
+    )
+    await callback.answer()
+
+
 @router.callback_query(F.data == "upgrade_pro")
 async def upgrade_pro_callback(callback: CallbackQuery, user: User):
     """Handle PRO subscription upgrade."""
