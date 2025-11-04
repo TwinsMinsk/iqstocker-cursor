@@ -148,11 +148,11 @@ def get_profile_free_offer_keyboard(from_analytics: bool = False) -> InlineKeybo
     builder = InlineKeyboardBuilder()
     builder.button(
         text=LEXICON_COMMANDS_RU['button_subscribe_pro_std'],
-        callback_data=PaymentCallbackData(plan="pro").pack()
+        callback_data=PaymentCallbackData(plan="pro", from_analytics=from_analytics).pack()
     )
     builder.button(
         text=LEXICON_COMMANDS_RU['button_subscribe_ultra_std'],
-        callback_data=PaymentCallbackData(plan="ultra").pack()
+        callback_data=PaymentCallbackData(plan="ultra", from_analytics=from_analytics).pack()
     )
     
     # Если пришли из аналитики, добавляем кнопку "Назад в аналитику"
@@ -198,8 +198,12 @@ def get_profile_pro_compare_keyboard(from_analytics: bool = False) -> InlineKeyb
     """Клавиатура для сравнения тарифов PRO и ULTRA."""
     builder = InlineKeyboardBuilder()
     builder.button(
+        text=LEXICON_COMMANDS_RU['button_subscribe_pro_std'],
+        callback_data=PaymentCallbackData(plan="pro", from_analytics=from_analytics).pack()
+    )
+    builder.button(
         text=LEXICON_COMMANDS_RU['button_go_to_ultra'],
-        callback_data=PaymentCallbackData(plan="ultra").pack()
+        callback_data=PaymentCallbackData(plan="ultra", from_analytics=from_analytics).pack()
     )
     
     # Если пришли из аналитики, добавляем кнопку "Назад в аналитику"

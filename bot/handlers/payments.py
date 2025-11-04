@@ -374,7 +374,7 @@ async def payment_pro_test_discount_callback(callback: CallbackQuery, user: User
 
 
 @router.callback_query(PaymentCallbackData.filter(F.plan == "pro"))
-async def payment_pro_std_callback(callback: CallbackQuery, user: User):
+async def payment_pro_std_callback(callback: CallbackQuery, callback_data: PaymentCallbackData, user: User):
     """Handle PRO subscription without discount."""
 
     payment_handler = get_payment_handler()
@@ -395,9 +395,15 @@ async def payment_pro_std_callback(callback: CallbackQuery, user: User):
         await callback.answer()
         return
 
+    # Определяем кнопку "Назад" в зависимости от того, откуда пришли
+    if callback_data.from_analytics:
+        back_button = [InlineKeyboardButton(text="◀️ Назад", callback_data="analytics")]
+    else:
+        back_button = [InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_back_profile'], callback_data=ProfileCallbackData(action="back_to_profile").pack())]
+
     keyboard = [
         [InlineKeyboardButton(text="💳 Оплатить PRO", url=payment_url)],
-        [InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_back_profile'], callback_data=ProfileCallbackData(action="back_to_profile").pack())],
+        back_button,
         [InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")]
     ]
 
@@ -463,7 +469,7 @@ async def payment_ultra_test_discount_callback(callback: CallbackQuery, user: Us
 
 
 @router.callback_query(PaymentCallbackData.filter(F.plan == "ultra"))
-async def payment_ultra_std_callback(callback: CallbackQuery, user: User):
+async def payment_ultra_std_callback(callback: CallbackQuery, callback_data: PaymentCallbackData, user: User):
     """Handle ULTRA subscription without discount."""
 
     payment_handler = get_payment_handler()
@@ -484,9 +490,15 @@ async def payment_ultra_std_callback(callback: CallbackQuery, user: User):
         await callback.answer()
         return
 
+    # Определяем кнопку "Назад" в зависимости от того, откуда пришли
+    if callback_data.from_analytics:
+        back_button = [InlineKeyboardButton(text="◀️ Назад", callback_data="analytics")]
+    else:
+        back_button = [InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_back_profile'], callback_data=ProfileCallbackData(action="back_to_profile").pack())]
+
     keyboard = [
         [InlineKeyboardButton(text="💳 Оплатить ULTRA", url=payment_url)],
-        [InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_back_profile'], callback_data=ProfileCallbackData(action="back_to_profile").pack())],
+        back_button,
         [InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")]
     ]
 
