@@ -200,14 +200,53 @@ async def handle_csv_upload(message: Message, state: FSMContext, user: User, lim
         return
     
     if limits.analytics_remaining <= 0:
-        # Отправляем сообщение об исчерпании лимитов и удаляем оба сообщения через 15 секунд
+        # Отправляем сообщение об исчерпании лимитов и удаляем оба сообщения через 20 секунд в фоне
         limit_msg = await message.answer(LEXICON_RU['limits_analytics_exhausted'])
-        await asyncio.sleep(15)
-        try:
-            await message.delete()
-            await limit_msg.delete()
-        except Exception:
-            pass  # Игнорируем ошибки удаления (например, если сообщение уже удалено)
+        
+        # Создаем фоновую задачу для удаления сообщений, чтобы не блокировать handler
+        async def delete_messages_after_delay():
+            await asyncio.sleep(20)
+            try:
+                await message.delete()
+                await limit_msg.delete()
+            except Exception:
+                pass  # Игнорируем ошибки удаления (например, если сообщение уже удалено)
+            
+            # Возвращаем пользователя в раздел "Аналитика портфеля"
+            try:
+                db = SessionLocal()
+                try:
+                    completed_analyses = db.query(CSVAnalysis).filter(
+                        CSVAnalysis.user_id == user.id,
+                        CSVAnalysis.status == AnalysisStatus.COMPLETED
+                    ).order_by(desc(CSVAnalysis.created_at)).all()
+                    
+                    if not completed_analyses:
+                        # No reports - show intro with CSV guide
+                        await message.answer(
+                            text=LEXICON_RU['analytics_intro'],
+                            reply_markup=get_analytics_intro_keyboard(has_reports=False)
+                        )
+                    else:
+                        # Has reports - show list of reports
+                        reports = []
+                        for analysis in completed_analyses:
+                            if analysis.analytics_report:
+                                reports.append(analysis.analytics_report)
+                        
+                        # User can't create new analysis (limits exhausted)
+                        await message.answer(
+                            text=LEXICON_RU['analytics_list_title'],
+                            reply_markup=get_analytics_list_keyboard(reports, can_create_new=False, subscription_type=user.subscription_type)
+                        )
+                finally:
+                    db.close()
+            except Exception:
+                # Если не удалось показать меню аналитики, просто игнорируем ошибку
+                pass
+        
+        # Запускаем фоновую задачу
+        asyncio.create_task(delete_messages_after_delay())
         return
     
     document: Document = message.document
