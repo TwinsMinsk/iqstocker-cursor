@@ -16,20 +16,16 @@ router = Router()
 async def calendar_callback(callback: CallbackQuery, user: User):
     """Handle calendar callback."""
     
-    # Платные тарифы, которые получают расширенный календарь
-    paid_tariffs = [
-        SubscriptionType.PRO, 
-        SubscriptionType.ULTRA, 
-        SubscriptionType.TEST_PRO
-    ]
-    
     # Показываем календарь в зависимости от тарифа
-    if user.subscription_type in paid_tariffs:
-        # Расширенный календарь для PRO/ULTRA/TEST_PRO
-        calendar_text = LEXICON_RU['calendar_pro_ultra']
-    else:
-        # Ограниченный календарь для FREE
+    if user.subscription_type == SubscriptionType.FREE:
+        # Календарь для FREE тарифа
         calendar_text = LEXICON_RU['calendar_free']
+    elif user.subscription_type == SubscriptionType.ULTRA:
+        # Расширенный календарь для ULTRA тарифа
+        calendar_text = LEXICON_RU['calendar_ultra']
+    else:
+        # Календарь для TEST_PRO и PRO тарифов
+        calendar_text = LEXICON_RU['calendar_test_pro_pro']
     
     await safe_edit_message(
         callback=callback,
