@@ -8,8 +8,8 @@ from config.database import SessionLocal
 from database.models import User, SubscriptionType, Limits
 from core.payments.tribute_handler import get_payment_handler
 from bot.keyboards.main_menu import get_main_menu_keyboard
-from bot.keyboards.callbacks import PaymentCallbackData
-from bot.lexicon import LEXICON_RU
+from bot.keyboards.callbacks import PaymentCallbackData, ProfileCallbackData
+from bot.lexicon import LEXICON_RU, LEXICON_COMMANDS_RU
 from bot.utils.safe_edit import safe_edit_message
 
 router = Router()
@@ -59,6 +59,9 @@ async def upgrade_pro_from_analytics_callback(callback: CallbackQuery, user: Use
     keyboard = [
         [
             InlineKeyboardButton(text="💳 Оплатить", url=payment_url)
+        ],
+        [
+            InlineKeyboardButton(text="↩️ Назад в аналитику", callback_data="analytics")
         ],
         [
             InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
@@ -120,6 +123,9 @@ async def upgrade_pro_callback(callback: CallbackQuery, user: User):
             InlineKeyboardButton(text="📊 Сравнить тарифы", callback_data="compare_subscriptions")
         ],
         [
+            InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_back_profile'], callback_data=ProfileCallbackData(action="back_to_profile").pack())
+        ],
+        [
             InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
         ]
     ]
@@ -179,6 +185,9 @@ async def upgrade_ultra_callback(callback: CallbackQuery, user: User):
             InlineKeyboardButton(text="📊 Сравнить тарифы", callback_data="compare_subscriptions")
         ],
         [
+            InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_back_profile'], callback_data=ProfileCallbackData(action="back_to_profile").pack())
+        ],
+        [
             InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
         ]
     ]
@@ -224,6 +233,9 @@ async def compare_subscriptions_callback(callback: CallbackQuery, user: User):
             InlineKeyboardButton(text="🚀 Перейти на ULTRA", callback_data="upgrade_ultra")
         ],
         [
+            InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_back_profile'], callback_data=ProfileCallbackData(action="back_to_profile").pack())
+        ],
+        [
             InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
         ]
     ]
@@ -257,6 +269,9 @@ async def compare_free_pro_callback(callback: CallbackQuery, user: User):
             InlineKeyboardButton(text="🏆 Перейти на PRO", callback_data="upgrade_pro")
         ],
         [
+            InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_back_profile'], callback_data=ProfileCallbackData(action="back_to_profile").pack())
+        ],
+        [
             InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
         ]
     ]
@@ -288,6 +303,9 @@ async def compare_pro_ultra_callback(callback: CallbackQuery, user: User):
     keyboard = [
         [
             InlineKeyboardButton(text="🚀 Перейти на ULTRA", callback_data="upgrade_ultra")
+        ],
+        [
+            InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_back_profile'], callback_data=ProfileCallbackData(action="back_to_profile").pack())
         ],
         [
             InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
@@ -340,6 +358,9 @@ async def payment_pro_test_discount_callback(callback: CallbackQuery, user: User
             InlineKeyboardButton(text="💳 Оплатить PRO", url=payment_url)
         ],
         [
+            InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_back_profile'], callback_data=ProfileCallbackData(action="back_to_profile").pack())
+        ],
+        [
             InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
         ]
     ]
@@ -376,6 +397,7 @@ async def payment_pro_std_callback(callback: CallbackQuery, user: User):
 
     keyboard = [
         [InlineKeyboardButton(text="💳 Оплатить PRO", url=payment_url)],
+        [InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_back_profile'], callback_data=ProfileCallbackData(action="back_to_profile").pack())],
         [InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")]
     ]
 
@@ -425,6 +447,9 @@ async def payment_ultra_test_discount_callback(callback: CallbackQuery, user: Us
             InlineKeyboardButton(text="💳 Оплатить ULTRA", url=payment_url)
         ],
         [
+            InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_back_profile'], callback_data=ProfileCallbackData(action="back_to_profile").pack())
+        ],
+        [
             InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
         ]
     ]
@@ -461,6 +486,7 @@ async def payment_ultra_std_callback(callback: CallbackQuery, user: User):
 
     keyboard = [
         [InlineKeyboardButton(text="💳 Оплатить ULTRA", url=payment_url)],
+        [InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_back_profile'], callback_data=ProfileCallbackData(action="back_to_profile").pack())],
         [InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")]
     ]
 

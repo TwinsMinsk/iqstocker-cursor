@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from config.database import SessionLocal
 from database.models import User, Limits, SubscriptionType
 from config.settings import settings
-from bot.lexicon import LEXICON_RU
+from bot.lexicon import LEXICON_RU, LEXICON_COMMANDS_RU
 from bot.keyboards.profile import (
     get_profile_keyboard,
     get_profile_test_pro_keyboard,
@@ -332,10 +332,22 @@ PRO подписка включает:
 
 Для оформления подписки перейди по ссылке: [Boosty PRO](https://boosty.to/iqstocker/pro)"""
     
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    
+    # Create keyboard with back button
+    keyboard = [
+        [
+            InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_back_profile'], callback_data=ProfileCallbackData(action="back_to_profile").pack())
+        ],
+        [
+            InlineKeyboardButton(text=LEXICON_COMMANDS_RU['back_to_main_menu'], callback_data="main_menu")
+        ]
+    ]
+    
     await safe_edit_message(
         callback=callback,
         text=upgrade_text,
-        reply_markup=get_profile_keyboard(user.subscription_type)
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
     )
 
 
@@ -363,10 +375,22 @@ async def upgrade_ultra_callback(callback: CallbackQuery, user: User):
         discount_message=discount_message
     )
     
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    
+    # Create keyboard with back button
+    keyboard = [
+        [
+            InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_back_profile'], callback_data=ProfileCallbackData(action="back_to_profile").pack())
+        ],
+        [
+            InlineKeyboardButton(text=LEXICON_COMMANDS_RU['back_to_main_menu'], callback_data="main_menu")
+        ]
+    ]
+    
     await safe_edit_message(
         callback=callback,
         text=upgrade_text,
-        reply_markup=get_profile_keyboard(user.subscription_type)
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
     )
     await callback.answer()
 

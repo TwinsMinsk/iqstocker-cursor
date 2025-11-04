@@ -70,6 +70,10 @@ def get_profile_offer_keyboard() -> InlineKeyboardMarkup:
         callback_data=PaymentCallbackData(plan="ultra_test_discount").pack()
     )
     builder.button(
+        text=LEXICON_COMMANDS_RU['button_back_profile'],
+        callback_data=ProfileCallbackData(action="back_to_profile").pack()
+    )
+    builder.button(
         text=LEXICON_COMMANDS_RU['button_back_to_menu'],
         callback_data=CommonCallbackData(action="main_menu").pack()
     )
