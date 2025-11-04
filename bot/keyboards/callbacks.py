@@ -57,6 +57,7 @@ class ProfileCallback(CallbackData, prefix="profile"):
 class ProfileCallbackData(CallbackData, prefix="prof"):
     """Callback data for profile section actions."""
     action: str
+    from_analytics: bool = False  # Флаг, указывающий, что переход произошел из аналитики
 
 
 class CommonCallbackData(CallbackData, prefix="common"):

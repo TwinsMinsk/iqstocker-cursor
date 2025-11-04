@@ -135,12 +135,15 @@ async def profile_callback(callback: CallbackQuery, user: User, limits: Limits):
 
 
 @router.callback_query(ProfileCallbackData.filter(F.action == "limits_help"))
-async def show_limits_help(callback: CallbackQuery):
+async def show_limits_help(callback: CallbackQuery, callback_data: ProfileCallbackData):
     """Показывает информацию о лимитах в отдельном сообщении."""
+    # Определяем, откуда пришли (из аналитики или из профиля)
+    from_analytics = callback_data.from_analytics
+    
     await safe_edit_message(
         callback=callback,
         text=LEXICON_RU['profile_limits_help'],
-        reply_markup=get_profile_limits_help_keyboard()
+        reply_markup=get_profile_limits_help_keyboard(from_analytics=from_analytics)
     )
 
 
@@ -257,23 +260,29 @@ async def show_compare_free_pro(callback: CallbackQuery):
 
 
 @router.callback_query(ProfileCallbackData.filter(F.action == "compare_pro_ultra"))
-async def show_compare_pro_ultra(callback: CallbackQuery):
+async def show_compare_pro_ultra(callback: CallbackQuery, callback_data: ProfileCallbackData):
     """Показывает экран сравнения PRO vs ULTRA."""
+    # Определяем, откуда пришли (из аналитики или из профиля)
+    from_analytics = callback_data.from_analytics
+    
     await safe_edit_message(
         callback=callback,
         text=LEXICON_RU['profile_pro_compare'],
-        reply_markup=get_profile_pro_compare_keyboard(),
+        reply_markup=get_profile_pro_compare_keyboard(from_analytics=from_analytics),
         parse_mode="HTML"
     )
 
 
 @router.callback_query(ProfileCallbackData.filter(F.action == "show_free_offer"))
-async def show_free_payment_offer(callback: CallbackQuery):
+async def show_free_payment_offer(callback: CallbackQuery, callback_data: ProfileCallbackData):
     """Показывает сообщение с предложением о покупке для FREE."""
+    # Определяем, откуда пришли (из аналитики или из профиля)
+    from_analytics = callback_data.from_analytics
+    
     await safe_edit_message(
         callback=callback,
         text=LEXICON_RU.get('profile_free_offer', "Выберите тариф:"),
-        reply_markup=get_profile_free_offer_keyboard()
+        reply_markup=get_profile_free_offer_keyboard(from_analytics=from_analytics)
     )
 
 

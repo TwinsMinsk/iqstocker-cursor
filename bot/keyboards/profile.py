@@ -81,14 +81,22 @@ def get_profile_offer_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def get_profile_limits_help_keyboard() -> InlineKeyboardMarkup:
+def get_profile_limits_help_keyboard(from_analytics: bool = False) -> InlineKeyboardMarkup:
     """Клавиатура для экрана помощи по лимитам."""
     builder = InlineKeyboardBuilder()
     
-    builder.button(
-        text=LEXICON_COMMANDS_RU['button_back_profile'],
-        callback_data=ProfileCallbackData(action="back_to_profile").pack()
-    )
+    # Если пришли из аналитики, добавляем кнопку "Назад в аналитику"
+    if from_analytics:
+        builder.button(
+            text="◀️ Назад",
+            callback_data="analytics"
+        )
+    else:
+        builder.button(
+            text=LEXICON_COMMANDS_RU['button_back_profile'],
+            callback_data=ProfileCallbackData(action="back_to_profile").pack()
+        )
+    
     builder.adjust(1)
     return builder.as_markup()
 
@@ -135,7 +143,7 @@ def get_profile_compare_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def get_profile_free_offer_keyboard() -> InlineKeyboardMarkup:
+def get_profile_free_offer_keyboard(from_analytics: bool = False) -> InlineKeyboardMarkup:
     """Клавиатура для предложения о покупке (из профиля FREE)."""
     builder = InlineKeyboardBuilder()
     builder.button(
@@ -146,10 +154,19 @@ def get_profile_free_offer_keyboard() -> InlineKeyboardMarkup:
         text=LEXICON_COMMANDS_RU['button_subscribe_ultra_std'],
         callback_data=PaymentCallbackData(plan="ultra").pack()
     )
-    builder.button(
-        text=LEXICON_COMMANDS_RU['button_back_profile'],
-        callback_data=ProfileCallbackData(action="back_to_profile").pack()
-    )
+    
+    # Если пришли из аналитики, добавляем кнопку "Назад в аналитику"
+    if from_analytics:
+        builder.button(
+            text="◀️ Назад",
+            callback_data="analytics"
+        )
+    else:
+        builder.button(
+            text=LEXICON_COMMANDS_RU['button_back_profile'],
+            callback_data=ProfileCallbackData(action="back_to_profile").pack()
+        )
+    
     builder.adjust(1)
     return builder.as_markup()
 
@@ -177,17 +194,26 @@ def get_profile_pro_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def get_profile_pro_compare_keyboard() -> InlineKeyboardMarkup:
+def get_profile_pro_compare_keyboard(from_analytics: bool = False) -> InlineKeyboardMarkup:
     """Клавиатура для сравнения тарифов PRO и ULTRA."""
     builder = InlineKeyboardBuilder()
     builder.button(
         text=LEXICON_COMMANDS_RU['button_go_to_ultra'],
         callback_data=PaymentCallbackData(plan="ultra").pack()
     )
-    builder.button(
-        text=LEXICON_COMMANDS_RU['button_back_profile'],
-        callback_data=ProfileCallbackData(action="back_to_profile").pack()
-    )
+    
+    # Если пришли из аналитики, добавляем кнопку "Назад в аналитику"
+    if from_analytics:
+        builder.button(
+            text="◀️ Назад",
+            callback_data="analytics"
+        )
+    else:
+        builder.button(
+            text=LEXICON_COMMANDS_RU['button_back_profile'],
+            callback_data=ProfileCallbackData(action="back_to_profile").pack()
+        )
+    
     builder.button(
         text=LEXICON_COMMANDS_RU['button_back_to_menu'],
         callback_data=CommonCallbackData(action="main_menu").pack()
