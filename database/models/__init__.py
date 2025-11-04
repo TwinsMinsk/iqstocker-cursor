@@ -18,6 +18,7 @@ from .asset_details import AssetDetails
 from .system_message import SystemMessage
 from .system_settings import SystemSettings
 from .lexicon_entry import LexiconEntry, LexiconCategory
+from .tariff_limits import TariffLimits
 
 __all__ = [
     "Base",
@@ -43,4 +44,5 @@ __all__ = [
     "SystemSettings",
     "LexiconEntry",
     "LexiconCategory",
+    "TariffLimits",
 ]

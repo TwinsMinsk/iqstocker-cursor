@@ -2,7 +2,7 @@
 
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from database.models import SubscriptionType, AnalyticsReport
-from bot.lexicon.lexicon_ru import LEXICON_COMMANDS_RU
+from bot.lexicon import LEXICON_COMMANDS_RU
 
 
 def get_analytics_list_keyboard(reports: list, can_create_new: bool, subscription_type: SubscriptionType) -> InlineKeyboardMarkup:

@@ -14,7 +14,7 @@ except ImportError:
     asyncpg = None  # type: ignore
 
 from config.database import AsyncSessionLocal
-from bot.lexicon.lexicon_ru import LEXICON_RU
+from bot.lexicon import LEXICON_RU
 
 logger = logging.getLogger(__name__)
 

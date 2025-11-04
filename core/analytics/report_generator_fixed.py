@@ -5,7 +5,7 @@ from typing import Dict, Any
 from core.analytics.advanced_csv_processor import AdvancedProcessResult
 from core.analytics.recommendation_engine import RecommendationEngine
 from core.utils.html_cleaner import safe_format_for_telegram
-from bot.lexicon.lexicon_ru import LEXICON_RU
+from bot.lexicon import LEXICON_RU
 
 
 class FixedReportGenerator:

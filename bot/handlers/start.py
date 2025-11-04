@@ -11,10 +11,10 @@ from sqlalchemy import select
 
 from config.settings import settings
 from database.models import User, SubscriptionType, Limits
-from bot.lexicon import LEXICON_RU
-from bot.lexicon.lexicon_ru import LEXICON_COMMANDS_RU
+from bot.lexicon import LEXICON_RU, LEXICON_COMMANDS_RU
 from bot.keyboards.main_menu import get_main_menu_keyboard
 from bot.utils.safe_edit import safe_edit_message
+from core.tariffs.tariff_service import TariffService
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -51,10 +51,18 @@ async def start_command(message: Message, state: FSMContext, session: AsyncSessi
 
 async def create_new_user(message: Message, session: AsyncSession) -> User:
     """Create new user with TEST_PRO subscription."""
+    from sqlalchemy.ext.asyncio import AsyncSession as AsyncSessionType
+    
     now_aware = datetime.now(timezone.utc)
     # Convert to naive datetime for database (TIMESTAMP WITHOUT TIME ZONE)
     now = now_aware.replace(tzinfo=None)
-    test_pro_expires = (now_aware + timedelta(days=14)).replace(tzinfo=None)
+    
+    # Get TEST_PRO limits from tariff service
+    # Note: TariffService uses sync Session, but we can get limits before async operations
+    tariff_service = TariffService()
+    test_pro_limits = tariff_service.get_tariff_limits(SubscriptionType.TEST_PRO)
+    test_pro_duration = tariff_service.get_test_pro_duration_days()
+    test_pro_expires = (now_aware + timedelta(days=test_pro_duration)).replace(tzinfo=None)
     
     user = User(
         telegram_id=message.from_user.id,
@@ -74,10 +82,11 @@ async def create_new_user(message: Message, session: AsyncSession) -> User:
     # Create limits for new user with TEST_PRO benefits
     limits = Limits(
         user_id=user.id,
-        analytics_total=settings.test_pro_analytics_limit,  # 1 аналитика для тестового периода
+        analytics_total=test_pro_limits['analytics_limit'],
         analytics_used=0,
-        themes_total=settings.test_pro_themes_limit,  # 4 темы для тестового периода
-        themes_used=0
+        themes_total=test_pro_limits['themes_limit'],
+        themes_used=0,
+        theme_cooldown_days=test_pro_limits['theme_cooldown_days']
     )
     session.add(limits)
     await session.commit()  # Сохраняем нового юзера
@@ -121,8 +130,10 @@ async def handle_existing_user(message: Message, user: User, session: AsyncSessi
             
             # Update limits to FREE level
             if user.limits:
-                user.limits.analytics_total = 0
-                user.limits.themes_total = 1
+                tariff_service = TariffService()
+                free_limits = tariff_service.get_tariff_limits(SubscriptionType.FREE)
+                user.limits.analytics_total = free_limits['analytics_limit']
+                user.limits.themes_total = free_limits['themes_limit']
             
             await session.commit()  # Сохраняем изменения
     

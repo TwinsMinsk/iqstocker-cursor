@@ -2,7 +2,7 @@
 
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from database.models import SubscriptionType
-from bot.lexicon.lexicon_ru import LEXICON_COMMANDS_RU
+from bot.lexicon import LEXICON_COMMANDS_RU
 
 
 def get_main_menu_keyboard(subscription_type: SubscriptionType) -> InlineKeyboardMarkup:

@@ -4,7 +4,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardMarkup
 
 from bot.keyboards.callbacks import ThemesCallback
-from bot.lexicon.lexicon_ru import LEXICON_COMMANDS_RU
+from bot.lexicon import LEXICON_COMMANDS_RU
 
 
 def get_themes_menu_keyboard(has_archive: bool = False) -> InlineKeyboardMarkup:

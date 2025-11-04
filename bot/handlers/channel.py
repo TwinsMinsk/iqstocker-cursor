@@ -4,8 +4,7 @@ from aiogram import Router, F
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from database.models import User
 
-from bot.lexicon import LEXICON_RU
-from bot.lexicon.lexicon_ru import LEXICON_COMMANDS_RU
+from bot.lexicon import LEXICON_RU, LEXICON_COMMANDS_RU
 from bot.keyboards.main_menu import get_main_menu_keyboard
 from bot.utils.safe_edit import safe_edit_message
 

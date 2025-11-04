@@ -17,8 +17,7 @@ from config.database import SessionLocal
 from database.models import User, SubscriptionType, AnalysisStatus, Limits
 from database.models.csv_analysis import CSVAnalysis
 from database.models.analytics_report import AnalyticsReport
-from bot.lexicon import LEXICON_RU
-from bot.lexicon.lexicon_ru import LEXICON_COMMANDS_RU
+from bot.lexicon import LEXICON_RU, LEXICON_COMMANDS_RU
 from bot.keyboards.main_menu import get_main_menu_keyboard
 from bot.keyboards.analytics import get_analytics_list_keyboard, get_analytics_report_view_keyboard, get_analytics_unavailable_keyboard, get_analytics_intro_keyboard, get_csv_instruction_keyboard
 from bot.states.analytics import AnalyticsStates

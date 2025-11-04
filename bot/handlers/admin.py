@@ -619,36 +619,48 @@ async def admin_set_tariff(callback: CallbackQuery, callback_data: ActionCallbac
 
 def set_admin_subscription(user: User, limits: Limits, target_type: str):
     from datetime import datetime, timedelta
+    from core.tariffs.tariff_service import TariffService
 
     now = datetime.utcnow()
+    tariff_service = TariffService()
+    
     if target_type == "TEST_PRO":
         user.subscription_type = SubscriptionType.TEST_PRO
-        user.subscription_expires_at = now + timedelta(days=settings.test_pro_duration_days)
-        limits.analytics_total = settings.test_pro_analytics_limit
+        test_pro_limits = tariff_service.get_tariff_limits(SubscriptionType.TEST_PRO)
+        test_pro_duration = tariff_service.get_test_pro_duration_days()
+        user.subscription_expires_at = now + timedelta(days=test_pro_duration)
+        limits.analytics_total = test_pro_limits['analytics_limit']
         limits.analytics_used = 0
-        limits.themes_total = settings.test_pro_themes_limit
+        limits.themes_total = test_pro_limits['themes_limit']
         limits.themes_used = 0
+        limits.theme_cooldown_days = test_pro_limits['theme_cooldown_days']
     elif target_type == "FREE":
         user.subscription_type = SubscriptionType.FREE
         user.subscription_expires_at = None
-        limits.analytics_total = settings.free_analytics_limit
+        free_limits = tariff_service.get_tariff_limits(SubscriptionType.FREE)
+        limits.analytics_total = free_limits['analytics_limit']
         limits.analytics_used = 0
-        limits.themes_total = settings.free_themes_limit
+        limits.themes_total = free_limits['themes_limit']
         limits.themes_used = 0
+        limits.theme_cooldown_days = free_limits['theme_cooldown_days']
     elif target_type == "PRO":
         user.subscription_type = SubscriptionType.PRO
         user.subscription_expires_at = now + timedelta(days=30)
-        limits.analytics_total = settings.pro_analytics_limit
+        pro_limits = tariff_service.get_tariff_limits(SubscriptionType.PRO)
+        limits.analytics_total = pro_limits['analytics_limit']
         limits.analytics_used = 0
-        limits.themes_total = settings.pro_themes_limit
+        limits.themes_total = pro_limits['themes_limit']
         limits.themes_used = 0
+        limits.theme_cooldown_days = pro_limits['theme_cooldown_days']
     elif target_type == "ULTRA":
         user.subscription_type = SubscriptionType.ULTRA
         user.subscription_expires_at = now + timedelta(days=30)
-        limits.analytics_total = settings.ultra_analytics_limit
+        ultra_limits = tariff_service.get_tariff_limits(SubscriptionType.ULTRA)
+        limits.analytics_total = ultra_limits['analytics_limit']
         limits.analytics_used = 0
-        limits.themes_total = settings.ultra_themes_limit
+        limits.themes_total = ultra_limits['themes_limit']
         limits.themes_used = 0
+        limits.theme_cooldown_days = ultra_limits['theme_cooldown_days']
     else:
         raise ValueError("Unsupported subscription type")
 

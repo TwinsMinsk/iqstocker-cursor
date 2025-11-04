@@ -3,7 +3,7 @@
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardMarkup
 
-from bot.lexicon.lexicon_ru import LEXICON_COMMANDS_RU
+from bot.lexicon import LEXICON_COMMANDS_RU
 from bot.keyboards.callbacks import ActionCallback
 
 

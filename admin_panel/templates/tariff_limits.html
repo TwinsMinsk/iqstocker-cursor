@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block title %}Управление тарифами - IQStocker Admin{% endblock %}
+
+{% block page_title %}
+<i class="fas fa-cog me-2"></i>Управление тарифами
+{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item active">Управление тарифами</li>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        {% for tariff_type, limits in tariff_data.items() %}
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-tag me-2"></i>Тариф {{ tariff_type }}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form id="form-{{ tariff_type }}" class="tariff-form">
+                        <input type="hidden" name="subscription_type" value="{{ tariff_type }}">
+                        
+                        <div class="mb-3">
+                            <label for="analytics_limit_{{ tariff_type }}" class="form-label">
+                                <i class="fas fa-chart-bar me-1"></i>Аналитика портфеля (в месяц)
+                            </label>
+                            <input 
+                                type="number" 
+                                class="form-control" 
+                                id="analytics_limit_{{ tariff_type }}"
+                                name="analytics_limit" 
+                                value="{{ limits.analytics_limit }}"
+                                min="0"
+                                required
+                            >
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="themes_limit_{{ tariff_type }}" class="form-label">
+                                <i class="fas fa-palette me-1"></i>Темы (в месяц)
+                            </label>
+                            <input 
+                                type="number" 
+                                class="form-control" 
+                                id="themes_limit_{{ tariff_type }}"
+                                name="themes_limit" 
+                                value="{{ limits.themes_limit }}"
+                                min="0"
+                                required
+                            >
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="theme_cooldown_days_{{ tariff_type }}" class="form-label">
+                                <i class="fas fa-clock me-1"></i>Кулдаун тем (дни)
+                            </label>
+                            <input 
+                                type="number" 
+                                class="form-control" 
+                                id="theme_cooldown_days_{{ tariff_type }}"
+                                name="theme_cooldown_days" 
+                                value="{{ limits.theme_cooldown_days }}"
+                                min="0"
+                                required
+                            >
+                        </div>
+                        
+                        {% if tariff_type == 'TEST_PRO' %}
+                        <div class="mb-3">
+                            <label for="test_pro_duration_days_{{ tariff_type }}" class="form-label">
+                                <i class="fas fa-calendar-alt me-1"></i>Длительность TEST_PRO (дни)
+                            </label>
+                            <input 
+                                type="number" 
+                                class="form-control" 
+                                id="test_pro_duration_days_{{ tariff_type }}"
+                                name="test_pro_duration_days" 
+                                value="{{ limits.test_pro_duration_days or 14 }}"
+                                min="1"
+                            >
+                        </div>
+                        {% else %}
+                        <input type="hidden" name="test_pro_duration_days" value="">
+                        {% endif %}
+                        
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input 
+                                    class="form-check-input" 
+                                    type="checkbox" 
+                                    id="apply_to_all_{{ tariff_type }}"
+                                    name="apply_to_all"
+                                >
+                                <label class="form-check-label" for="apply_to_all_{{ tariff_type }}">
+                                    Применить ко всем пользователям с этим тарифом
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i>Сохранить
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<div id="notification-container" style="position: fixed; top: 20px; right: 20px; z-index: 9999;"></div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const forms = document.querySelectorAll('.tariff-form');
+    
+    forms.forEach(form => {
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(form);
+            const applyToAllCheckbox = form.querySelector('#apply_to_all_' + formData.get('subscription_type'));
+            if (applyToAllCheckbox && applyToAllCheckbox.checked) {
+                formData.append('apply_to_all', 'true');
+            } else {
+                formData.append('apply_to_all', 'false');
+            }
+            
+            const submitButton = form.querySelector('button[type="submit"]');
+            const originalText = submitButton.innerHTML;
+            submitButton.disabled = true;
+            submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Сохранение...';
+            
+            try {
+                const response = await fetch('/tariff-limits/update', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification(result.message, 'success');
+                } else {
+                    showNotification(result.message || 'Ошибка при сохранении', 'error');
+                }
+            } catch (error) {
+                showNotification('Ошибка при сохранении: ' + error.message, 'error');
+            } finally {
+                submitButton.disabled = false;
+                submitButton.innerHTML = originalText;
+            }
+        });
+    });
+});
+
+function showNotification(message, type) {
+    const container = document.getElementById('notification-container');
+    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+    const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
+    
+    const notification = document.createElement('div');
+    notification.className = `alert ${alertClass} alert-dismissible fade show`;
+    notification.style.minWidth = '300px';
+    notification.innerHTML = `
+        <i class="fas ${icon} me-2"></i>${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    container.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.remove();
+    }, 5000);
+}
+</script>
+{% endblock %}
+

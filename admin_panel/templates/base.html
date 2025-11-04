@@ -48,6 +48,10 @@
                 <i class="fas fa-credit-card"></i>
                 <span>Платежи и подписки</span>
             </a>
+            <a class="nav-link {% if request.url.path == '/tariff-limits' or '/tariff-limits' in request.url.path %}active{% endif %}" href="/tariff-limits">
+                <i class="fas fa-cog"></i>
+                <span>Управление тарифами</span>
+            </a>
             <a class="nav-link {% if request.url.path == '/payment-test' or '/payment-test' in request.url.path %}active{% endif %}" href="/payment-test">
                 <i class="fas fa-vial"></i>
                 <span>Тест платежей</span>

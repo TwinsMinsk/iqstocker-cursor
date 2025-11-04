@@ -8,6 +8,7 @@ from sqlalchemy import select
 from config.database import AsyncSessionLocal
 from database.models import User, Subscription, SubscriptionType, Limits
 from config.settings import settings
+from core.tariffs.tariff_service import TariffService
 
 
 class PaymentHandler:
@@ -121,23 +122,23 @@ class PaymentHandler:
         При продлении подписки лимиты ДОБАВЛЯЮТСЯ к существующим.
         Это позволяет накапливать неиспользованные лимиты.
         """
-        if subscription_type == SubscriptionType.PRO:
-            limits.analytics_total += settings.pro_analytics_limit
-            limits.themes_total += settings.pro_themes_limit
-        elif subscription_type == SubscriptionType.ULTRA:
-            limits.analytics_total += settings.ultra_analytics_limit
-            limits.themes_total += settings.ultra_themes_limit
+        tariff_service = TariffService()
+        tariff_limits = tariff_service.get_tariff_limits(subscription_type)
+        
+        limits.analytics_total += tariff_limits['analytics_limit']
+        limits.themes_total += tariff_limits['themes_limit']
     
     def _create_limits_for_subscription(self, user_id: int, subscription_type: SubscriptionType) -> Limits:
         """Create limits for subscription type."""
-        limits = Limits(user_id=user_id)
+        tariff_service = TariffService()
+        tariff_limits = tariff_service.get_tariff_limits(subscription_type)
         
-        if subscription_type == SubscriptionType.PRO:
-            limits.analytics_total = settings.pro_analytics_limit
-            limits.themes_total = settings.pro_themes_limit
-        elif subscription_type == SubscriptionType.ULTRA:
-            limits.analytics_total = settings.ultra_analytics_limit
-            limits.themes_total = settings.ultra_themes_limit
+        limits = Limits(
+            user_id=user_id,
+            analytics_total=tariff_limits['analytics_limit'],
+            themes_total=tariff_limits['themes_limit'],
+            theme_cooldown_days=tariff_limits['theme_cooldown_days']
+        )
         
         return limits
     
@@ -172,8 +173,10 @@ class PaymentHandler:
                     limits = limits_result.scalar_one_or_none()
                     
                     if limits:
-                        limits.analytics_total = settings.free_analytics_limit
-                        limits.themes_total = settings.free_themes_limit
+                        tariff_service = TariffService()
+                        free_limits = tariff_service.get_tariff_limits(SubscriptionType.FREE)
+                        limits.analytics_total = free_limits['analytics_limit']
+                        limits.themes_total = free_limits['themes_limit']
                         # analytics_used и themes_used НЕ трогаем - это история
                     
                     expired_count += 1

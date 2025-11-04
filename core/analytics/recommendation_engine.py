@@ -2,7 +2,7 @@
 
 from typing import Dict
 from core.utils.html_cleaner import safe_format_for_telegram
-from bot.lexicon.lexicon_ru import LEXICON_RU
+from bot.lexicon import LEXICON_RU
 
 
 class RecommendationEngine:
