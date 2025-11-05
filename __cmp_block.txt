@@ -1,0 +1,6 @@
+    await safe_edit_message(
+            callback=callback,
+            text=text,
+            reply_markup=get_profile_test_pro_keyboard()
+        )
+    elif user.subscription_type == SubscriptionTyp

@@ -1,0 +1,3 @@
+async def show_compare_pro_ultra(callback: CallbackQuery, callback_data: ProfileCallbackData, user: User):
+    """╨Я╨╛╨║╨░╨╖╤Л╨▓╨░╨╡╤В ╤Н╨║╤А╨░╨╜ ╤Б╤А╨░╨▓╨╜╨╡╨╜╨╕╤П PRO vs ULTRA."""
+    # ╨Ю╨┐╤А╨╡╨┤╨╡╨╗╤П╨╡╨╝, ╨╛╤В╨║╤Г╨┤╨░ ╨┐╤А╨╕╤И╨╗╨╕ (╨╕╨╖ ╨░╨╜╨░╨╗

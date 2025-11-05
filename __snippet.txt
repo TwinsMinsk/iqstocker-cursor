@@ -1,0 +1,7 @@
+async def show_free_payment_offer(callback: CallbackQuery, callback_data: ProfileCallbackData):
+    """╨Я╨╛╨║╨░╨╖╤Л╨▓╨░╨╡╤В ╤Б╨╛╨╛╨▒╤Й╨╡╨╜╨╕╨╡ ╤Б ╨┐╤А╨╡╨┤╨╗╨╛╨╢╨╡╨╜╨╕╨╡╨╝ ╨╛ ╨┐╨╛╨║╤Г╨┐╨║╨╡ ╨┤╨╗╤П FREE."""
+    # ╨Ю╨┐╤А╨╡╨┤╨╡╨╗╤П╨╡╨╝, ╨╛╤В╨║╤Г╨┤╨░ ╨┐╤А╨╕╤И╨╗╨╕ (╨╕╨╖ ╨░╨╜╨░╨╗╨╕╤В╨╕╨║╨╕ ╨╕╨╗╨╕ ╨╕╨╖ ╨┐╤А╨╛╤Д╨╕╨╗╤П)
+    from_analytics = callback_data.from_analytics
+    
+    await safe_edit_message(
+    

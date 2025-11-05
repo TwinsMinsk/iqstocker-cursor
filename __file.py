@@ -1,6 +1,7 @@
 """Profile keyboard."""
 
-from typing import Mapping, Optional
+from typing import Mapping
+
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from database.models import SubscriptionType
@@ -39,7 +40,13 @@ def get_profile_keyboard(subscription_type: SubscriptionType) -> InlineKeyboardM
 
 
 def get_profile_test_pro_keyboard() -> InlineKeyboardMarkup:
-    """ĞšĞ»Ğ°Ğ²Ğ¸Ğ°Ñ‚ÑƒÑ€Ğ° Ğ´Ğ»Ñ Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»Ñ TEST_PRO."""
+    """Êëàâèàòóğà äëÿ ïğîôèëÿ TEST_PRO."""
+    lexicon_map = lexicon or LEXICON_RU
+    pro_button_text = lexicon_map.get('payment_pro_button', 'Îôîğìèòü PRO')
+    ultra_button_text = lexicon_map.get('payment_ultra_button', 'Îôîğìèòü Ultra')
+    lexicon_map = lexicon or LEXICON_RU
+    pro_button_text = lexicon_map.get('payment_pro_button', 'Îôîğìèòü PRO')
+    ultra_button_text = lexicon_map.get('payment_ultra_button', 'Îôîğìèòü Ultra')
     builder = InlineKeyboardBuilder()
     
     builder.button(
@@ -59,15 +66,15 @@ def get_profile_test_pro_keyboard() -> InlineKeyboardMarkup:
 
 
 def get_profile_offer_keyboard() -> InlineKeyboardMarkup:
-    """ĞšĞ»Ğ°Ğ²Ğ¸Ğ°Ñ‚ÑƒÑ€Ğ° Ğ´Ğ»Ñ Ğ¿Ñ€ĞµĞ´Ğ»Ğ¾Ğ¶ĞµĞ½Ğ¸Ñ Ğ¾ Ğ¿Ğ¾ĞºÑƒĞ¿ĞºĞµ (Ğ¸Ğ· Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»Ñ TEST_PRO)."""
+    """Êëàâèàòóğà äëÿ ïğåäëîæåíèÿ î ïîêóïêå (èç ïğîôèëÿ TEST_PRO)."""
     builder = InlineKeyboardBuilder()
     
     builder.button(
-        text="ğŸ”˜ ĞÑ„Ğ¾Ñ€Ğ¼Ğ¸Ñ‚ÑŒ PRO (50% ÑĞºĞ¸Ğ´ĞºĞ°)",
+        text="?? Îôîğìèòü PRO (50% ñêèäêà)",
         callback_data=PaymentCallbackData(plan="pro_test_discount", previous_step="show_offer").pack()
     )
     builder.button(
-        text="ğŸ”˜ ĞÑ„Ğ¾Ñ€Ğ¼Ğ¸Ñ‚ÑŒ ULTRA (50% ÑĞºĞ¸Ğ´ĞºĞ°)",
+        text="?? Îôîğìèòü ULTRA (50% ñêèäêà)",
         callback_data=PaymentCallbackData(plan="ultra_test_discount", previous_step="show_offer").pack()
     )
     builder.button(
@@ -83,13 +90,13 @@ def get_profile_offer_keyboard() -> InlineKeyboardMarkup:
 
 
 def get_profile_limits_help_keyboard(from_analytics: bool = False) -> InlineKeyboardMarkup:
-    """ĞšĞ»Ğ°Ğ²Ğ¸Ğ°Ñ‚ÑƒÑ€Ğ° Ğ´Ğ»Ñ ÑĞºÑ€Ğ°Ğ½Ğ° Ğ¿Ğ¾Ğ¼Ğ¾Ñ‰Ğ¸ Ğ¿Ğ¾ Ğ»Ğ¸Ğ¼Ğ¸Ñ‚Ğ°Ğ¼."""
+    """Êëàâèàòóğà äëÿ ıêğàíà ïîìîùè ïî ëèìèòàì."""
     builder = InlineKeyboardBuilder()
     
-    # Ğ•ÑĞ»Ğ¸ Ğ¿Ñ€Ğ¸ÑˆĞ»Ğ¸ Ğ¸Ğ· Ğ°Ğ½Ğ°Ğ»Ğ¸Ñ‚Ğ¸ĞºĞ¸, Ğ´Ğ¾Ğ±Ğ°Ğ²Ğ»ÑĞµĞ¼ ĞºĞ½Ğ¾Ğ¿ĞºÑƒ "ĞĞ°Ğ·Ğ°Ğ´ Ğ² Ğ°Ğ½Ğ°Ğ»Ğ¸Ñ‚Ğ¸ĞºÑƒ"
+    # Åñëè ïğèøëè èç àíàëèòèêè, äîáàâëÿåì êíîïêó "Íàçàä â àíàëèòèêó"
     if from_analytics:
         builder.button(
-            text="â—€ï¸ ĞĞ°Ğ·Ğ°Ğ´",
+            text="?? Íàçàä",
             callback_data="analytics"
         )
     else:
@@ -103,7 +110,7 @@ def get_profile_limits_help_keyboard(from_analytics: bool = False) -> InlineKeyb
 
 
 def get_profile_free_keyboard() -> InlineKeyboardMarkup:
-    """ĞšĞ»Ğ°Ğ²Ğ¸Ğ°Ñ‚ÑƒÑ€Ğ° Ğ´Ğ»Ñ Ğ³Ğ»Ğ°Ğ²Ğ½Ğ¾Ğ³Ğ¾ ÑĞºÑ€Ğ°Ğ½Ğ° Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»Ñ FREE."""
+    """Êëàâèàòóğà äëÿ ãëàâíîãî ıêğàíà ïğîôèëÿ FREE."""
     builder = InlineKeyboardBuilder()
     builder.button(
         text=LEXICON_COMMANDS_RU['button_subscribe'],
@@ -125,14 +132,11 @@ def get_profile_free_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def get_profile_compare_keyboard(lexicon: Optional[Mapping[str, str]] = None) -> InlineKeyboardMarkup:
-    """ĞšĞ»Ğ°Ğ²Ğ¸Ğ°Ñ‚ÑƒÑ€Ğ° Ğ´Ğ»Ñ ÑĞºÑ€Ğ°Ğ½Ğ° ÑÑ€Ğ°Ğ²Ğ½ĞµĞ½Ğ¸Ñ FREE vs PRO."""
-    if lexicon is None:
-        lexicon = LEXICON_RU
-    
+def get_profile_compare_keyboard() -> InlineKeyboardMarkup:
+    """Êëàâèàòóğà äëÿ ıêğàíà ñğàâíåíèÿ FREE vs PRO."""
     builder = InlineKeyboardBuilder()
     builder.button(
-        text=lexicon.get('payment_pro_button_free', LEXICON_RU.get('payment_pro_button_free', 'ĞÑ„Ğ¾Ñ€Ğ¼Ğ¸Ñ‚ÑŒ PRO')),
+        text=LEXICON_COMMANDS_RU['button_subscribe_pro_compare'],
         callback_data=PaymentCallbackData(plan="pro", previous_step="compare_free_pro").pack()
     )
     builder.button(
@@ -147,25 +151,22 @@ def get_profile_compare_keyboard(lexicon: Optional[Mapping[str, str]] = None) ->
     return builder.as_markup()
 
 
-def get_profile_free_offer_keyboard(from_analytics: bool = False, lexicon: Optional[Mapping[str, str]] = None) -> InlineKeyboardMarkup:
-    """ĞšĞ»Ğ°Ğ²Ğ¸Ğ°Ñ‚ÑƒÑ€Ğ° Ğ´Ğ»Ñ Ğ¿Ñ€ĞµĞ´Ğ»Ğ¾Ğ¶ĞµĞ½Ğ¸Ñ Ğ¾ Ğ¿Ğ¾ĞºÑƒĞ¿ĞºĞµ (Ğ¸Ğ· Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»Ñ FREE)."""
-    if lexicon is None:
-        lexicon = LEXICON_RU
-    
+def get_profile_free_offer_keyboard(lexicon: Mapping[str, str] | None = None, from_analytics: bool = False) -> InlineKeyboardMarkup:
+    """Êëàâèàòóğà äëÿ ïğåäëîæåíèÿ î ïîêóïêå (èç ïğîôèëÿ FREE)."""
     builder = InlineKeyboardBuilder()
     builder.button(
-        text=lexicon.get('payment_pro_button_free', LEXICON_RU.get('payment_pro_button_free', 'ĞÑ„Ğ¾Ñ€Ğ¼Ğ¸Ñ‚ÑŒ PRO')),
+        text=pro_button_text,
         callback_data=PaymentCallbackData(plan="pro", from_analytics=from_analytics, previous_step="show_free_offer").pack()
     )
     builder.button(
-        text=lexicon.get('payment_ultra_button_free', LEXICON_RU.get('payment_ultra_button_free', 'ĞÑ„Ğ¾Ñ€Ğ¼Ğ¸Ñ‚ÑŒ Ultra')),
+        text=ultra_button_text,
         callback_data=PaymentCallbackData(plan="ultra", from_analytics=from_analytics, previous_step="show_free_offer").pack()
     )
     
-    # Ğ•ÑĞ»Ğ¸ Ğ¿Ñ€Ğ¸ÑˆĞ»Ğ¸ Ğ¸Ğ· Ğ°Ğ½Ğ°Ğ»Ğ¸Ñ‚Ğ¸ĞºĞ¸, Ğ´Ğ¾Ğ±Ğ°Ğ²Ğ»ÑĞµĞ¼ ĞºĞ½Ğ¾Ğ¿ĞºÑƒ "ĞĞ°Ğ·Ğ°Ğ´ Ğ² Ğ°Ğ½Ğ°Ğ»Ğ¸Ñ‚Ğ¸ĞºÑƒ"
+    # Åñëè ïğèøëè èç àíàëèòèêè, äîáàâëÿåì êíîïêó "Íàçàä â àíàëèòèêó"
     if from_analytics:
         builder.button(
-            text="â—€ï¸ ĞĞ°Ğ·Ğ°Ğ´",
+            text="?? Íàçàä",
             callback_data="analytics"
         )
     else:
@@ -179,7 +180,7 @@ def get_profile_free_offer_keyboard(from_analytics: bool = False, lexicon: Optio
 
 
 def get_profile_pro_keyboard() -> InlineKeyboardMarkup:
-    """ĞšĞ»Ğ°Ğ²Ğ¸Ğ°Ñ‚ÑƒÑ€Ğ° Ğ´Ğ»Ñ Ğ³Ğ»Ğ°Ğ²Ğ½Ğ¾Ğ³Ğ¾ ÑĞºÑ€Ğ°Ğ½Ğ° Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»Ñ PRO."""
+    """Êëàâèàòóğà äëÿ ãëàâíîãî ıêğàíà ïğîôèëÿ PRO."""
     builder = InlineKeyboardBuilder()
     builder.button(
         text=LEXICON_COMMANDS_RU['button_go_to_ultra'],
@@ -201,36 +202,33 @@ def get_profile_pro_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def get_profile_pro_compare_keyboard(from_analytics: bool = False, subscription_type: SubscriptionType = None, lexicon: Optional[Mapping[str, str]] = None) -> InlineKeyboardMarkup:
-    """ĞšĞ»Ğ°Ğ²Ğ¸Ğ°Ñ‚ÑƒÑ€Ğ° Ğ´Ğ»Ñ ÑÑ€Ğ°Ğ²Ğ½ĞµĞ½Ğ¸Ñ Ñ‚Ğ°Ñ€Ğ¸Ñ„Ğ¾Ğ² PRO Ğ¸ ULTRA."""
-    if lexicon is None:
-        lexicon = LEXICON_RU
-    
+def get_profile_pro_compare_keyboard(lexicon: Mapping[str, str] | None = None, from_analytics: bool = False, subscription_type: SubscriptionType = None) -> InlineKeyboardMarkup:
+    """Êëàâèàòóğà äëÿ ñğàâíåíèÿ òàğèôîâ PRO è ULTRA."""
     builder = InlineKeyboardBuilder()
     
-    # Ğ•ÑĞ»Ğ¸ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»ÑŒ Ğ½Ğ° Ñ‚Ğ°Ñ€Ğ¸Ñ„Ğµ PRO, Ğ¿Ğ¾ĞºĞ°Ğ·Ñ‹Ğ²Ğ°ĞµĞ¼ Ñ‚Ğ¾Ğ»ÑŒĞºĞ¾ ĞºĞ½Ğ¾Ğ¿ĞºÑƒ Ğ´Ğ»Ñ ULTRA
-    # Ğ•ÑĞ»Ğ¸ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»ÑŒ Ğ½Ğ° Ñ‚Ğ°Ñ€Ğ¸Ñ„Ğµ FREE Ğ¸Ğ»Ğ¸ TEST_PRO, Ğ¿Ğ¾ĞºĞ°Ğ·Ñ‹Ğ²Ğ°ĞµĞ¼ Ğ¾Ğ±Ğµ ĞºĞ½Ğ¾Ğ¿ĞºĞ¸
+    # Åñëè ïîëüçîâàòåëü íà òàğèôå PRO, ïîêàçûâàåì òîëüêî êíîïêó äëÿ ULTRA
+    # Åñëè ïîëüçîâàòåëü íà òàğèôå FREE èëè TEST_PRO, ïîêàçûâàåì îáå êíîïêè
     if subscription_type == SubscriptionType.PRO:
-        # Ğ¢Ğ¾Ğ»ÑŒĞºĞ¾ ULTRA Ğ´Ğ»Ñ PRO Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»ĞµĞ¹
+        # Òîëüêî ULTRA äëÿ PRO ïîëüçîâàòåëåé
         builder.button(
-            text=LEXICON_COMMANDS_RU['button_go_to_ultra'],
+            text=ultra_button_text,
             callback_data=PaymentCallbackData(plan="ultra", from_analytics=from_analytics, previous_step="compare_pro_ultra").pack()
         )
     else:
-        # PRO Ğ¸ ULTRA Ğ´Ğ»Ñ FREE Ğ¸ TEST_PRO Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»ĞµĞ¹ - Ğ¸ÑĞ¿Ğ¾Ğ»ÑŒĞ·ÑƒĞµĞ¼ ÑƒĞ½Ğ¸Ñ„Ğ¸Ñ†Ğ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ½Ñ‹Ğµ ĞºĞ»ÑÑ‡Ğ¸
+        # PRO è ULTRA äëÿ FREE è TEST_PRO ïîëüçîâàòåëåé
         builder.button(
-            text=lexicon.get('payment_pro_button_free', LEXICON_RU.get('payment_pro_button_free', 'ĞÑ„Ğ¾Ñ€Ğ¼Ğ¸Ñ‚ÑŒ PRO')),
+            text=pro_button_text,
             callback_data=PaymentCallbackData(plan="pro", from_analytics=from_analytics, previous_step="compare_pro_ultra").pack()
         )
         builder.button(
-            text=lexicon.get('payment_ultra_button_free', LEXICON_RU.get('payment_ultra_button_free', 'ĞÑ„Ğ¾Ñ€Ğ¼Ğ¸Ñ‚ÑŒ Ultra')),
+            text=ultra_button_text,
             callback_data=PaymentCallbackData(plan="ultra", from_analytics=from_analytics, previous_step="compare_pro_ultra").pack()
         )
     
-    # Ğ•ÑĞ»Ğ¸ Ğ¿Ñ€Ğ¸ÑˆĞ»Ğ¸ Ğ¸Ğ· Ğ°Ğ½Ğ°Ğ»Ğ¸Ñ‚Ğ¸ĞºĞ¸, Ğ´Ğ¾Ğ±Ğ°Ğ²Ğ»ÑĞµĞ¼ ĞºĞ½Ğ¾Ğ¿ĞºÑƒ "ĞĞ°Ğ·Ğ°Ğ´ Ğ² Ğ°Ğ½Ğ°Ğ»Ğ¸Ñ‚Ğ¸ĞºÑƒ"
+    # Åñëè ïğèøëè èç àíàëèòèêè, äîáàâëÿåì êíîïêó "Íàçàä â àíàëèòèêó"
     if from_analytics:
         builder.button(
-            text="â—€ï¸ ĞĞ°Ğ·Ğ°Ğ´",
+            text="?? Íàçàä",
             callback_data="analytics"
         )
     else:
@@ -248,7 +246,7 @@ def get_profile_pro_compare_keyboard(from_analytics: bool = False, subscription_
 
 
 def get_profile_ultra_keyboard() -> InlineKeyboardMarkup:
-    """ĞšĞ»Ğ°Ğ²Ğ¸Ğ°Ñ‚ÑƒÑ€Ğ° Ğ´Ğ»Ñ Ğ³Ğ»Ğ°Ğ²Ğ½Ğ¾Ğ³Ğ¾ ÑĞºÑ€Ğ°Ğ½Ğ° Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»Ñ ULTRA."""
+    """Êëàâèàòóğà äëÿ ãëàâíîãî ıêğàíà ïğîôèëÿ ULTRA."""
     builder = InlineKeyboardBuilder()
     builder.button(
         text=LEXICON_COMMANDS_RU['button_limits_help'],
@@ -260,3 +258,4 @@ def get_profile_ultra_keyboard() -> InlineKeyboardMarkup:
     )
     builder.adjust(1)
     return builder.as_markup()
+
