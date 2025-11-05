@@ -17,6 +17,7 @@ from database.models import (
     AnalyticsReport, CSVAnalysis, Limits, SystemSettings
 )
 from core.admin.broadcast_manager import get_broadcast_manager
+from core.tariffs.tariff_service import TariffService
 from bot.keyboards.main_menu import get_main_menu_keyboard
 from bot.lexicon import LEXICON_RU, LEXICON_COMMANDS_RU
 from bot.keyboards.admin import get_admin_tariff_keyboard
@@ -704,7 +705,13 @@ async def resetme_command(message: Message, state: FSMContext):
         # Reset user to default state (like new user with trial)
         # Use naive datetime for database compatibility (TIMESTAMP WITHOUT TIME ZONE)
         now = datetime.utcnow()
-        test_pro_expires = now + timedelta(days=14)
+        
+        # Get TEST_PRO limits from tariff service (like create_new_user does)
+        # This ensures standard limits are applied even for admins
+        tariff_service = TariffService()
+        test_pro_limits = tariff_service.get_tariff_limits(SubscriptionType.TEST_PRO)
+        test_pro_duration = tariff_service.get_test_pro_duration_days()
+        test_pro_expires = now + timedelta(days=test_pro_duration)
         
         user.subscription_type = SubscriptionType.TEST_PRO
         user.test_pro_started_at = now
@@ -712,21 +719,23 @@ async def resetme_command(message: Message, state: FSMContext):
         user.created_at = now
         user.updated_at = now
         
-        # Reset limits to TEST_PRO values
+        # Reset limits to TEST_PRO values (using TariffService for standard limits)
         limits = db.query(Limits).filter(Limits.user_id == user.id).first()
         if limits:
-            limits.analytics_total = 1
+            limits.analytics_total = test_pro_limits['analytics_limit']
             limits.analytics_used = 0
-            limits.themes_total = 5
+            limits.themes_total = test_pro_limits['themes_limit']
             limits.themes_used = 0
+            limits.theme_cooldown_days = test_pro_limits['theme_cooldown_days']
         else:
             # Create limits if not exist
             limits = Limits(
                 user_id=user.id,
-                analytics_total=1,
+                analytics_total=test_pro_limits['analytics_limit'],
                 analytics_used=0,
-                themes_total=5,
-                themes_used=0
+                themes_total=test_pro_limits['themes_limit'],
+                themes_used=0,
+                theme_cooldown_days=test_pro_limits['theme_cooldown_days']
             )
             db.add(limits)
         
