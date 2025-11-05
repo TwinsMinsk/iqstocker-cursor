@@ -240,12 +240,12 @@ async def back_to_profile(callback: CallbackQuery, user: User, limits: Limits):
 
 
 @router.callback_query(ProfileCallbackData.filter(F.action == "show_offer"))
-async def show_payment_offer(callback: CallbackQuery):
+async def show_payment_offer(callback: CallbackQuery, lexicon: Mapping[str, str] = LEXICON_RU):
     """╨Я╨╛╨║╨░╨╖╤Л╨▓╨░╨╡╤В ╤Б╨╛╨╛╨▒╤Й╨╡╨╜╨╕╨╡ ╤Б ╨┐╤А╨╡╨┤╨╗╨╛╨╢╨╡╨╜╨╕╨╡╨╝ ╨╛ ╨┐╨╛╨║╤Г╨┐╨║╨╡."""
     await safe_edit_message(
         callback=callback,
         text=LEXICON_RU['profile_test_pro_offer'],
-        reply_markup=get_profile_offer_keyboard()
+        reply_markup=get_profile_offer_keyboard(lexicon=lexicon)
     )
 
 

@@ -58,16 +58,19 @@ def get_profile_test_pro_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def get_profile_offer_keyboard() -> InlineKeyboardMarkup:
+def get_profile_offer_keyboard(lexicon: Optional[Mapping[str, str]] = None) -> InlineKeyboardMarkup:
     """Клавиатура для предложения о покупке (из профиля TEST_PRO)."""
+    if lexicon is None:
+        lexicon = LEXICON_RU
+    
     builder = InlineKeyboardBuilder()
     
     builder.button(
-        text="🔘 Оформить PRO (50% скидка)",
+        text=lexicon.get('payment_pro_button_test', LEXICON_RU.get('payment_pro_button_test', 'Оформить PRO (50% скидка)')),
         callback_data=PaymentCallbackData(plan="pro_test_discount", previous_step="show_offer").pack()
     )
     builder.button(
-        text="🔘 Оформить ULTRA (50% скидка)",
+        text=lexicon.get('payment_ultra_button_test', LEXICON_RU.get('payment_ultra_button_test', 'Оформить Ultra (50% скидка)')),
         callback_data=PaymentCallbackData(plan="ultra_test_discount", previous_step="show_offer").pack()
     )
     builder.button(
