@@ -30,14 +30,14 @@ from bot.utils.safe_edit import safe_edit_message
 router = Router()
 
 MONTHS_RU = [
-    "╤П╨╜╨▓╨░╤А╤П", "╤Д╨╡╨▓╤А╨░╨╗╤П", "╨╝╨░╤А╤В╨░", "╨░╨┐╤А╨╡╨╗╤П", "╨╝╨░╤П", "╨╕╤О╨╜╤П",
-    "╨╕╤О╨╗╤П", "╨░╨▓╨│╤Г╤Б╤В╨░", "╤Б╨╡╨╜╤В╤П╨▒╤А╤П", "╨╛╨║╤В╤П╨▒╤А╤П", "╨╜╨╛╤П╨▒╤А╤П", "╨┤╨╡╨║╨░╨▒╤А╤П"
+    "января", "февраля", "марта", "апреля", "мая", "июня",
+    "июля", "августа", "сентября", "октября", "ноября", "декабря"
 ]
 
 
 def format_date_ru(date: datetime | None) -> str:
     if not date:
-        return "╨Э╨╡ ╤Г╨║╨░╨╖╨░╨╜╨╛"
+        return "Не указано"
     try:
         return f"{date.day} {MONTHS_RU[date.month - 1]} {date.year}"
     except Exception:
@@ -46,7 +46,7 @@ def format_date_ru(date: datetime | None) -> str:
 
 @router.callback_query(F.data == "profile")
 async def profile_callback(callback: CallbackQuery, user: User, limits: Limits):
-    """Handle profile callback - ╨╛╤Б╨╜╨╛╨▓╨╜╨╛╨╣ ╨▓╤Е╨╛╨┤ ╨▓ ╨┐╤А╨╛╤Д╨╕╨╗╤М."""
+    """Handle profile callback - основной вход в профиль."""
 
     if user.subscription_type == SubscriptionType.TEST_PRO:
         now = datetime.utcnow()
@@ -108,25 +108,25 @@ async def profile_callback(callback: CallbackQuery, user: User, limits: Limits):
     else:
         subscription_info = ""
         if user.subscription_type == SubscriptionType.FREE:
-            subscription_info = "ЁЯЖУ <b>FREE</b>"
+            subscription_info = "🆓 <b>FREE</b>"
         elif user.subscription_type == SubscriptionType.PRO:
-            subscription_info = "ЁЯПЖ <b>PRO</b>"
+            subscription_info = "🏆 <b>PRO</b>"
         elif user.subscription_type == SubscriptionType.ULTRA:
-            subscription_info = "ЁЯЪА <b>ULTRA</b>"
+            subscription_info = "💎 <b>ULTRA</b>"
 
         limits_text = f"""
-ЁЯУК <b>╨Р╨╜╨░╨╗╨╕╤В╨╕╨║╨░:</b> {limits.analytics_used}/{limits.analytics_total}
-ЁЯОп <b>╨в╨╡╨╝╤Л:</b> {limits.themes_used}/{limits.themes_total}
+📊 <b>Аналитика:</b> {limits.analytics_used}/{limits.analytics_total}
+💡 <b>Темы:</b> {limits.themes_used}/{limits.themes_total}
 """
 
-        profile_text = f"""ЁЯСд <b>╨Я╤А╨╛╤Д╨╕╨╗╤М</b>
+        profile_text = f"""👤 <b>Профиль</b>
 
-<b>╨Я╨╛╨┤╨┐╨╕╤Б╨║╨░:</b> {subscription_info}
+<b>Подписка:</b> {subscription_info}
 
-<b>╨Ы╨╕╨╝╨╕╤В╤Л:</b>
+<b>Лимиты:</b>
 {limits_text}
 
-╨Т╤Л╨▒╨╡╤А╨╕ ╨┤╨╡╨╣╤Б╤В╨▓╨╕╨╡:"""
+Выбери действие:"""
 
         await safe_edit_message(
             callback=callback,
@@ -137,8 +137,8 @@ async def profile_callback(callback: CallbackQuery, user: User, limits: Limits):
 
 @router.callback_query(ProfileCallbackData.filter(F.action == "limits_help"))
 async def show_limits_help(callback: CallbackQuery, callback_data: ProfileCallbackData):
-    """╨Я╨╛╨║╨░╨╖╤Л╨▓╨░╨╡╤В ╨╕╨╜╤Д╨╛╤А╨╝╨░╤Ж╨╕╤О ╨╛ ╨╗╨╕╨╝╨╕╤В╨░╤Е ╨▓ ╨╛╤В╨┤╨╡╨╗╤М╨╜╨╛╨╝ ╤Б╨╛╨╛╨▒╤Й╨╡╨╜╨╕╨╕."""
-    # ╨Ю╨┐╤А╨╡╨┤╨╡╨╗╤П╨╡╨╝, ╨╛╤В╨║╤Г╨┤╨░ ╨┐╤А╨╕╤И╨╗╨╕ (╨╕╨╖ ╨░╨╜╨░╨╗╨╕╤В╨╕╨║╨╕ ╨╕╨╗╨╕ ╨╕╨╖ ╨┐╤А╨╛╤Д╨╕╨╗╤П)
+    """Показывает информацию о лимитах в отдельном сообщении."""
+    # Определяем, откуда пришли (из аналитики или из профиля)
     from_analytics = callback_data.from_analytics
     
     await safe_edit_message(
@@ -150,7 +150,7 @@ async def show_limits_help(callback: CallbackQuery, callback_data: ProfileCallba
 
 @router.callback_query(ProfileCallbackData.filter(F.action == "back_to_profile"))
 async def back_to_profile(callback: CallbackQuery, user: User, limits: Limits):
-    """╨Т╨╛╨╖╨▓╤А╨░╤Й╨░╨╡╤В ╨▓ ╨│╨╗╨░╨▓╨╜╤Л╨╣ ╤Н╨║╤А╨░╨╜ ╨┐╤А╨╛╤Д╨╕╨╗╤П."""
+    """Возвращает в главный экран профиля."""
 
     if user.subscription_type == SubscriptionType.TEST_PRO:
         now = datetime.utcnow()
@@ -212,25 +212,25 @@ async def back_to_profile(callback: CallbackQuery, user: User, limits: Limits):
     else:
         subscription_info = ""
         if user.subscription_type == SubscriptionType.FREE:
-            subscription_info = "ЁЯЖУ <b>FREE</b>"
+            subscription_info = "🆓 <b>FREE</b>"
         elif user.subscription_type == SubscriptionType.PRO:
-            subscription_info = "ЁЯПЖ <b>PRO</b>"
+            subscription_info = "🏆 <b>PRO</b>"
         elif user.subscription_type == SubscriptionType.ULTRA:
-            subscription_info = "ЁЯЪА <b>ULTRA</b>"
+            subscription_info = "💎 <b>ULTRA</b>"
 
         limits_text = f"""
-ЁЯУК <b>╨Р╨╜╨░╨╗╨╕╤В╨╕╨║╨░:</b> {limits.analytics_used}/{limits.analytics_total}
-ЁЯОп <b>╨в╨╡╨╝╤Л:</b> {limits.themes_used}/{limits.themes_total}
+📊 <b>Аналитика:</b> {limits.analytics_used}/{limits.analytics_total}
+💡 <b>Темы:</b> {limits.themes_used}/{limits.themes_total}
 """
 
-        profile_text = f"""ЁЯСд <b>╨Я╤А╨╛╤Д╨╕╨╗╤М</b>
+        profile_text = f"""👤 <b>Профиль</b>
 
-<b>╨Я╨╛╨┤╨┐╨╕╤Б╨║╨░:</b> {subscription_info}
+<b>Подписка:</b> {subscription_info}
 
-<b>╨Ы╨╕╨╝╨╕╤В╤Л:</b>
+<b>Лимиты:</b>
 {limits_text}
 
-╨Т╤Л╨▒╨╡╤А╨╕ ╨┤╨╡╨╣╤Б╤В╨▓╨╕╨╡:"""
+Выбери действие:"""
 
         await safe_edit_message(
             callback=callback,
@@ -241,7 +241,7 @@ async def back_to_profile(callback: CallbackQuery, user: User, limits: Limits):
 
 @router.callback_query(ProfileCallbackData.filter(F.action == "show_offer"))
 async def show_payment_offer(callback: CallbackQuery, lexicon: Mapping[str, str] = LEXICON_RU):
-    """╨Я╨╛╨║╨░╨╖╤Л╨▓╨░╨╡╤В ╤Б╨╛╨╛╨▒╤Й╨╡╨╜╨╕╨╡ ╤Б ╨┐╤А╨╡╨┤╨╗╨╛╨╢╨╡╨╜╨╕╨╡╨╝ ╨╛ ╨┐╨╛╨║╤Г╨┐╨║╨╡."""
+    """Показывает сообщение с предложением о покупке."""
     await safe_edit_message(
         callback=callback,
         text=LEXICON_RU['profile_test_pro_offer'],
@@ -251,7 +251,7 @@ async def show_payment_offer(callback: CallbackQuery, lexicon: Mapping[str, str]
 
 @router.callback_query(ProfileCallbackData.filter(F.action == "compare_free_pro"))
 async def show_compare_free_pro(callback: CallbackQuery, lexicon: Mapping[str, str] = LEXICON_RU):
-    """╨Я╨╛╨║╨░╨╖╤Л╨▓╨░╨╡╤В ╤Н╨║╤А╨░╨╜ ╤Б╤А╨░╨▓╨╜╨╡╨╜╨╕╤П FREE vs PRO."""
+    """Показывает экран сравнения FREE vs PRO."""
     await safe_edit_message(
         callback=callback,
         text=LEXICON_RU['profile_free_compare'],
@@ -262,8 +262,8 @@ async def show_compare_free_pro(callback: CallbackQuery, lexicon: Mapping[str, s
 
 @router.callback_query(ProfileCallbackData.filter(F.action == "compare_pro_ultra"))
 async def show_compare_pro_ultra(callback: CallbackQuery, callback_data: ProfileCallbackData, user: User, lexicon: Mapping[str, str] = LEXICON_RU):
-    """╨Я╨╛╨║╨░╨╖╤Л╨▓╨░╨╡╤В ╤Н╨║╤А╨░╨╜ ╤Б╤А╨░╨▓╨╜╨╡╨╜╨╕╤П PRO vs ULTRA."""
-    # ╨Ю╨┐╤А╨╡╨┤╨╡╨╗╤П╨╡╨╝, ╨╛╤В╨║╤Г╨┤╨░ ╨┐╤А╨╕╤И╨╗╨╕ (╨╕╨╖ ╨░╨╜╨░╨╗╨╕╤В╨╕╨║╨╕ ╨╕╨╗╨╕ ╨╕╨╖ ╨┐╤А╨╛╤Д╨╕╨╗╤П)
+    """Показывает экран сравнения PRO vs ULTRA."""
+    # Определяем, откуда пришли (из аналитики или из профиля)
     from_analytics = callback_data.from_analytics
 
     compare_text = lexicon.get('profile_pro_compare', LEXICON_RU['profile_pro_compare'])
@@ -277,8 +277,8 @@ async def show_compare_pro_ultra(callback: CallbackQuery, callback_data: Profile
 
 @router.callback_query(ProfileCallbackData.filter(F.action == "show_free_offer"))
 async def show_free_payment_offer(callback: CallbackQuery, callback_data: ProfileCallbackData, user: User, lexicon: Mapping[str, str] = LEXICON_RU):
-    """╨Я╨╛╨║╨░╨╖╤Л╨▓╨░╨╡╤В ╤Б╨╛╨╛╨▒╤Й╨╡╨╜╨╕╨╡ ╤Б ╨┐╤А╨╡╨┤╨╗╨╛╨╢╨╡╨╜╨╕╨╡╨╝ ╨╛ ╨┐╨╛╨║╤Г╨┐╨║╨╡ ╨┤╨╗╤П FREE."""
-    # ╨Ю╨┐╤А╨╡╨┤╨╡╨╗╤П╨╡╨╝, ╨╛╤В╨║╤Г╨┤╨░ ╨┐╤А╨╕╤И╨╗╨╕ (╨╕╨╖ ╨░╨╜╨░╨╗╨╕╤В╨╕╨║╨╕ ╨╕╨╗╨╕ ╨╕╨╖ ╨┐╤А╨╛╤Д╨╕╨╗╤П)
+    """Показывает сообщение с предложением о покупке для FREE."""
+    # Определяем, откуда пришли (из аналитики или из профиля)
     from_analytics = callback_data.from_analytics
     
     offer_fallback = LEXICON_RU.get('profile_free_offer', "Выберите тариф:")
@@ -290,20 +290,20 @@ async def show_free_payment_offer(callback: CallbackQuery, callback_data: Profil
     )
 
 
-# ╨б╤В╨░╤А╤Л╨╡ ╤Е╤Н╨╜╨┤╨╗╨╡╤А╤Л ╨┤╨╗╤П ╨╛╨▒╤А╨░╤В╨╜╨╛╨╣ ╤Б╨╛╨▓╨╝╨╡╤Б╤В╨╕╨╝╨╛╤Б╤В╨╕
+# Старые хэндлеры для обратной совместимости
 @router.callback_query(F.data == "limits_info")
 async def limits_info_callback(callback: CallbackQuery, user: User):
     """Handle limits info callback."""
     
     await safe_edit_message(
         callback=callback,
-        text=LEXICON_RU.get('limits_info', '╨Ш╨╜╤Д╨╛╤А╨╝╨░╤Ж╨╕╤П ╨╛ ╨╗╨╕╨╝╨╕╤В╨░╤Е'),
+        text=LEXICON_RU.get('limits_info', 'Информация о лимитах'),
         reply_markup=get_profile_keyboard(user.subscription_type)
     )
 
 
 @router.callback_query(F.data == "upgrade_pro")
-async def upgrade_pro_callback(callback: CallbackQuery, user: User):
+async def upgrade_pro_callback(callback: CallbackQuery, user: User, lexicon: Mapping[str, str] = LEXICON_RU):
     """Handle upgrade to PRO callback."""
     
     # Get discount information
@@ -315,23 +315,31 @@ async def upgrade_pro_callback(callback: CallbackQuery, user: User):
     base_price = 990
     if discount_info["has_discount"]:
         discounted_price = base_price * (1 - discount_info["discount_percent"] / 100)
-        price_text = f"~~{base_price}тВ╜~~ <b>{discounted_price:.0f}тВ╜</b> ({discount_info['discount_percent']}% ╤Б╨║╨╕╨┤╨║╨░)"
-        discount_message = f"\nЁЯОЙ <b>{discount_info['message']}</b>"
+        price_text = f"~~{base_price}₽~~ <b>{discounted_price:.0f}₽</b> ({discount_info['discount_percent']}% скидка)"
+        discount_message = f"\n🎉 <b>{discount_info['message']}</b>"
     else:
-        price_text = f"<b>{base_price}тВ╜/╨╝╨╡╤Б╤П╤Ж</b>"
+        price_text = f"<b>{base_price}₽/месяц</b>"
         discount_message = ""
     
-    upgrade_text = f"""ЁЯПЖ <b>╨Я╨╡╤А╨╡╤Е╨╛╨┤ ╨╜╨░ PRO</b>
+    upgrade_text_template = lexicon.get('upgrade_pro_text', LEXICON_RU.get('upgrade_pro_text', ''))
+    if upgrade_text_template:
+        upgrade_text = upgrade_text_template.format(
+            price_text=price_text,
+            discount_message=discount_message
+        )
+    else:
+        # Fallback если ключ не найден
+        upgrade_text = f"""🏆 <b>Переход на PRO</b>
 
-PRO ╨┐╨╛╨┤╨┐╨╕╤Б╨║╨░ ╨▓╨║╨╗╤О╤З╨░╨╡╤В:
-тАв 1 ╨░╨╜╨░╨╗╨╕╤В╨╕╨║╨░ ╨▓ ╨╝╨╡╤Б╤П╤Ж
-тАв 5 ╤В╨╡╨╝ ╨▓ ╨╜╨╡╨┤╨╡╨╗╤О
-тАв ╨а╨░╤Б╤И╨╕╤А╨╡╨╜╨╜╤Л╨╣ ╨║╨░╨╗╨╡╨╜╨┤╨░╤А╤М ╤Б╤В╨╛╨║╨╡╤А╨░
-тАв ╨Т╤Б╨╡ ╨▓╨╕╨┤╨╡╨╛╤Г╤А╨╛╨║╨╕
+PRO подписка включает:
+• 1 аналитика в месяц
+• 5 тем в неделю
+• Расширенный календарь стокера
+• Все видеоуроки
 
-<b>╨ж╨╡╨╜╨░:</b> {price_text}{discount_message}
+<b>Цена:</b> {price_text}{discount_message}
 
-╨Ф╨╗╤П ╨╛╤Д╨╛╤А╨╝╨╗╨╡╨╜╨╕╤П ╨┐╨╛╨┤╨┐╨╕╤Б╨║╨╕ ╨┐╨╡╤А╨╡╨╣╨┤╨╕ ╨┐╨╛ ╤Б╤Б╤Л╨╗╨║╨╡: [Boosty PRO](https://boosty.to/iqstocker/pro)"""
+Для оформления подписки перейди по ссылке: [Boosty PRO](https://boosty.to/iqstocker/pro)"""
     
     from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
     
@@ -353,7 +361,7 @@ PRO ╨┐╨╛╨┤╨┐╨╕╤Б╨║╨░ ╨▓╨║╨╗╤О╤З
 
 
 @router.callback_query(F.data == "upgrade_ultra")
-async def upgrade_ultra_callback(callback: CallbackQuery, user: User):
+async def upgrade_ultra_callback(callback: CallbackQuery, user: User, lexicon: Mapping[str, str] = LEXICON_RU):
     """Handle upgrade to ULTRA callback."""
     
     # Get discount information
@@ -365,16 +373,31 @@ async def upgrade_ultra_callback(callback: CallbackQuery, user: User):
     base_price = 1990
     if discount_info["has_discount"]:
         discounted_price = base_price * (1 - discount_info["discount_percent"] / 100)
-        price_text = f"~~{base_price}тВ╜~~ <b>{discounted_price:.0f}тВ╜</b> ({discount_info['discount_percent']}% ╤Б╨║╨╕╨┤╨║╨░)"
-        discount_message = f"\nЁЯОЙ <b>{discount_info['message']}</b>"
+        price_text = f"~~{base_price}₽~~ <b>{discounted_price:.0f}₽</b> ({discount_info['discount_percent']}% скидка)"
+        discount_message = f"\n🎉 <b>{discount_info['message']}</b>"
     else:
-        price_text = f"<b>{base_price}тВ╜/╨╝╨╡╤Б╤П╤Ж</b>"
+        price_text = f"<b>{base_price}₽/месяц</b>"
         discount_message = ""
     
-    upgrade_text = LEXICON_RU['upgrade_ultra_text'].format(
-        price_text=price_text,
-        discount_message=discount_message
-    )
+    upgrade_text_template = lexicon.get('upgrade_ultra_text', LEXICON_RU.get('upgrade_ultra_text', ''))
+    if upgrade_text_template:
+        upgrade_text = upgrade_text_template.format(
+            price_text=price_text,
+            discount_message=discount_message
+        )
+    else:
+        # Fallback если ключ не найден
+        upgrade_text = f"""🚀 <b>Переход на ULTRA</b>
+
+ULTRA подписка включает:
+• 2 аналитики в месяц
+• 10 тем в неделю
+• Расширенный календарь стокера
+• Все видеоуроки
+
+<b>Цена:</b> {price_text}{discount_message}
+
+Для оформления подписки перейди по ссылке: [Boosty ULTRA](https://boosty.to/iqstocker/ultra)"""
     
     from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
     
@@ -399,4 +422,4 @@ async def upgrade_ultra_callback(callback: CallbackQuery, user: User):
 @router.callback_query(F.data == "noop")
 async def noop_callback(callback: CallbackQuery):
     """Handle noop callback."""
-    await callback.answer("╨г ╤В╨╡╨▒╤П ╤Г╨╢╨╡ ╨╝╨░╨║╤Б╨╕╨╝╨░╨╗╤М╨╜╤Л╨╣ ╤В╨░╤А╨╕╤Д! ЁЯОЙ")
+    await callback.answer("У тебя уже максимальный тариф! 🎉")
