@@ -70,3 +70,9 @@ class PaymentCallbackData(CallbackData, prefix="payment"):
     plan: str  # "pro", "ultra", "pro_test_discount", "ultra_test_discount"
     from_analytics: bool = False  # Флаг, указывающий, что переход произошел из аналитики
     previous_step: Optional[str] = None  # Предыдущий шаг в цепочке навигации
+
+
+class UpgradeCallbackData(CallbackData, prefix="upgrade"):
+    """Callback data for upgrade and compare actions."""
+    action: str  # "upgrade_pro", "upgrade_ultra", "compare_subscriptions", "compare_free_pro", "compare_pro_ultra"
+    previous_step: Optional[str] = None  # Предыдущий шаг в цепочке навигации

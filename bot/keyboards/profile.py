@@ -4,7 +4,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from database.models import SubscriptionType
 from bot.lexicon import LEXICON_RU, LEXICON_COMMANDS_RU
-from bot.keyboards.callbacks import ProfileCallbackData, CommonCallbackData, PaymentCallbackData
+from bot.keyboards.callbacks import ProfileCallbackData, CommonCallbackData, PaymentCallbackData, UpgradeCallbackData
 
 
 def get_profile_keyboard(subscription_type: SubscriptionType) -> InlineKeyboardMarkup:
@@ -63,11 +63,11 @@ def get_profile_offer_keyboard() -> InlineKeyboardMarkup:
     
     builder.button(
         text="🔘 Оформить PRO (50% скидка)",
-        callback_data=PaymentCallbackData(plan="pro_test_discount").pack()
+        callback_data=PaymentCallbackData(plan="pro_test_discount", previous_step="show_offer").pack()
     )
     builder.button(
         text="🔘 Оформить ULTRA (50% скидка)",
-        callback_data=PaymentCallbackData(plan="ultra_test_discount").pack()
+        callback_data=PaymentCallbackData(plan="ultra_test_discount", previous_step="show_offer").pack()
     )
     builder.button(
         text=LEXICON_COMMANDS_RU['button_back_profile'],
@@ -129,7 +129,7 @@ def get_profile_compare_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(
         text=LEXICON_COMMANDS_RU['button_subscribe_pro_compare'],
-        callback_data=PaymentCallbackData(plan="pro").pack()
+        callback_data=PaymentCallbackData(plan="pro", previous_step="compare_free_pro").pack()
     )
     builder.button(
         text=LEXICON_COMMANDS_RU['button_back_profile'],

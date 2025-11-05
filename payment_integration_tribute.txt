@@ -1,0 +1,266 @@
+Техническое Задание (ТЗ) на Интеграцию Платежной Системы Tribute1. ЦельМигрировать систему обработки подписок в проекте iqstocker-cursor с Boosty на Tribute. Новая система должна обрабатывать покупку тарифов PRO и ULTRA.2. Контекст и Текущая АрхитектураТекущая система состоит из 4-х компонентов:Bot Handlers (bot/handlers/payments.py): Обрабатывает колбэки (upgrade_pro, upgrade_ultra) и вызывает get_payment_handler().Payment Provider (core/payments/boosty_handler.py): Генерирует платежные ссылки для Boosty.Webhook Endpoint (api/webhook_server.py): Регистрирует роут /webhook/boosty.Webhook Logic (api/webhooks/boosty.py): Валидирует и обрабатывает вебхуки от Boosty, вызывая универсальный PaymentHandler из core/subscriptions/payment_handler.py.Subscription Logic (core/subscriptions/payment_handler.py): ( НЕ ТРОГАТЬ ) Универсальный класс, который обновляет User и Subscription в БД.Мы заменим компоненты №2, №3 и №4, оставив №1 и №5 без изменений.3. Необходимые Ресурсы (Входные данные)Для выполнения задачи необходимы следующие данные от владельца проекта:TRIBUTE_API_KEY: API-ключ из панели автора Tribute. (Используется как секрет для верификации вебхуков).TRIBUTE_PRO_LINK: Прямая ссылка на оплату тарифа PRO, созданного в Tribute (вида https://t.me/tribute_bot/app?startapp=...).TRIBUTE_ULTRA_LINK: Прямая ссылка на оплату тарифа ULTRA, созданного в Tribute.4. План ВыполненияШаг 4.1: Модификация КонфигурацииФайл: config/settings.pyЗаменить класс PaymentSettings на следующий:class PaymentSettings(BaseSettings):
+    """Payment provider settings."""
+    model_config = SettingsConfigDict(
+        env_prefix='PAYMENT_',
+        case_sensitive=False,
+        env_file='.env',
+        env_file_encoding='utf-8',
+        extra='ignore'
+    )
+
+    # Tribute API Key (используется как секрет для вебхуков)
+    tribute_api_key: Optional[str] = Field(None, env="TRIBUTE_API_KEY")
+
+    # Прямые ссылки на страницы оплаты продуктов в Tribute
+    tribute_pro_link: str = Field("[https://t.me/tribute_bot/app?startapp=](https://t.me/tribute_bot/app?startapp=)...", env="TRIBUTE_PRO_LINK")
+    tribute_ultra_link: str = Field("[https://t.me/tribute_bot/app?startapp=](https://t.me/tribute_bot/app?startapp=)...", env="TRIBUTE_ULTRA_LINK")
+
+    # URL, который мы сообщим Tribute (куда слать вебхуки)
+    webhook_url: str = Field("[https://example.com/webhook/tribute](https://example.com/webhook/tribute)", env="WEBHOOK_URL")
+В классе Settings (__init__):Удалить все упоминания self.boosty_....Добавить новые свойства для обратной совместимости:# ...
+self.openai_api_key = self.ai.openai_api_key
+self.anthropic_api_key = self.ai.anthropic_api_key
+
+# Обновленные свойства платежей
+self.tribute_api_key = self.payment.tribute_api_key
+self.tribute_pro_link = self.payment.tribute_pro_link
+self.tribute_ultra_link = self.payment.tribute_ultra_link
+self.webhook_url = self.payment.webhook_url
+
+# App settings compatibility
+self.sentry_dsn = self.app.sentry_dsn
+# ...
+Файл: env.exampleЗаменить секцию Payment provider (Boosty) на:# Payment Provider (Tribute)
+# Используется как секрет для проверки вебхуков
+PAYMENT_TRIBUTE_API_KEY=your_tribute_api_key_goes_here
+# Ссылка на PRO подписку, созданную в Tribute
+PAYMENT_TRIBUTE_PRO_LINK="[https://t.me/tribute_bot/app?startapp=](https://t.me/tribute_bot/app?startapp=)..."
+# Ссылка на ULTRA подписку, созданную в Tribute
+PAYMENT_TRIBUTE_ULTRA_LINK="[https://t.me/tribute_bot/app?startapp=](https://t.me/tribute_bot/app?startapp=)..."
+# Полный URL, на который Tribute будет слать вебхуки (должен совпадать с webhook_server.py)
+PAYMENT_WEBHOOK_URL="[https://your.domain.com/webhook/tribute](https://your.domain.com/webhook/tribute)"
+Шаг 4.2: Создание Провайдера Платежей TributeДействие: Создать новый файл core/payments/tribute_handler.py.Этот файл должен заменить core/payments/boosty_handler.py.Он должен предоставлять ту же get_payment_handler() функцию, но с новой логикой.Логика create_subscription_link будет просто возвращать статическую ссылку из settings.Важно: Методы _get_subscription_data и calculate_discount из boosty_handler.py должны быть скопированы в новый файл, так как bot/handlers/payments.py использует их для отображения текста и цен пользователю.Содержимое файла: core/payments/tribute_handler.py"""Tribute Payment Handler."""
+
+from typing import Optional, Dict, Any
+from types import TracebackType
+from config.settings import settings
+from database.models import User, SubscriptionType
+
+class TributePaymentHandler:
+    """
+    Обработчик для создания платежных ссылок Tribute.
+    Ссылки на оплату (товары, подписки) создаются в UI Tribute
+    и хранятся в конфиге.
+    """
+    
+    def __init__(self):
+        self.pro_link = settings.payment.tribute_pro_link
+        self.ultra_link = settings.payment.tribute_ultra_link
+        self.api_key = settings.payment.tribute_api_key
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[BaseException],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ):
+        pass
+
+    def _get_subscription_data(self, sub_type: SubscriptionType, discount_percent: int = 0) -> Dict[str, Any]:
+        """
+        (Логика скопирована из boosty_handler.py для отображения цен в боте)
+        """
+        base_price = 0
+        if sub_type == SubscriptionType.PRO:
+            base_price = 990
+        elif sub_type == SubscriptionType.ULTRA:
+            base_price = 1990
+
+        discount_amount = (base_price * discount_percent) / 100
+        final_price = base_price - discount_amount
+
+        return {
+            "original_price": f"{base_price:.0f}",
+            "price": f"{final_price:.0f}",
+            "discount_amount": f"{discount_amount:.0f}"
+        }
+
+    def calculate_discount(self, user: User, target_plan: SubscriptionType) -> int:
+        """
+        (Логика скопирована из boosty_handler.py для отображения скидки в боте)
+        """
+        if user.subscription_type == SubscriptionType.TEST_PRO:
+            return settings.pro_discount_percent  # 50%
+        elif user.subscription_type == SubscriptionType.FREE:
+            return settings.free_discount_percent # 30%
+        return 0
+
+    async def create_subscription_link(
+        self, 
+        user_id: int, 
+        subscription_type: SubscriptionType, 
+        discount_percent: int = 0
+    ) -> Optional[str]:
+        """
+        Возвращает готовую ссылку на оплату из конфига.
+        
+        ПРИМЕЧАНИЕ: Логика скидок (discount_percent) здесь используется
+        только для ОТОБРАЖЕНИЯ в боте. Сама ссылка статична.
+        Для применения скидки, в Tribute должны быть созданы
+        отдельные продукты/промокоды.
+        """
+        
+        if subscription_type == SubscriptionType.PRO:
+            return self.pro_link
+        elif subscription_type == SubscriptionType.ULTRA:
+            return self.ultra_link
+        
+        return None
+
+def get_payment_handler() -> TributePaymentHandler:
+    """Возвращает экземпляр обработчика Tribute."""
+    return TributePaymentHandler()
+Шаг 4.3: Обновление Обработчиков БотаФайл: bot/handlers/payments.pyИзменить строку импорта:БЫЛО: from core.payments.boosty_handler import get_payment_handlerСТАЛО: from core.payments.tribute_handler import get_payment_handlerБольше в этом файле ничего менять не нужно.Шаг 4.4: Создание Обработчика Вебхуков TributeДействие: Создать новый файл api/webhooks/tribute.py.Этот файл заменит api/webhooks/boosty.py.Он должен содержать логику верификации подписи trbt-signature (HMAC-SHA256) и парсинга payload'а от Tribute.Содержимое файла: api/webhooks/tribute.py"""Tribute webhook handler."""
+
+import hashlib
+import hmac
+import json
+from typing import Dict, Any, Optional
+from aiohttp import web
+from aiohttp.web_request import Request
+
+from config.settings import settings
+# ВАЖНО: Это универсальный обработчик БД
+from core.subscriptions.payment_handler import PaymentHandler 
+
+class TributeWebhookHandler:
+    """Handler for Tribute webhook events."""
+    
+    def __init__(self):
+        self.webhook_secret = settings.payment.tribute_api_key
+    
+    def verify_signature(self, payload: str, signature: str) -> bool:
+        """Verify Tribute webhook signature."""
+        if not self.webhook_secret:
+            print("ВНИМАНИЕ: PAYMENT_TRIBUTE_API_KEY не установлен, проверка подписи вебхука пропущена.")
+            return True
+        
+        expected_signature = hmac.new(
+            self.webhook_secret.encode(),
+            payload.encode(),
+            hashlib.sha256
+        ).hexdigest()
+        
+        return hmac.compare_digest(signature, expected_signature)
+    
+    async def handle_webhook(self, request: Request) -> web.Response:
+        """Handle Tribute webhook."""
+        try:
+            signature = request.headers.get('trbt-signature', '')
+            payload = await request.text()
+            
+            if not self.verify_signature(payload, signature):
+                print("Ошибка вебхука Tribute: Неверная подпись")
+                return web.Response(status=401, text="Invalid signature")
+            
+            data = json.loads(payload)
+            
+            # Запускаем обработку в фоне, чтобы сразу вернуть 200 OK
+            request.app.loop.create_task(self._process_event(data))
+            
+            return web.Response(status=200, text="OK")
+            
+        except Exception as e:
+            print(f"Критическая ошибка обработки вебхука Tribute: {e}")
+            return web.Response(status=500, text="Internal error")
+    
+    async def _process_event(self, data: Dict[str, Any]):
+        """Process Tribute event."""
+        event_name = data.get('name')
+        
+        try:
+            if event_name == 'new_subscription':
+                await self._handle_payment_success(data, is_subscription=True)
+            elif event_name == 'new_digital_product':
+                await self._handle_payment_success(data, is_subscription=False)
+            else:
+                print(f"Получено неизвестное событие Tribute: {event_name}")
+        except Exception as e:
+            print(f"Ошибка при обработке события {event_name}: {e}")
+
+    def _get_subscription_type_from_payload(self, payload: Dict[str, Any]) -> Optional[str]:
+        """
+        Определяет тип подписки (PRO/ULTRA) по данным из вебхука.
+        Ищет "PRO" или "ULTRA" в названии подписки или продукта.
+        """
+        sub_name = payload.get('subscription_name', '').upper()
+        prod_name = payload.get('product_name', '').upper()
+        
+        if "ULTRA" in sub_name or "ULTRA" in prod_name:
+            return "ULTRA"
+        if "PRO" in sub_name or "PRO" in prod_name:
+            return "PRO"
+            
+        print(f"ВНИМАНИЕ: Не удалось определить тип подписки по имени: {sub_name} / {prod_name}")
+        return None
+
+    async def _handle_payment_success(self, data: Dict[str, Any], is_subscription: bool):
+        """Обработка успешной подписки или покупки товара."""
+        payload = data.get('payload', {})
+        
+        telegram_user_id = payload.get('telegram_user_id')
+        amount_cents = payload.get('amount') # Сумма в копейках/центах
+        
+        if is_subscription:
+            payment_id = payload.get('subscription_id') or data.get('id')
+        else:
+            payment_id = payload.get('order_id') or data.get('id')
+        
+        subscription_type_str = self._get_subscription_type_from_payload(payload)
+        
+        if not all([telegram_user_id, amount_cents, payment_id, subscription_type_str]):
+            print(f"Ошибка вебхука '{data.get('name')}': неполные данные. {data}")
+            return
+
+        print(f"Tribute '{data.get('name')}': {payment_id}, user: {telegram_user_id}, amount: {amount_cents}")
+        
+        # Вызываем универсальный обработчик БД
+        db_handler = PaymentHandler()
+        
+        success = await db_handler.process_payment_success(
+            payment_id=str(payment_id),
+            user_id=int(telegram_user_id),
+            amount=float(amount_cents) / 100, # Приводим к рублям/долларам
+            subscription_type=subscription_type_str,
+            discount_percent=0 # Tribute не передает скидку в вебхуке
+        )
+        
+        if success:
+            print(f"Подписка Tribute ({subscription_type_str}) успешно активирована для user {telegram_user_id}")
+        else:
+            print(f"Ошибка активации подписки Tribute для user {telegram_user_id}")
+
+
+# Global handler instance
+tribute_handler = TributeWebhookHandler()
+
+async def tribute_webhook(request: Request) -> web.Response:
+    """Tribute webhook endpoint."""
+    return await tribute_handler.handle_webhook(request)
+Шаг 4.5: Модификация Сервера Вебхуков (Endpoint)Файл: api/webhook_server.pyЗаменить импорты и регистрацию роутов, связанных с платежами.Удалить:from core.payments.boosty_handler import get_payment_handlerfrom api.webhooks.boosty import boosty_webhook (если он импортируется)Весь эндпоинт @webhook_app.post("/webhook/boosty").Весь эндпоинт @webhook_app.get("/webhook/boosty").Весь эндпоинт @webhook_app.get("/payment/status/{payment_id}") (Tribute не использует эту логику).Добавить:from api.webhooks.tribute import tribute_webhook (в начало файла)Новые роуты:@webhook_app.post("/webhook/tribute")
+async def handle_tribute_webhook(request: Request):
+    """Handle Tribute payment webhooks."""
+    return await tribute_webhook(request)
+
+@webhook_app.get("/webhook/tribute")
+async def tribute_webhook_get():
+    """Handle GET requests to webhook endpoint (for verification)."""
+    return JSONResponse(
+        status_code=200,
+        content={"status": "ok", "message": "Tribute webhook endpoint is active"}
+    )
+Шаг 4.6: Очистка Проекта
+Действие: Удалить следующие файлы, так как они больше не используются:core/payments/boosty_handler.pyapi/webhooks/boosty.py5. Контрольные Точки (Результат)В боте при нажатии на кнопки "Оформить PRO" / "Оформить ULTRA" (в разделе "Профиль") открывается ссылка на t.me/tribute_bot/....Сервер запускается без ошибок и успешно регистрирует эндпоинт POST /webhook/tribute.После успешной оплаты через Tribute, на эндпоинт POST /webhook/tribute приходит запрос.Запрос успешно проходит верификацию подписи (trbt-signature).Из payload вебхука извлекается telegram_user_id и тип подписки ("PRO" или "ULTRA").Вызывается core/subscriptions/payment_handler.py (который мы не меняли), и в базе данных у пользователя обновляется subscription_type и subscription_expires_at.Сервер отвечает Tribute статусом 200 OK.
