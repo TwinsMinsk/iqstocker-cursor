@@ -395,10 +395,18 @@ async def payment_pro_std_callback(callback: CallbackQuery, callback_data: Payme
         await callback.answer()
         return
 
-    # Определяем кнопку "Назад" в зависимости от того, откуда пришли
-    if callback_data.from_analytics:
+    # Определяем кнопку "Назад" в зависимости от предыдущего шага
+    if callback_data.previous_step:
+        # Возвращаемся на предыдущий шаг
+        back_button = [InlineKeyboardButton(
+            text="◀️ Назад",
+            callback_data=ProfileCallbackData(action=callback_data.previous_step, from_analytics=callback_data.from_analytics).pack()
+        )]
+    elif callback_data.from_analytics:
+        # Если нет previous_step, но пришли из аналитики - возвращаемся в аналитику
         back_button = [InlineKeyboardButton(text="◀️ Назад", callback_data="analytics")]
     else:
+        # Возвращаемся в профиль
         back_button = [InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_back_profile'], callback_data=ProfileCallbackData(action="back_to_profile").pack())]
 
     keyboard = [
@@ -490,10 +498,18 @@ async def payment_ultra_std_callback(callback: CallbackQuery, callback_data: Pay
         await callback.answer()
         return
 
-    # Определяем кнопку "Назад" в зависимости от того, откуда пришли
-    if callback_data.from_analytics:
+    # Определяем кнопку "Назад" в зависимости от предыдущего шага
+    if callback_data.previous_step:
+        # Возвращаемся на предыдущий шаг
+        back_button = [InlineKeyboardButton(
+            text="◀️ Назад",
+            callback_data=ProfileCallbackData(action=callback_data.previous_step, from_analytics=callback_data.from_analytics).pack()
+        )]
+    elif callback_data.from_analytics:
+        # Если нет previous_step, но пришли из аналитики - возвращаемся в аналитику
         back_button = [InlineKeyboardButton(text="◀️ Назад", callback_data="analytics")]
     else:
+        # Возвращаемся в профиль
         back_button = [InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_back_profile'], callback_data=ProfileCallbackData(action="back_to_profile").pack())]
 
     keyboard = [

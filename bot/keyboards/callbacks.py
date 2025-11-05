@@ -69,3 +69,4 @@ class PaymentCallbackData(CallbackData, prefix="payment"):
     """Callback data for payment actions."""
     plan: str  # "pro", "ultra", "pro_test_discount", "ultra_test_discount"
     from_analytics: bool = False  # Флаг, указывающий, что переход произошел из аналитики
+    previous_step: Optional[str] = None  # Предыдущий шаг в цепочке навигации

@@ -148,11 +148,11 @@ def get_profile_free_offer_keyboard(from_analytics: bool = False) -> InlineKeybo
     builder = InlineKeyboardBuilder()
     builder.button(
         text=LEXICON_COMMANDS_RU['button_subscribe_pro_std'],
-        callback_data=PaymentCallbackData(plan="pro", from_analytics=from_analytics).pack()
+        callback_data=PaymentCallbackData(plan="pro", from_analytics=from_analytics, previous_step="show_free_offer").pack()
     )
     builder.button(
         text=LEXICON_COMMANDS_RU['button_subscribe_ultra_std'],
-        callback_data=PaymentCallbackData(plan="ultra", from_analytics=from_analytics).pack()
+        callback_data=PaymentCallbackData(plan="ultra", from_analytics=from_analytics, previous_step="show_free_offer").pack()
     )
     
     # Если пришли из аналитики, добавляем кнопку "Назад в аналитику"
@@ -194,17 +194,28 @@ def get_profile_pro_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def get_profile_pro_compare_keyboard(from_analytics: bool = False) -> InlineKeyboardMarkup:
+def get_profile_pro_compare_keyboard(from_analytics: bool = False, subscription_type: SubscriptionType = None) -> InlineKeyboardMarkup:
     """Клавиатура для сравнения тарифов PRO и ULTRA."""
     builder = InlineKeyboardBuilder()
-    builder.button(
-        text=LEXICON_COMMANDS_RU['button_subscribe_pro_std'],
-        callback_data=PaymentCallbackData(plan="pro", from_analytics=from_analytics).pack()
-    )
-    builder.button(
-        text=LEXICON_COMMANDS_RU['button_go_to_ultra'],
-        callback_data=PaymentCallbackData(plan="ultra", from_analytics=from_analytics).pack()
-    )
+    
+    # Если пользователь на тарифе PRO, показываем только кнопку для ULTRA
+    # Если пользователь на тарифе FREE или TEST_PRO, показываем обе кнопки
+    if subscription_type == SubscriptionType.PRO:
+        # Только ULTRA для PRO пользователей
+        builder.button(
+            text=LEXICON_COMMANDS_RU['button_go_to_ultra'],
+            callback_data=PaymentCallbackData(plan="ultra", from_analytics=from_analytics, previous_step="compare_pro_ultra").pack()
+        )
+    else:
+        # PRO и ULTRA для FREE и TEST_PRO пользователей
+        builder.button(
+            text=LEXICON_COMMANDS_RU['button_subscribe_pro_std'],
+            callback_data=PaymentCallbackData(plan="pro", from_analytics=from_analytics, previous_step="compare_pro_ultra").pack()
+        )
+        builder.button(
+            text=LEXICON_COMMANDS_RU['button_go_to_ultra'],
+            callback_data=PaymentCallbackData(plan="ultra", from_analytics=from_analytics, previous_step="compare_pro_ultra").pack()
+        )
     
     # Если пришли из аналитики, добавляем кнопку "Назад в аналитику"
     if from_analytics:

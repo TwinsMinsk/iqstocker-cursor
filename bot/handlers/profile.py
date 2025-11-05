@@ -260,7 +260,7 @@ async def show_compare_free_pro(callback: CallbackQuery):
 
 
 @router.callback_query(ProfileCallbackData.filter(F.action == "compare_pro_ultra"))
-async def show_compare_pro_ultra(callback: CallbackQuery, callback_data: ProfileCallbackData):
+async def show_compare_pro_ultra(callback: CallbackQuery, callback_data: ProfileCallbackData, user: User):
     """Показывает экран сравнения PRO vs ULTRA."""
     # Определяем, откуда пришли (из аналитики или из профиля)
     from_analytics = callback_data.from_analytics
@@ -268,7 +268,7 @@ async def show_compare_pro_ultra(callback: CallbackQuery, callback_data: Profile
     await safe_edit_message(
         callback=callback,
         text=LEXICON_RU['profile_pro_compare'],
-        reply_markup=get_profile_pro_compare_keyboard(from_analytics=from_analytics),
+        reply_markup=get_profile_pro_compare_keyboard(from_analytics=from_analytics, subscription_type=user.subscription_type),
         parse_mode="HTML"
     )
 
