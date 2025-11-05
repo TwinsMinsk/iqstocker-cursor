@@ -1,7 +1,7 @@
 """Payments management views for admin panel."""
 
-from fastapi import APIRouter, Request, Query
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Request, Query, Form
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc, and_
@@ -11,7 +11,7 @@ from typing import Optional
 from decimal import Decimal
 
 from config.database import AsyncSessionLocal
-from database.models import Subscription, User, SubscriptionType
+from database.models import Subscription, User, SubscriptionType, SystemSettings
 
 router = APIRouter()
 templates = Jinja2Templates(directory="admin_panel/templates")
@@ -108,6 +108,23 @@ async def payments_page(
         # Current time for template
         current_time = datetime.utcnow()
         
+        # Get payment links from SystemSettings
+        payment_link_keys = [
+            'payment_link_free_to_pro',
+            'payment_link_free_to_ultra',
+            'payment_link_test_to_pro',
+            'payment_link_test_to_ultra',
+            'payment_link_pro_to_ultra'
+        ]
+        
+        payment_links = {}
+        for key in payment_link_keys:
+            link_query = await session.execute(
+                select(SystemSettings).where(SystemSettings.key == key)
+            )
+            link_setting = link_query.scalar_one_or_none()
+            payment_links[key] = link_setting.value if link_setting else ''
+        
         return templates.TemplateResponse(
             "payments.html",
             {
@@ -124,7 +141,57 @@ async def payments_page(
                 "recent_revenue": float(recent_revenue),
                 "week_revenue": float(week_revenue),
                 "active_count": active_count,
-                "current_time": current_time
+                "current_time": current_time,
+                "payment_links": payment_links
             }
         )
+
+
+@router.post("/payments/links", response_class=RedirectResponse)
+async def update_payment_links(
+    request: Request,
+    payment_link_free_to_pro: str = Form(""),
+    payment_link_free_to_ultra: str = Form(""),
+    payment_link_test_to_pro: str = Form(""),
+    payment_link_test_to_ultra: str = Form(""),
+    payment_link_pro_to_ultra: str = Form("")
+):
+    """Update payment links in SystemSettings."""
+    async with AsyncSessionLocal() as session:
+        try:
+            payment_links = {
+                'payment_link_free_to_pro': payment_link_free_to_pro.strip(),
+                'payment_link_free_to_ultra': payment_link_free_to_ultra.strip(),
+                'payment_link_test_to_pro': payment_link_test_to_pro.strip(),
+                'payment_link_test_to_ultra': payment_link_test_to_ultra.strip(),
+                'payment_link_pro_to_ultra': payment_link_pro_to_ultra.strip()
+            }
+            
+            for key, value in payment_links.items():
+                # Get existing setting or create new
+                link_query = await session.execute(
+                    select(SystemSettings).where(SystemSettings.key == key)
+                )
+                link_setting = link_query.scalar_one_or_none()
+                
+                if link_setting:
+                    link_setting.value = value
+                    link_setting.updated_at = datetime.utcnow()
+                else:
+                    link_setting = SystemSettings(
+                        key=key,
+                        value=value,
+                        created_at=datetime.utcnow(),
+                        updated_at=datetime.utcnow()
+                    )
+                    session.add(link_setting)
+            
+            await session.commit()
+            
+            return RedirectResponse(url="/payments?links_updated=1", status_code=303)
+            
+        except Exception as e:
+            await session.rollback()
+            print(f"Error updating payment links: {e}")
+            return RedirectResponse(url="/payments?error=1", status_code=303)
 

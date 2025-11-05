@@ -3,6 +3,7 @@
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from sqlalchemy.orm import Session
+from typing import Optional
 
 from config.database import SessionLocal
 from database.models import User, SubscriptionType, Limits
@@ -15,6 +16,35 @@ from bot.utils.safe_edit import safe_edit_message
 router = Router()
 
 
+def get_payment_button_text(user_subscription_type: SubscriptionType, target_subscription_type: SubscriptionType, lexicon: dict = LEXICON_RU) -> str:
+    """Получить текст кнопки оплаты из лексикона."""
+    btn_key = None
+    
+    if user_subscription_type == SubscriptionType.FREE:
+        if target_subscription_type == SubscriptionType.PRO:
+            btn_key = 'payment_btn_text_free_to_pro'
+        elif target_subscription_type == SubscriptionType.ULTRA:
+            btn_key = 'payment_btn_text_free_to_ultra'
+    elif user_subscription_type == SubscriptionType.TEST_PRO:
+        if target_subscription_type == SubscriptionType.PRO:
+            btn_key = 'payment_btn_text_test_to_pro'
+        elif target_subscription_type == SubscriptionType.ULTRA:
+            btn_key = 'payment_btn_text_test_to_ultra'
+    elif user_subscription_type == SubscriptionType.PRO:
+        if target_subscription_type == SubscriptionType.ULTRA:
+            btn_key = 'payment_btn_text_pro_to_ultra'
+    
+    # Fallback к старым ключам
+    if not btn_key or btn_key not in lexicon:
+        if target_subscription_type == SubscriptionType.PRO:
+            return lexicon.get('payment_pro_button', '💳 Оплатить PRO')
+        elif target_subscription_type == SubscriptionType.ULTRA:
+            return lexicon.get('payment_ultra_button', '💳 Оплатить ULTRA')
+        return '💳 Оплатить'
+    
+    return lexicon.get(btn_key, '💳 Оплатить')
+
+
 @router.callback_query(F.data == "upgrade_pro_from_analytics")
 async def upgrade_pro_from_analytics_callback(callback: CallbackQuery, user: User):
     """Handle PRO subscription upgrade from Analytics section."""
@@ -25,9 +55,10 @@ async def upgrade_pro_from_analytics_callback(callback: CallbackQuery, user: Use
     # Create payment link
     async with payment_handler as handler:
         payment_url = await handler.create_subscription_link(
-            user.id, 
+            user.telegram_id, 
             SubscriptionType.PRO, 
-            discount_percent
+            discount_percent,
+            user_subscription_type=user.subscription_type
         )
     
     if not payment_url:
@@ -56,9 +87,12 @@ async def upgrade_pro_from_analytics_callback(callback: CallbackQuery, user: Use
         discount_message=discount_message
     )
     
+    # Получаем текст кнопки из лексикона
+    button_text = get_payment_button_text(user.subscription_type, SubscriptionType.PRO, LEXICON_RU)
+    
     keyboard = [
         [
-            InlineKeyboardButton(text="💳 Оплатить", url=payment_url)
+            InlineKeyboardButton(text=button_text, url=payment_url)
         ],
         [
             InlineKeyboardButton(text="↩️ Назад в аналитику", callback_data="analytics")
@@ -86,9 +120,10 @@ async def upgrade_pro_callback_new(callback: CallbackQuery, callback_data: Upgra
     # Create payment link
     async with payment_handler as handler:
         payment_url = await handler.create_subscription_link(
-            user.id, 
+            user.telegram_id, 
             SubscriptionType.PRO, 
-            discount_percent
+            discount_percent,
+            user_subscription_type=user.subscription_type
         )
     
     if not payment_url:
@@ -134,9 +169,12 @@ async def upgrade_pro_callback_new(callback: CallbackQuery, callback_data: Upgra
         # Возвращаемся в профиль
         back_button = [InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_back_profile'], callback_data=ProfileCallbackData(action="back_to_profile").pack())]
     
+    # Получаем текст кнопки из лексикона
+    button_text = get_payment_button_text(user.subscription_type, SubscriptionType.PRO, LEXICON_RU)
+    
     keyboard = [
         [
-            InlineKeyboardButton(text="💳 Оплатить", url=payment_url)
+            InlineKeyboardButton(text=button_text, url=payment_url)
         ],
         [
             InlineKeyboardButton(text="📊 Сравнить тарифы", callback_data=UpgradeCallbackData(action="compare_subscriptions", previous_step="upgrade_pro").pack())
@@ -165,9 +203,10 @@ async def upgrade_pro_callback(callback: CallbackQuery, user: User):
     # Create payment link
     async with payment_handler as handler:
         payment_url = await handler.create_subscription_link(
-            user.id, 
+            user.telegram_id, 
             SubscriptionType.PRO, 
-            discount_percent
+            discount_percent,
+            user_subscription_type=user.subscription_type
         )
     
     if not payment_url:
@@ -194,9 +233,12 @@ async def upgrade_pro_callback(callback: CallbackQuery, user: User):
             price=subscription_data['price']
         )
     
+    # Получаем текст кнопки из лексикона
+    button_text = get_payment_button_text(user.subscription_type, SubscriptionType.PRO, LEXICON_RU)
+    
     keyboard = [
         [
-            InlineKeyboardButton(text="💳 Оплатить", url=payment_url)
+            InlineKeyboardButton(text=button_text, url=payment_url)
         ],
         [
             InlineKeyboardButton(text="📊 Сравнить тарифы", callback_data="compare_subscriptions")
@@ -227,9 +269,10 @@ async def upgrade_ultra_callback_new(callback: CallbackQuery, callback_data: Upg
     # Create payment link
     async with payment_handler as handler:
         payment_url = await handler.create_subscription_link(
-            user.id, 
+            user.telegram_id, 
             SubscriptionType.ULTRA, 
-            discount_percent
+            discount_percent,
+            user_subscription_type=user.subscription_type
         )
     
     if not payment_url:
@@ -275,9 +318,12 @@ async def upgrade_ultra_callback_new(callback: CallbackQuery, callback_data: Upg
         # Возвращаемся в профиль
         back_button = [InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_back_profile'], callback_data=ProfileCallbackData(action="back_to_profile").pack())]
     
+    # Получаем текст кнопки из лексикона
+    button_text = get_payment_button_text(user.subscription_type, SubscriptionType.PRO, LEXICON_RU)
+    
     keyboard = [
         [
-            InlineKeyboardButton(text="💳 Оплатить", url=payment_url)
+            InlineKeyboardButton(text=button_text, url=payment_url)
         ],
         [
             InlineKeyboardButton(text="📊 Сравнить тарифы", callback_data=UpgradeCallbackData(action="compare_subscriptions", previous_step="upgrade_ultra").pack())
@@ -306,9 +352,10 @@ async def upgrade_ultra_callback(callback: CallbackQuery, user: User):
     # Create payment link
     async with payment_handler as handler:
         payment_url = await handler.create_subscription_link(
-            user.id, 
+            user.telegram_id, 
             SubscriptionType.ULTRA, 
-            discount_percent
+            discount_percent,
+            user_subscription_type=user.subscription_type
         )
     
     if not payment_url:
@@ -335,9 +382,12 @@ async def upgrade_ultra_callback(callback: CallbackQuery, user: User):
             price=subscription_data['price']
         )
     
+    # Получаем текст кнопки из лексикона
+    button_text = get_payment_button_text(user.subscription_type, SubscriptionType.PRO, LEXICON_RU)
+    
     keyboard = [
         [
-            InlineKeyboardButton(text="💳 Оплатить", url=payment_url)
+            InlineKeyboardButton(text=button_text, url=payment_url)
         ],
         [
             InlineKeyboardButton(text="📊 Сравнить тарифы", callback_data="compare_subscriptions")
@@ -635,9 +685,10 @@ async def payment_pro_test_discount_callback(callback: CallbackQuery, callback_d
     # Create payment link
     async with payment_handler as handler:
         payment_url = await handler.create_subscription_link(
-            user.id, 
+            user.telegram_id, 
             SubscriptionType.PRO, 
-            discount_percent
+            discount_percent,
+            user_subscription_type=user.subscription_type
         )
     
     if not payment_url:
@@ -669,9 +720,12 @@ async def payment_pro_test_discount_callback(callback: CallbackQuery, callback_d
         # Возвращаемся в профиль
         back_button = [InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_back_profile'], callback_data=ProfileCallbackData(action="back_to_profile").pack())]
     
+    # Получаем текст кнопки из лексикона
+    button_text = get_payment_button_text(user.subscription_type, SubscriptionType.PRO, LEXICON_RU)
+    
     keyboard = [
         [
-            InlineKeyboardButton(text="💳 Оплатить PRO", url=payment_url)
+            InlineKeyboardButton(text=button_text, url=payment_url)
         ],
         back_button,
         [
@@ -695,9 +749,10 @@ async def payment_pro_std_callback(callback: CallbackQuery, callback_data: Payme
 
     async with payment_handler as handler:
         payment_url = await handler.create_subscription_link(
-            user.id,
+            user.telegram_id,
             SubscriptionType.PRO,
-            0
+            0,
+            user_subscription_type=user.subscription_type
         )
 
     if not payment_url:
@@ -737,8 +792,11 @@ async def payment_pro_std_callback(callback: CallbackQuery, callback_data: Payme
         # Возвращаемся в профиль
         back_button = [InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_back_profile'], callback_data=ProfileCallbackData(action="back_to_profile").pack())]
 
+    # Получаем текст кнопки из лексикона
+    button_text_pro = get_payment_button_text(user.subscription_type, SubscriptionType.PRO, LEXICON_RU)
+    
     keyboard = [
-        [InlineKeyboardButton(text="💳 Оплатить PRO", url=payment_url)],
+        [InlineKeyboardButton(text=button_text_pro, url=payment_url)],
         back_button,
         [InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")]
     ]
@@ -761,9 +819,10 @@ async def payment_ultra_test_discount_callback(callback: CallbackQuery, callback
     # Create payment link
     async with payment_handler as handler:
         payment_url = await handler.create_subscription_link(
-            user.id, 
+            user.telegram_id, 
             SubscriptionType.ULTRA, 
-            discount_percent
+            discount_percent,
+            user_subscription_type=user.subscription_type
         )
     
     if not payment_url:
@@ -795,9 +854,12 @@ async def payment_ultra_test_discount_callback(callback: CallbackQuery, callback
         # Возвращаемся в профиль
         back_button = [InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_back_profile'], callback_data=ProfileCallbackData(action="back_to_profile").pack())]
     
+    # Получаем текст кнопки из лексикона
+    button_text = get_payment_button_text(user.subscription_type, SubscriptionType.ULTRA, LEXICON_RU)
+    
     keyboard = [
         [
-            InlineKeyboardButton(text="💳 Оплатить ULTRA", url=payment_url)
+            InlineKeyboardButton(text=button_text, url=payment_url)
         ],
         back_button,
         [
@@ -821,9 +883,10 @@ async def payment_ultra_std_callback(callback: CallbackQuery, callback_data: Pay
 
     async with payment_handler as handler:
         payment_url = await handler.create_subscription_link(
-            user.id,
+            user.telegram_id,
             SubscriptionType.ULTRA,
-            0
+            0,
+            user_subscription_type=user.subscription_type
         )
 
     if not payment_url:
@@ -863,8 +926,11 @@ async def payment_ultra_std_callback(callback: CallbackQuery, callback_data: Pay
         # Возвращаемся в профиль
         back_button = [InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_back_profile'], callback_data=ProfileCallbackData(action="back_to_profile").pack())]
 
+    # Получаем текст кнопки из лексикона
+    button_text_ultra = get_payment_button_text(user.subscription_type, SubscriptionType.ULTRA, LEXICON_RU)
+    
     keyboard = [
-        [InlineKeyboardButton(text="💳 Оплатить ULTRA", url=payment_url)],
+        [InlineKeyboardButton(text=button_text_ultra, url=payment_url)],
         back_button,
         [InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")]
     ]

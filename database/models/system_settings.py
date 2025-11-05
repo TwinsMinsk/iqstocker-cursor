@@ -9,7 +9,16 @@ from database.models.user import utc_now
 
 
 class SystemSettings(Base):
-    """System Settings model for storing system-wide configuration."""
+    """System Settings model for storing system-wide configuration.
+    
+    Использует key-value структуру для хранения настроек.
+    Для payment links используются ключи:
+    - payment_link_free_to_pro
+    - payment_link_free_to_ultra
+    - payment_link_test_to_pro
+    - payment_link_test_to_ultra
+    - payment_link_pro_to_ultra
+    """
     
     __tablename__ = "system_settings"
     

@@ -212,7 +212,10 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
                                 'payment_link_error', 'payment_pro_test_discount', 
                                 'payment_ultra_test_discount',
                                 'payment_pro_without_discount',
-                                'payment_pro_analytics_upgrade']:
+                                'payment_pro_analytics_upgrade',
+                                'payment_btn_text_free_to_pro', 'payment_btn_text_free_to_ultra',
+                                'payment_btn_text_test_to_pro', 'payment_btn_text_test_to_ultra',
+                                'payment_btn_text_pro_to_ultra']:
                         categories['payments']['items'][key] = value
                     elif key.startswith('faq'):
                         categories['faq']['items'][key] = value

@@ -79,6 +79,83 @@
     </div>
 </div>
 
+<!-- Payment Links Configuration -->
+<div class="card mb-4">
+    <div class="card-header bg-success text-white">
+        <h5 class="mb-0"><i class="fas fa-link me-2"></i>Управление ссылками на оплату</h5>
+    </div>
+    <div class="card-body">
+        <form method="post" action="/payments/links">
+            <div class="row mb-3">
+                <div class="col-12">
+                    <h6 class="text-primary"><i class="fas fa-users me-1"></i>Для пользователей FREE</h6>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="payment_link_free_to_pro" class="form-label">Ссылка FREE → PRO</label>
+                    <input type="url" class="form-control" id="payment_link_free_to_pro" 
+                           name="payment_link_free_to_pro" 
+                           value="{{ payment_links.get('payment_link_free_to_pro', '') }}" 
+                           placeholder="https://tribute.to/...">
+                    <small class="form-text text-muted">Ссылка для перехода с FREE на PRO</small>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="payment_link_free_to_ultra" class="form-label">Ссылка FREE → ULTRA</label>
+                    <input type="url" class="form-control" id="payment_link_free_to_ultra" 
+                           name="payment_link_free_to_ultra" 
+                           value="{{ payment_links.get('payment_link_free_to_ultra', '') }}" 
+                           placeholder="https://tribute.to/...">
+                    <small class="form-text text-muted">Ссылка для перехода с FREE на ULTRA</small>
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-12">
+                    <h6 class="text-warning"><i class="fas fa-flask me-1"></i>Для пользователей TEST_PRO</h6>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="payment_link_test_to_pro" class="form-label">Ссылка TEST_PRO → PRO</label>
+                    <input type="url" class="form-control" id="payment_link_test_to_pro" 
+                           name="payment_link_test_to_pro" 
+                           value="{{ payment_links.get('payment_link_test_to_pro', '') }}" 
+                           placeholder="https://tribute.to/...">
+                    <small class="form-text text-muted">Ссылка для перехода с TEST_PRO на PRO</small>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="payment_link_test_to_ultra" class="form-label">Ссылка TEST_PRO → ULTRA</label>
+                    <input type="url" class="form-control" id="payment_link_test_to_ultra" 
+                           name="payment_link_test_to_ultra" 
+                           value="{{ payment_links.get('payment_link_test_to_ultra', '') }}" 
+                           placeholder="https://tribute.to/...">
+                    <small class="form-text text-muted">Ссылка для перехода с TEST_PRO на ULTRA</small>
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-12">
+                    <h6 class="text-info"><i class="fas fa-trophy me-1"></i>Для пользователей PRO</h6>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="payment_link_pro_to_ultra" class="form-label">Ссылка PRO → ULTRA</label>
+                    <input type="url" class="form-control" id="payment_link_pro_to_ultra" 
+                           name="payment_link_pro_to_ultra" 
+                           value="{{ payment_links.get('payment_link_pro_to_ultra', '') }}" 
+                           placeholder="https://tribute.to/...">
+                    <small class="form-text text-muted">Ссылка для перехода с PRO на ULTRA</small>
+                </div>
+            </div>
+            
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>Важно:</strong> В ссылках будет автоматически добавлен параметр <code>?user_id={telegram_id}</code> для идентификации пользователя в вебхуке.
+            </div>
+            
+            <button type="submit" class="btn btn-success">
+                <i class="fas fa-save me-1"></i>Сохранить ссылки
+            </button>
+        </form>
+    </div>
+</div>
+
 <!-- Filters -->
 <div class="card mb-4">
     <div class="card-body">
@@ -242,6 +319,14 @@
 <script>
 // Добавить datetime в контекст для шаблона
 const now = new Date();
+
+// Показать уведомление об успешном сохранении
+{% if request.query_params.get('links_updated') %}
+    alert('Ссылки на оплату успешно сохранены!');
+{% endif %}
+{% if request.query_params.get('error') %}
+    alert('Ошибка при сохранении ссылок. Попробуйте еще раз.');
+{% endif %}
 </script>
 {% endblock %}
 
