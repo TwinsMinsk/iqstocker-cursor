@@ -55,6 +55,7 @@ async def themes_callback(callback: CallbackQuery, user: User, session: AsyncSes
                 text=LEXICON_RU['themes_cooldown'].format(days=days_remaining),
                 reply_markup=create_cooldown_keyboard(user.subscription_type)
             )
+            await callback.answer()
             return
     
     # Determine message text by tariff
@@ -67,6 +68,7 @@ async def themes_callback(callback: CallbackQuery, user: User, session: AsyncSes
         text=f"💡 <b>Темы</b>\n\n{message_text}",
         reply_markup=get_themes_menu_keyboard(has_archive=archive_exists)
     )
+    await callback.answer()
 
 
 @router.callback_query(ThemesCallback.filter(F.action == "generate"))
@@ -88,6 +90,7 @@ async def generate_themes_callback(
             text=LEXICON_RU['limits_themes_exhausted'],
             reply_markup=get_main_menu_keyboard(user.subscription_type)
         )
+        await callback.answer()
         return
     
     try:
@@ -112,6 +115,7 @@ async def generate_themes_callback(
                     text=LEXICON_RU['themes_cooldown'].format(days=days_remaining),
                     reply_markup=create_cooldown_keyboard(user.subscription_type)
                 )
+                await callback.answer()
                 return
         
         # Determine amount by tariff
@@ -173,6 +177,7 @@ async def generate_themes_callback(
                 text=LEXICON_RU['themes_no_available'],
                 reply_markup=get_themes_menu_keyboard(has_archive=await has_archive(session, user.id))
             )
+            await callback.answer()
             return
         
         # Format themes for display
@@ -212,6 +217,7 @@ async def generate_themes_callback(
             text=out,
             reply_markup=get_themes_menu_keyboard(has_archive=True)
         )
+        await callback.answer()
     except Exception:
         await session.rollback()
         raise
@@ -243,6 +249,7 @@ async def archive_themes_callback(
             text=LEXICON_RU['themes_archive_empty'],
             reply_markup=get_themes_menu_keyboard(has_archive=False)
         )
+        await callback.answer()
         return
     
     # Show first page (index 0 - most recent)
@@ -278,6 +285,7 @@ async def show_archive_page(callback: CallbackQuery, user: User, history: list, 
     
     # Validate page number
     if page < 0 or page >= total_pages:
+        await callback.answer()
         return
     
     # Get the theme request for this page
@@ -298,6 +306,7 @@ async def show_archive_page(callback: CallbackQuery, user: User, history: list, 
         text=archive_text,
         reply_markup=create_archive_navigation_keyboard(page, total_pages, user.subscription_type)
     )
+    await callback.answer()
 
 
 @router.callback_query(F.data == "noop")

@@ -29,3 +29,4 @@ async def channel_callback(callback: CallbackQuery, user: User):
         text=LEXICON_RU['tg_channel_info'],
         reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
     )
+    await callback.answer()

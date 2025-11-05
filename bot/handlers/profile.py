@@ -133,6 +133,8 @@ async def profile_callback(callback: CallbackQuery, user: User, limits: Limits):
             text=profile_text,
             reply_markup=get_profile_keyboard(user.subscription_type)
         )
+    
+    await callback.answer()
 
 
 @router.callback_query(ProfileCallbackData.filter(F.action == "limits_help"))
@@ -146,6 +148,7 @@ async def show_limits_help(callback: CallbackQuery, callback_data: ProfileCallba
         text=LEXICON_RU['profile_limits_help'],
         reply_markup=get_profile_limits_help_keyboard(from_analytics=from_analytics)
     )
+    await callback.answer()
 
 
 @router.callback_query(ProfileCallbackData.filter(F.action == "back_to_profile"))
@@ -237,6 +240,8 @@ async def back_to_profile(callback: CallbackQuery, user: User, limits: Limits):
             text=profile_text,
             reply_markup=get_profile_keyboard(user.subscription_type)
         )
+    
+    await callback.answer()
 
 
 @router.callback_query(ProfileCallbackData.filter(F.action == "show_offer"))
@@ -247,6 +252,7 @@ async def show_payment_offer(callback: CallbackQuery, lexicon: Mapping[str, str]
         text=LEXICON_RU['profile_test_pro_offer'],
         reply_markup=get_profile_offer_keyboard(lexicon=lexicon)
     )
+    await callback.answer()
 
 
 @router.callback_query(ProfileCallbackData.filter(F.action == "compare_free_pro"))
@@ -258,6 +264,7 @@ async def show_compare_free_pro(callback: CallbackQuery, lexicon: Mapping[str, s
         reply_markup=get_profile_compare_keyboard(lexicon=lexicon),
         parse_mode="HTML"
     )
+    await callback.answer()
 
 
 @router.callback_query(ProfileCallbackData.filter(F.action == "compare_pro_ultra"))
@@ -273,6 +280,7 @@ async def show_compare_pro_ultra(callback: CallbackQuery, callback_data: Profile
         reply_markup=get_profile_pro_compare_keyboard(lexicon=lexicon, from_analytics=from_analytics, subscription_type=user.subscription_type),
         parse_mode="HTML"
     )
+    await callback.answer()
 
 
 @router.callback_query(ProfileCallbackData.filter(F.action == "show_free_offer"))
@@ -288,6 +296,7 @@ async def show_free_payment_offer(callback: CallbackQuery, callback_data: Profil
         text=offer_text,
         reply_markup=get_profile_free_offer_keyboard(lexicon=lexicon, from_analytics=from_analytics)
     )
+    await callback.answer()
 
 
 # Старые хэндлеры для обратной совместимости
@@ -300,6 +309,7 @@ async def limits_info_callback(callback: CallbackQuery, user: User):
         text=LEXICON_RU.get('limits_info', 'Информация о лимитах'),
         reply_markup=get_profile_keyboard(user.subscription_type)
     )
+    await callback.answer()
 
 
 @router.callback_query(F.data == "upgrade_pro")
@@ -358,6 +368,7 @@ PRO подписка включает:
         text=upgrade_text,
         reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
     )
+    await callback.answer()
 
 
 @router.callback_query(F.data == "upgrade_ultra")

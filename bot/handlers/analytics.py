@@ -79,6 +79,7 @@ async def analytics_callback(callback: CallbackQuery, user: User, limits: Limits
             text=LEXICON_RU['analytics_unavailable_free'],
             reply_markup=get_analytics_unavailable_keyboard(user.subscription_type)
         )
+        await callback.answer()
         return
     
     # Get all completed analyses for this user
@@ -115,6 +116,8 @@ async def analytics_callback(callback: CallbackQuery, user: User, limits: Limits
             )
     finally:
         db.close()
+    
+    await callback.answer()
 
 
 @router.callback_query(F.data == "analytics_show_csv_guide")
@@ -126,6 +129,7 @@ async def show_csv_guide_callback(callback: CallbackQuery):
         reply_markup=get_csv_instruction_keyboard(),
         parse_mode=None
     )
+    await callback.answer()
 
 
 @router.callback_query(F.data == "analytics_show_intro")
@@ -149,6 +153,7 @@ async def show_intro_callback(callback: CallbackQuery, user: User, session: Asyn
     )
     # Сохраняем ID сообщения intro для последующего удаления
     await state.update_data(analytics_intro_message_id=callback.message.message_id)
+    await callback.answer()
 
 
 @router.callback_query(F.data == "analytics_show_reports")
