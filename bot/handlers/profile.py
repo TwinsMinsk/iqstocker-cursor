@@ -276,7 +276,7 @@ async def show_compare_pro_ultra(callback: CallbackQuery, callback_data: Profile
 
 
 @router.callback_query(ProfileCallbackData.filter(F.action == "show_free_offer"))
-async def show_free_payment_offer(callback: CallbackQuery, callback_data: ProfileCallbackData, lexicon: Mapping[str, str] = LEXICON_RU):
+async def show_free_payment_offer(callback: CallbackQuery, callback_data: ProfileCallbackData, user: User, lexicon: Mapping[str, str] = LEXICON_RU):
     """╨Я╨╛╨║╨░╨╖╤Л╨▓╨░╨╡╤В ╤Б╨╛╨╛╨▒╤Й╨╡╨╜╨╕╨╡ ╤Б ╨┐╤А╨╡╨┤╨╗╨╛╨╢╨╡╨╜╨╕╨╡╨╝ ╨╛ ╨┐╨╛╨║╤Г╨┐╨║╨╡ ╨┤╨╗╤П FREE."""
     # ╨Ю╨┐╤А╨╡╨┤╨╡╨╗╤П╨╡╨╝, ╨╛╤В╨║╤Г╨┤╨░ ╨┐╤А╨╕╤И╨╗╨╕ (╨╕╨╖ ╨░╨╜╨░╨╗╨╕╤В╨╕╨║╨╕ ╨╕╨╗╨╕ ╨╕╨╖ ╨┐╤А╨╛╤Д╨╕╨╗╤П)
     from_analytics = callback_data.from_analytics
@@ -287,13 +287,6 @@ async def show_free_payment_offer(callback: CallbackQuery, callback_data: Profil
         callback=callback,
         text=offer_text,
         reply_markup=get_profile_free_offer_keyboard(lexicon=lexicon, from_analytics=from_analytics)
-    )
-
-    
-    await safe_edit_message(
-        callback=callback,
-        text=LEXICON_RU['main_menu_message'],
-        reply_markup=get_main_menu_keyboard(user.subscription_type)
     )
 
 

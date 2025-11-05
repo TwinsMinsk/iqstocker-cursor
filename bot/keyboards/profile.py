@@ -181,11 +181,14 @@ def get_profile_free_offer_keyboard(from_analytics: bool = False, lexicon: Optio
     return builder.as_markup()
 
 
-def get_profile_pro_keyboard() -> InlineKeyboardMarkup:
+def get_profile_pro_keyboard(lexicon: Optional[Mapping[str, str]] = None) -> InlineKeyboardMarkup:
     """Клавиатура для главного экрана профиля PRO."""
+    if lexicon is None:
+        lexicon = LEXICON_RU
+    
     builder = InlineKeyboardBuilder()
     builder.button(
-        text=LEXICON_COMMANDS_RU['button_go_to_ultra'],
+        text=lexicon.get('payment_ultra_button_pro', LEXICON_RU.get('payment_ultra_button_pro', 'Перейти на ULTRA')),
         callback_data=PaymentCallbackData(plan="ultra").pack()
     )
     builder.button(
@@ -214,9 +217,9 @@ def get_profile_pro_compare_keyboard(from_analytics: bool = False, subscription_
     # Если пользователь на тарифе PRO, показываем только кнопку для ULTRA
     # Если пользователь на тарифе FREE или TEST_PRO, показываем обе кнопки
     if subscription_type == SubscriptionType.PRO:
-        # Только ULTRA для PRO пользователей
+        # Только ULTRA для PRO пользователей - используем унифицированный ключ
         builder.button(
-            text=LEXICON_COMMANDS_RU['button_go_to_ultra'],
+            text=lexicon.get('payment_ultra_button_pro', LEXICON_RU.get('payment_ultra_button_pro', 'Перейти на ULTRA')),
             callback_data=PaymentCallbackData(plan="ultra", from_analytics=from_analytics, previous_step="compare_pro_ultra").pack()
         )
     else:

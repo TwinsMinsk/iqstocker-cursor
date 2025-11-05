@@ -207,6 +207,7 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
                     elif key in ['payment_pro_button', 'payment_ultra_button',
                                 'payment_pro_button_free', 'payment_ultra_button_free',
                                 'payment_pro_button_test', 'payment_ultra_button_test',
+                                'payment_ultra_button_pro',
                                 'payment_pro_std_details', 'payment_ultra_std_details', 
                                 'payment_link_error', 'payment_pro_test_discount', 
                                 'payment_ultra_test_discount',

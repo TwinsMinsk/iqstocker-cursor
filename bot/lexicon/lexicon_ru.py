@@ -469,6 +469,7 @@ LEXICON_RU = {
     'payment_ultra_button_free': 'Оформить Ultra',
     'payment_pro_button_test': 'Оформить PRO (50% скидка)',
     'payment_ultra_button_test': 'Оформить Ultra (50% скидка)',
+    'payment_ultra_button_pro': 'Перейти на ULTRA',
     'payment_pro_std_details': (
         "<b>💎 Тариф PRO</b>\n\n"
         "<b>Цена: 990₽/месяц</b>\n\n"
