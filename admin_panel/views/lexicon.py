@@ -195,8 +195,8 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
                     # TG Channel category
                     elif key == 'tg_channel_info':
                         categories['tg_channel']['items'][key] = value
-                    # Referral category
-                    elif key == 'invite_friend_dev':
+                    # Referral category - all keys starting with referral_ or redeem_
+                    elif key.startswith('referral_') or key.startswith('redeem_') or key == 'invite_friend_dev':
                         categories['referral']['items'][key] = value
                     # Other categories
                     elif key.startswith('lessons'):

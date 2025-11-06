@@ -1,0 +1,138 @@
+#!/usr/bin/env python3
+"""Initialize referral program lexicon entries in database."""
+
+import os
+import sys
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Add project root to path
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+# Load .env file
+env_path = PROJECT_ROOT / '.env'
+if env_path.exists():
+    load_dotenv(dotenv_path=env_path, override=True)
+    print(f"✅ Loaded .env from: {env_path.resolve()}")
+else:
+    print(f"⚠️  .env file not found at: {env_path.resolve()}")
+
+from core.lexicon.service import LexiconService
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+# Тексты реферальной программы
+REFERRAL_LEXICON_ENTRIES = {
+    'referral_program_button': '🤝 Реферальная программа',
+    'referral_menu_header': '<b>Как это работает</b>',
+    'referral_menu_text': (
+        "У тебя есть уникальная ссылка.\n"
+        "Когда кто-то регистрируется по ней и оформляет подписку PRO или ULTRA, ты получаешь +1 IQ Балл.\n"
+        "Баллы копятся и не сгорают— их можно обменять на бонусы в любое время, в разделе 🎁 Использовать баллы.\n\n"
+        "<b>🎁 На что можно обменять баллы?</b>\n\n"
+        "1️⃣ IQ Балл — скидка 25% на месяц PRO или ULTRA\n"
+        "2️⃣ IQ Балла — скидка 50% на месяц PRO или ULTRA \n"
+        "3️⃣ IQ Балла — 1 месяц PRO бесплатно\n"
+        "4️⃣ IQ Балла — 1 месяц ULTRA бесплатно\n"
+        "5️⃣ IQ Баллов — бесплатный пожизненный доступ в закрытый канал IQ Radar\n\n"
+        "<b>🚀 Как пригласить</b>\n\n"
+        "Нажми Получить ссылку — и бот сгенерирует твою персональную ссылку.\n"
+        "Отправь её друзьям, коллегам или в профильные чаты.\n"
+        "Как только кто-то купит PRO или ULTRA по твоей ссылке — бонус сразу появится на твоём балансе в этом разделе.\n\n"
+        "<b>💡 Почему это выгодно</b>\n"
+        "Каждый приглашённый — это не просто бонус, а реальная выгода:\n\n"
+        "🔓 Ты открываешь себе больше возможностей. Баллы превращаются в скидки, доступ и апгрейды без доплат.\n"
+        "🤝 Ты помогаешь коллегам. Делишься инструментом, который реально экономит время и помогает в работе.\n"
+        "🚀 Ты растёшь вместе с системой. Чем больше активных авторов — тем сильнее и лучше будет становиться среда IQ Stocker.\n"
+        "📈 Делись ссылкой на бота, зарабатывай IQ Баллы и превращай свою активность в реальную пользу."
+    ),
+    'referral_balance_info': 'Твой баланс: <b>{balance} IQ Баллов</b>',
+    'get_referral_link_button': '🔗 Получить ссылку',
+    'use_referral_points_button': '🎁 Использовать баллы',
+    'your_referral_link': 'Вот твоя уникальная реферальная ссылка:\n\n<code>{link}</code>\n\nОтправь её друзьям, коллегам или в профильные чаты.',
+    'redeem_menu_header': '<b>🎁 Использовать баллы</b>\n\nТвой баланс: <b>{balance} IQ Баллов</b>\n\nВыбери награду:',
+    'redeem_reward_1': '1️⃣ балл: Скидка 25% (PRO/ULTRA)',
+    'redeem_reward_2': '2️⃣ балла: Скидка 50% (PRO/ULTRA)',
+    'redeem_reward_3': '3️⃣ балла: 1 месяц PRO бесплатно',
+    'redeem_reward_4': '4️⃣ балла: 1 месяц ULTRA бесплатно',
+    'redeem_reward_5': '5️⃣ баллов: Доступ в IQ Radar',
+    'redeem_not_enough_points': 'Недостаточно баллов для этой награды.',
+    'redeem_success_discount': '<b>Скидка активирована!</b>\n\nВот твоя специальная ссылка на оплату со скидкой {percent}%:\n\n{link}',
+    'redeem_success_free_month': 'Подписка {plan_name} продлена на 1 месяц.',
+    'redeem_success_radar': '<b>Доступ в IQ Radar!</b>\n\nВот твоя ссылка-приглашение в закрытый канал:\n\n{link}',
+    'redeem_admin_not_setup_link': 'Ошибка: награда еще не настроена админом. Пожалуйста, сообщите в поддержку.',
+    'redeem_link_sent_privately': 'Ссылка на награду отправлена тебе следующим сообщением.',
+}
+
+
+def init_referral_lexicon():
+    """Initialize referral program lexicon entries in database."""
+    logger.info("=" * 60)
+    logger.info("Starting referral lexicon initialization")
+    logger.info("=" * 60)
+    
+    try:
+        # Initialize service
+        service = LexiconService()
+        
+        # Check existing entries
+        logger.info("Checking existing lexicon entries...")
+        existing_lexicon = service.load_lexicon()
+        existing_ru = existing_lexicon.get('LEXICON_RU', {})
+        logger.info(f"Found {len(existing_ru)} existing LEXICON_RU entries in database")
+        
+        # Initialize referral entries
+        logger.info("Initializing referral lexicon entries...")
+        migrated = 0
+        skipped = 0
+        errors = 0
+        
+        for key, value in REFERRAL_LEXICON_ENTRIES.items():
+            try:
+                # Check if already exists
+                existing_value = existing_ru.get(key)
+                if existing_value and existing_value == value:
+                    skipped += 1
+                    logger.debug(f"Skipping {key} (already exists with same value)")
+                    continue
+                
+                # Save to database (upsert)
+                success = service.save_value(key, value, 'LEXICON_RU')
+                if success:
+                    migrated += 1
+                    logger.info(f"✅ Initialized: {key}")
+                else:
+                    errors += 1
+                    logger.warning(f"❌ Failed to save {key}")
+            except Exception as e:
+                errors += 1
+                logger.error(f"❌ Error initializing {key}: {e}")
+        
+        logger.info("=" * 60)
+        logger.info("Referral lexicon initialization summary:")
+        logger.info(f"  Initialized: {migrated}")
+        logger.info(f"  Skipped (already exists): {skipped}")
+        logger.info(f"  Errors: {errors}")
+        logger.info("=" * 60)
+        
+        # Invalidate cache to ensure fresh data
+        service.invalidate_cache()
+        logger.info("Cache invalidated - new data will be loaded on next request")
+        
+        return errors == 0
+        
+    except Exception as e:
+        logger.error(f"Initialization failed: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return False
+
+
+if __name__ == "__main__":
+    success = init_referral_lexicon()
+    sys.exit(0 if success else 1)
+
