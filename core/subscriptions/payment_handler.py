@@ -1,5 +1,6 @@
 """Payment handler for Boosty integration."""
 
+import logging
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +10,8 @@ from config.database import AsyncSessionLocal
 from database.models import User, Subscription, SubscriptionType, Limits
 from config.settings import settings
 from core.tariffs.tariff_service import TariffService
+
+logger = logging.getLogger(__name__)
 
 
 class PaymentHandler:
@@ -73,6 +76,10 @@ class PaymentHandler:
                 else:
                     limits = self._create_limits_for_subscription(user.id, sub_type)
                     session.add(limits)
+                
+                # Начисляем баллы рефереру, если это первая оплата PRO/ULTRA
+                if sub_type in [SubscriptionType.PRO, SubscriptionType.ULTRA]:
+                    await self._award_referral_points(user, session)
                 
                 await session.commit()
                 
@@ -200,6 +207,32 @@ class PaymentHandler:
             return f"{base_url}/ultra"
         
         return base_url
+    
+    async def _award_referral_points(self, user: User, session: AsyncSession):
+        """Award referral points to referrer when user makes first PRO/ULTRA payment."""
+        # Проверяем, что у пользователя есть реферер и бонус еще не был выплачен
+        if not user.referrer_id or user.referral_bonus_paid:
+            return
+        
+        # Получаем реферера
+        referrer_query = select(User).where(User.id == user.referrer_id)
+        referrer_result = await session.execute(referrer_query)
+        referrer = referrer_result.scalar_one_or_none()
+        
+        if referrer:
+            # Начисляем 1 IQ Балл рефереру
+            referrer.referral_balance = (referrer.referral_balance or 0) + 1
+            # Отмечаем, что бонус выплачен
+            user.referral_bonus_paid = True
+            
+            print(f"✅ Начислен 1 IQ Балл пользователю {referrer.id} (telegram_id: {referrer.telegram_id}) "
+                  f"за реферала {user.id} (telegram_id: {user.telegram_id})")
+            logger.info(f"Awarded 1 referral point to user {referrer.id} for referrer {user.id}")
+        else:
+            # Реферер не найден (возможно, удален), просто отмечаем, что бонус "выплачен"
+            # чтобы не проверять снова
+            user.referral_bonus_paid = True
+            logger.warning(f"Referrer {user.referrer_id} not found for user {user.id}, marking bonus as paid")
     
     def get_discount_info(self, user_subscription_type: SubscriptionType) -> Dict[str, Any]:
         """Get discount information for user."""

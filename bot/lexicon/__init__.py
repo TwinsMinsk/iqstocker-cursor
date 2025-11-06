@@ -46,25 +46,39 @@ class LexiconMapping(Mapping[str, str]):
 
     def _load_full(self) -> Dict[str, str]:
         """Fetch entire category from service, falling back to local snapshot."""
+        # Сначала загружаем статический файл как базовую версию
+        static_snapshot = _load_local_snapshot().get(self._category, {})
+        
         try:
+            # Пытаемся загрузить из service (база данных или Redis кэш)
             lexicon_data = self._service.load_lexicon()
             category_data = lexicon_data.get(self._category, {})
+            
+            # Мержим: статический файл как база, данные из БД/кэша поверх
+            merged_data = dict(static_snapshot)
+            merged_data.update(category_data)
+            
             with self._lock:
-                self._cache = dict(category_data)
-            return category_data
+                self._cache = merged_data
+            return merged_data
         except Exception as exc:
             logger.warning(f"Failed to refresh lexicon from service ({self._category}): {exc}")
-
-        snapshot = _load_local_snapshot().get(self._category, {})
-        with self._lock:
-            self._cache = dict(snapshot)
-        return snapshot
+            # Fallback на статический файл
+            with self._lock:
+                self._cache = dict(static_snapshot)
+            return static_snapshot
 
     def refresh(self) -> None:
         """Force refresh of cached lexicon data."""
         self._load_full()
 
     def __getitem__(self, key: str) -> str:
+        # Сначала проверяем локальный кэш
+        with self._lock:
+            if key in self._cache:
+                return self._cache[key]
+        
+        # Пытаемся получить из service
         value = None
         try:
             value = self._service.get_value(key, self._category)
@@ -76,11 +90,24 @@ class LexiconMapping(Mapping[str, str]):
                 self._cache[key] = value
             return value
 
+        # Загружаем полный словарь (с merge статического файла)
         category_map = self._load_full()
         try:
             return category_map[key]
-        except KeyError as exc:
-            raise KeyError(key) from exc
+        except KeyError:
+            # Последняя попытка - напрямую из статического файла
+            try:
+                from .lexicon_ru import LEXICON_COMMANDS_RU as FILE_COMMANDS, LEXICON_RU as FILE_LEXICON
+                static_data = FILE_LEXICON if self._category == "LEXICON_RU" else FILE_COMMANDS
+                if key in static_data:
+                    logger.info(f"Found key '{key}' in static lexicon file (final fallback)")
+                    with self._lock:
+                        self._cache[key] = static_data[key]
+                    return static_data[key]
+            except Exception as exc:
+                logger.warning(f"Failed to load from static lexicon file: {exc}")
+            
+            raise KeyError(f"Key '{key}' not found in lexicon category '{self._category}'")
 
     def __iter__(self) -> Iterator[str]:
         category_map = self._load_full()

@@ -79,13 +79,17 @@ async def create_new_user(message: Message, session: AsyncSession, referrer_tele
     
     referrer_id = None
     if referrer_telegram_id and referrer_telegram_id != message.from_user.id:
-        # Find referrer user
+        # Find referrer user by telegram_id
         referrer_stmt = select(User).where(User.telegram_id == referrer_telegram_id)
         referrer_result = await session.execute(referrer_stmt)
         referrer = referrer_result.scalar_one_or_none()
         if referrer:
+            # Дополнительная проверка: реферер не должен быть самим пользователем
+            # (хотя это уже проверено выше по telegram_id, но для безопасности)
             referrer_id = referrer.id
-            logger.info(f"Found referrer {referrer.id} for new user {message.from_user.id}")
+            logger.info(f"Found referrer {referrer.id} (telegram_id: {referrer_telegram_id}) for new user {message.from_user.id}")
+        else:
+            logger.warning(f"Referrer with telegram_id {referrer_telegram_id} not found for new user")
     
     user = User(
         telegram_id=message.from_user.id,
@@ -125,15 +129,30 @@ async def create_new_user(message: Message, session: AsyncSession, referrer_tele
 
 async def handle_referrer_assignment(user: User, referrer_telegram_id: int, session: AsyncSession):
     """Handle referrer assignment for existing user."""
-    # Find referrer user
+    # Проверяем, что у пользователя еще нет реферера
+    if user.referrer_id is not None:
+        logger.info(f"User {user.id} already has referrer {user.referrer_id}, skipping assignment")
+        return
+    
+    # Проверяем, что пользователь не пытается быть реферером самому себе
+    if referrer_telegram_id == user.telegram_id:
+        logger.warning(f"User {user.id} tried to set themselves as referrer, skipping")
+        return
+    
+    # Find referrer user by telegram_id
     referrer_stmt = select(User).where(User.telegram_id == referrer_telegram_id)
     referrer_result = await session.execute(referrer_stmt)
     referrer = referrer_result.scalar_one_or_none()
     
     if referrer:
+        # Проверяем, что реферер не является самим пользователем (по id)
+        if referrer.id == user.id:
+            logger.warning(f"User {user.id} tried to set themselves as referrer (by id), skipping")
+            return
+        
         user.referrer_id = referrer.id
         await session.commit()
-        logger.info(f"Assigned referrer {referrer.id} to existing user {user.id}")
+        logger.info(f"Assigned referrer {referrer.id} (telegram_id: {referrer_telegram_id}) to existing user {user.id}")
     else:
         logger.warning(f"Referrer with telegram_id {referrer_telegram_id} not found")
 
