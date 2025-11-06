@@ -33,16 +33,25 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # --- Настройка URL Базы Данных ---
-# Приоритет: 1. DATABASE_URL из .env, 2. sqlalchemy.url из alembic.ini
+# Приоритет: DATABASE_URL из .env файла (обязательно)
+# sqlalchemy.url в alembic.ini закомментирован, чтобы не использовался SQLite по умолчанию
 db_url = os.environ.get("DATABASE_URL")
-if db_url:
-    # Убедимся, что Alembic использует psycopg2 (синхронный)
-    if db_url.startswith("postgresql+asyncpg://"):
-        db_url = db_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
-    elif db_url.startswith("postgresql://"):
+if not db_url:
+    raise ValueError(
+        "DATABASE_URL environment variable is not set! "
+        "Please set DATABASE_URL in your .env file in the project root."
+    )
+
+# Убедимся, что Alembic использует psycopg2 (синхронный) для PostgreSQL
+if db_url.startswith("postgresql+asyncpg://"):
+    db_url = db_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
+elif db_url.startswith("postgresql://"):
+    # Если не указан драйвер, используем psycopg2 для синхронных операций
+    if "psycopg2" not in db_url:
         db_url = db_url.replace("postgresql://", "postgresql+psycopg2://")
 
-    config.set_main_option("sqlalchemy.url", db_url)
+# Устанавливаем URL в конфигурацию Alembic
+config.set_main_option("sqlalchemy.url", db_url)
 # --- Конец Настройки URL ---
 
 # Целевая metadata для операций 'autogenerate'
