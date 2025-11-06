@@ -20,9 +20,9 @@ router = Router()
 logger = logging.getLogger(__name__)
 
 
-@router.message(F.text == "/start")
+@router.message(F.text.startswith("/start"))
 async def start_command(message: Message, state: FSMContext, session: AsyncSession):
-    """Handle /start command with step-by-step messaging."""
+    """Handle /start command with step-by-step messaging and deep-link support."""
     
     # Clear any existing state
     await state.clear()
@@ -33,6 +33,17 @@ async def start_command(message: Message, state: FSMContext, session: AsyncSessi
     first_name = message.from_user.first_name
     last_name = message.from_user.last_name
     
+    # Parse deep-link parameter (e.g., /start ref_123456)
+    referrer_telegram_id = None
+    text_parts = message.text.split()
+    if len(text_parts) > 1:
+        ref_param = text_parts[1]
+        if ref_param.startswith("ref_"):
+            try:
+                referrer_telegram_id = int(ref_param.replace("ref_", ""))
+            except ValueError:
+                logger.warning(f"Invalid referrer ID format: {ref_param}")
+    
     # Пытаемся найти юзера
     stmt = select(User).where(User.telegram_id == telegram_id)
     result = await session.execute(stmt)
@@ -41,15 +52,17 @@ async def start_command(message: Message, state: FSMContext, session: AsyncSessi
     if user is None:
         logging.info(f"Creating new user for {telegram_id}")
         # Create new user with TEST_PRO subscription
-        user = await create_new_user(message, session)
+        user = await create_new_user(message, session, referrer_telegram_id)
         await send_welcome_sequence(message, user)
     else:
         logging.info(f"User {telegram_id} found with ID: {user.id}")
-        # Handle existing user
+        # Handle existing user - check if we need to set referrer
+        if referrer_telegram_id and not user.referrer_id and referrer_telegram_id != telegram_id:
+            await handle_referrer_assignment(user, referrer_telegram_id, session)
         await handle_existing_user(message, user, session)
 
 
-async def create_new_user(message: Message, session: AsyncSession) -> User:
+async def create_new_user(message: Message, session: AsyncSession, referrer_telegram_id: int = None) -> User:
     """Create new user with TEST_PRO subscription."""
     from sqlalchemy.ext.asyncio import AsyncSession as AsyncSessionType
     
@@ -64,6 +77,16 @@ async def create_new_user(message: Message, session: AsyncSession) -> User:
     test_pro_duration = tariff_service.get_test_pro_duration_days()
     test_pro_expires = (now_aware + timedelta(days=test_pro_duration)).replace(tzinfo=None)
     
+    referrer_id = None
+    if referrer_telegram_id and referrer_telegram_id != message.from_user.id:
+        # Find referrer user
+        referrer_stmt = select(User).where(User.telegram_id == referrer_telegram_id)
+        referrer_result = await session.execute(referrer_stmt)
+        referrer = referrer_result.scalar_one_or_none()
+        if referrer:
+            referrer_id = referrer.id
+            logger.info(f"Found referrer {referrer.id} for new user {message.from_user.id}")
+    
     user = User(
         telegram_id=message.from_user.id,
         username=message.from_user.username,
@@ -74,7 +97,11 @@ async def create_new_user(message: Message, session: AsyncSession) -> User:
         updated_at=now,
         test_pro_started_at=now,
         subscription_expires_at=test_pro_expires,
-        last_activity_at=now
+        last_activity_at=now,
+        referrer_id=referrer_id,
+        referral_balance=0,
+        referral_bonus_paid=False,
+        next_payment_discount_percent=0
     )
     session.add(user)
     await session.flush()  # Get user ID
@@ -92,8 +119,23 @@ async def create_new_user(message: Message, session: AsyncSession) -> User:
     await session.commit()  # Сохраняем нового юзера
     await session.refresh(user)  # Обновляем объект user из БД
     
-    logging.info(f"New user created with ID: {user.id}")
+    logging.info(f"New user created with ID: {user.id}, referrer_id: {referrer_id}")
     return user
+
+
+async def handle_referrer_assignment(user: User, referrer_telegram_id: int, session: AsyncSession):
+    """Handle referrer assignment for existing user."""
+    # Find referrer user
+    referrer_stmt = select(User).where(User.telegram_id == referrer_telegram_id)
+    referrer_result = await session.execute(referrer_stmt)
+    referrer = referrer_result.scalar_one_or_none()
+    
+    if referrer:
+        user.referrer_id = referrer.id
+        await session.commit()
+        logger.info(f"Assigned referrer {referrer.id} to existing user {user.id}")
+    else:
+        logger.warning(f"Referrer with telegram_id {referrer_telegram_id} not found")
 
 
 async def send_welcome_sequence(message: Message, user: User):

@@ -27,7 +27,7 @@ from database.models import (
     User, SubscriptionType, Subscription, Limits,
     CSVAnalysis, AnalyticsReport, ThemeRequest,
     GlobalTheme, VideoLesson, CalendarEntry, BroadcastMessage,
-    AuditLog
+    AuditLog, ReferralReward
 )
 from config.database import engine
 from admin_panel.auth import authentication_backend, ADMIN_SECRET_KEY
@@ -162,10 +162,10 @@ class UserAdmin(ModelView, model=User):
     column_list = [
         User.id, User.telegram_id, User.username, 
         User.first_name, User.subscription_type, 
-        User.subscription_expires_at, User.created_at
+        User.subscription_expires_at, User.referral_balance, User.referrer_id, User.created_at
     ]
-    column_searchable_list = [User.username, User.first_name, User.last_name, User.telegram_id]
-    column_sortable_list = [User.created_at, User.subscription_expires_at, User.id]
+    column_searchable_list = [User.username, User.first_name, User.last_name, User.telegram_id, User.referrer_id]
+    column_sortable_list = [User.created_at, User.subscription_expires_at, User.referral_balance, User.id]
     # Временно убираем фильтры для исправления ошибки
     # column_filters = [
     #     User.subscription_type,
@@ -183,6 +183,12 @@ class UserAdmin(ModelView, model=User):
     column_formatters = {
         User.subscription_expires_at: lambda m, a: m.subscription_expires_at.strftime('%Y-%m-%d %H:%M') if m.subscription_expires_at else 'Never',
         User.created_at: lambda m, a: m.created_at.strftime('%Y-%m-%d %H:%M')
+    }
+    
+    # Column labels
+    column_labels = {
+        User.referral_balance: "IQ Баллы",
+        User.referrer_id: "ID Пригласившего",
     }
 
 class SubscriptionAdmin(ModelView, model=Subscription):
@@ -523,6 +529,37 @@ class AuditLogAdmin(ModelView, model=AuditLog):
 
 # LLMSettingsAdmin removed - LLM functionality is deprecated
 
+class ReferralRewardAdmin(ModelView, model=ReferralReward):
+    name = "Награда"
+    name_plural = "Награды за рефералов"
+    icon = "fa-solid fa-gift"
+    
+    # Запрещаем создавать или удалять награды, админ может только редактировать 5 существующих
+    can_create = False
+    can_delete = False
+    can_edit = True
+    can_export = True
+    export_types = ["csv", "json"]
+    
+    column_list = [
+        ReferralReward.reward_id, 
+        ReferralReward.name, 
+        ReferralReward.cost, 
+        ReferralReward.reward_type, 
+        ReferralReward.value
+    ]
+    
+    column_labels = {
+        ReferralReward.reward_id: "ID",
+        ReferralReward.name: "Название",
+        ReferralReward.cost: "Стоимость (Баллы)",
+        ReferralReward.reward_type: "Тип",
+        ReferralReward.value: "Ссылка (для LINK)"
+    }
+    
+    column_sortable_list = [ReferralReward.reward_id, ReferralReward.cost, ReferralReward.reward_type]
+    column_searchable_list = [ReferralReward.name]
+
 # Регистрируем все представления
 try:
     admin.add_view(UserAdmin)
@@ -537,6 +574,7 @@ try:
     admin.add_view(CalendarEntryAdmin)
     admin.add_view(BroadcastMessageAdmin)
     admin.add_view(AuditLogAdmin)
+    admin.add_view(ReferralRewardAdmin)
     # admin.add_view(LLMSettingsAdmin)  # Removed - LLM functionality is deprecated
     print("✅ All admin views registered successfully")
 except Exception as e:

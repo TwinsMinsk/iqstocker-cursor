@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from enum import Enum
-from sqlalchemy import BigInteger, Boolean, DateTime, Enum as SQLEnum, String, Index
+from sqlalchemy import BigInteger, Boolean, DateTime, Enum as SQLEnum, ForeignKey, Integer, String, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from config.database import Base
@@ -53,6 +53,15 @@ class User(Base):
     # Admin flag
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     
+    # Referral system fields
+    referrer_id: Mapped[int | None] = mapped_column(
+        ForeignKey('users.id'), 
+        nullable=True, 
+        index=True
+    )
+    referral_balance: Mapped[int] = mapped_column(Integer, server_default='0')
+    referral_bonus_paid: Mapped[bool] = mapped_column(Boolean, server_default='False')
+    
     # Relationships with cascade delete
     subscriptions: Mapped[list["Subscription"]] = relationship(
         back_populates="user", 
@@ -74,6 +83,17 @@ class User(Base):
     issued_themes: Mapped[list["UserIssuedTheme"]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan"
+    )
+    
+    # Referral relationships
+    referrer: Mapped["User | None"] = relationship(
+        foreign_keys=[referrer_id], 
+        remote_side=[id], 
+        lazy="selectin"
+    )
+    referrals: Mapped[list["User"]] = relationship(
+        back_populates="referrer", 
+        lazy="selectin"
     )
     
     def update_activity(self):

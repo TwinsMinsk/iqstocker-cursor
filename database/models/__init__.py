@@ -19,6 +19,7 @@ from .system_message import SystemMessage
 from .system_settings import SystemSettings
 from .lexicon_entry import LexiconEntry, LexiconCategory
 from .tariff_limits import TariffLimits
+from .referral_reward import ReferralReward, RewardType
 
 __all__ = [
     "Base",
@@ -45,4 +46,6 @@ __all__ = [
     "LexiconEntry",
     "LexiconCategory",
     "TariffLimits",
+    "ReferralReward",
+    "RewardType",
 ]
