@@ -25,6 +25,11 @@ async def referral_page(request: Request):
             rewards_result = await session.execute(rewards_query)
             rewards = rewards_result.scalars().all()
             
+            # Log rewards for debugging
+            logger.info(f"Found {len(rewards)} rewards in database")
+            for reward in rewards:
+                logger.debug(f"Reward: ID={reward.reward_id}, Name={reward.name}, Cost={reward.cost}, Type={reward.reward_type}")
+            
             # Get statistics
             # Total users with referrers
             referrers_query = select(func.count(User.id)).where(User.referrer_id.isnot(None))
@@ -123,9 +128,22 @@ async def update_reward(
                 raise HTTPException(status_code=404, detail="Reward not found")
             
             reward.name = name
-            reward.cost = cost
-            reward.reward_type = RewardType[reward_type]
-            reward.value = value if value else None
+            reward.cost = int(cost)
+            # Преобразуем строку в enum (может быть "link", "free_pro", "free_ultra" или "LINK", "FREE_PRO", "FREE_ULTRA")
+            reward_type_lower = reward_type.lower()
+            if reward_type_lower == "link":
+                reward.reward_type = RewardType.LINK
+            elif reward_type_lower == "free_pro":
+                reward.reward_type = RewardType.FREE_PRO
+            elif reward_type_lower == "free_ultra":
+                reward.reward_type = RewardType.FREE_ULTRA
+            else:
+                # Пробуем напрямую через enum
+                try:
+                    reward.reward_type = RewardType[reward_type.upper()]
+                except KeyError:
+                    raise HTTPException(status_code=400, detail=f"Invalid reward type: {reward_type}")
+            reward.value = value.strip() if value and value.strip() else None
             
             await session.commit()
             

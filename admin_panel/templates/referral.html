@@ -50,10 +50,11 @@
     <div class="row">
         <div class="col-12">
             <div class="card">
-                <div class="card-header">
+                <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">
                         <i class="fas fa-trophy me-2"></i>Управление наградами
                     </h5>
+                    <span class="badge bg-primary">{{ rewards|length if rewards else 0 }} наград</span>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
@@ -69,28 +70,50 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for reward in rewards %}
-                                <tr>
-                                    <td>{{ reward.reward_id }}</td>
-                                    <td>{{ reward.name }}</td>
-                                    <td>{{ reward.cost }}</td>
-                                    <td>
-                                        <span class="badge bg-secondary">{{ reward.reward_type.value }}</span>
-                                    </td>
-                                    <td>
-                                        {% if reward.value %}
-                                            <code style="font-size: 0.85em;">{{ reward.value[:50] }}{% if reward.value|length > 50 %}...{% endif %}</code>
-                                        {% else %}
-                                            <span class="text-muted">Не настроено</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        <button class="btn btn-sm btn-primary" onclick="editReward({{ reward.reward_id }}, '{{ reward.name }}', {{ reward.cost }}, '{{ reward.reward_type.value }}', '{{ reward.value or '' }}')">
-                                            <i class="fas fa-edit"></i> Редактировать
-                                        </button>
-                                    </td>
-                                </tr>
-                                {% endfor %}
+                                {% if rewards %}
+                                    {% for reward in rewards %}
+                                    <tr>
+                                        <td>{{ reward.reward_id }}</td>
+                                        <td>{{ reward.name }}</td>
+                                        <td>{{ reward.cost }}</td>
+                                        <td>
+                                            {% if reward.reward_type.value == 'link' %}
+                                                <span class="badge bg-info">LINK</span>
+                                            {% elif reward.reward_type.value == 'free_pro' %}
+                                                <span class="badge bg-success">FREE_PRO</span>
+                                            {% elif reward.reward_type.value == 'free_ultra' %}
+                                                <span class="badge bg-warning text-dark">FREE_ULTRA</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">{{ reward.reward_type.value }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if reward.value %}
+                                                <code style="font-size: 0.85em;" title="{{ reward.value }}">{{ reward.value[:50] }}{% if reward.value|length > 50 %}...{% endif %}</code>
+                                            {% else %}
+                                                <span class="text-muted">Не настроено</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-sm btn-primary" 
+                                                    data-reward-id="{{ reward.reward_id }}"
+                                                    data-reward-name="{{ reward.name }}"
+                                                    data-reward-cost="{{ reward.cost }}"
+                                                    data-reward-type="{{ reward.reward_type.value }}"
+                                                    data-reward-value="{{ reward.value or '' }}"
+                                                    onclick="editRewardFromButton(this)">
+                                                <i class="fas fa-edit"></i> Редактировать
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted">
+                                            <i class="fas fa-info-circle me-2"></i>Награды не найдены. Запустите скрипт инициализации: <code>python scripts/data/init_rewards.py</code>
+                                        </td>
+                                    </tr>
+                                {% endif %}
                             </tbody>
                         </table>
                     </div>
@@ -162,10 +185,11 @@
                     <div class="mb-3">
                         <label for="edit_reward_type" class="form-label">Тип награды</label>
                         <select class="form-select" id="edit_reward_type" name="reward_type" required>
-                            <option value="LINK">LINK (ссылка)</option>
-                            <option value="FREE_PRO">FREE_PRO (бесплатный PRO)</option>
-                            <option value="FREE_ULTRA">FREE_ULTRA (бесплатный ULTRA)</option>
+                            <option value="link">LINK (ссылка)</option>
+                            <option value="free_pro">FREE_PRO (бесплатный PRO)</option>
+                            <option value="free_ultra">FREE_ULTRA (бесплатный ULTRA)</option>
                         </select>
+                        <small class="form-text text-muted">LINK - для скидок и IQ Radar, FREE_PRO/FREE_ULTRA - для бесплатных подписок</small>
                     </div>
                     
                     <div class="mb-3" id="value_field_container">
@@ -184,16 +208,39 @@
 </div>
 
 <script>
+function editRewardFromButton(button) {
+    const rewardId = button.getAttribute('data-reward-id');
+    const name = button.getAttribute('data-reward-name') || '';
+    const cost = button.getAttribute('data-reward-cost');
+    const rewardType = button.getAttribute('data-reward-type') || '';
+    const value = button.getAttribute('data-reward-value') || '';
+    
+    editReward(rewardId, name, cost, rewardType, value);
+}
+
 function editReward(rewardId, name, cost, rewardType, value) {
     document.getElementById('edit_reward_id').value = rewardId;
-    document.getElementById('edit_name').value = name;
+    document.getElementById('edit_name').value = name || '';
     document.getElementById('edit_cost').value = cost;
-    document.getElementById('edit_reward_type').value = rewardType;
+    
+    // Преобразуем тип награды в формат для select (link, free_pro, free_ultra)
+    let rewardTypeValue = rewardType.toLowerCase();
+    if (rewardTypeValue === 'link') {
+        document.getElementById('edit_reward_type').value = 'link';
+    } else if (rewardTypeValue === 'free_pro') {
+        document.getElementById('edit_reward_type').value = 'free_pro';
+    } else if (rewardTypeValue === 'free_ultra') {
+        document.getElementById('edit_reward_type').value = 'free_ultra';
+    } else {
+        // Fallback - пробуем найти по значению
+        document.getElementById('edit_reward_type').value = rewardTypeValue;
+    }
+    
     document.getElementById('edit_value').value = value || '';
     
     // Показываем/скрываем поле ссылки в зависимости от типа
     const valueContainer = document.getElementById('value_field_container');
-    if (rewardType === 'LINK') {
+    if (rewardTypeValue === 'link') {
         valueContainer.style.display = 'block';
     } else {
         valueContainer.style.display = 'none';
@@ -205,7 +252,7 @@ function editReward(rewardId, name, cost, rewardType, value) {
 
 document.getElementById('edit_reward_type').addEventListener('change', function() {
     const valueContainer = document.getElementById('value_field_container');
-    if (this.value === 'LINK') {
+    if (this.value === 'link') {
         valueContainer.style.display = 'block';
     } else {
         valueContainer.style.display = 'none';
@@ -225,12 +272,45 @@ document.getElementById('editRewardForm').addEventListener('submit', async funct
     const result = await response.json();
     
     if (result.success) {
-        alert(result.message);
-        location.reload();
+        // Показываем уведомление об успехе
+        showNotification(result.message, 'success');
+        // Перезагружаем страницу через 1 секунду
+        setTimeout(() => {
+            location.reload();
+        }, 1000);
     } else {
-        alert('Ошибка: ' + result.message);
+        showNotification('Ошибка: ' + result.message, 'error');
     }
 });
+
+function showNotification(message, type) {
+    // Создаем контейнер для уведомлений, если его нет
+    let container = document.getElementById('notification-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'notification-container';
+        container.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999;';
+        document.body.appendChild(container);
+    }
+    
+    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+    const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
+    
+    const notification = document.createElement('div');
+    notification.className = `alert ${alertClass} alert-dismissible fade show`;
+    notification.style.minWidth = '300px';
+    notification.innerHTML = `
+        <i class="fas ${icon} me-2"></i>${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    container.appendChild(notification);
+    
+    // Удаляем уведомление через 5 секунд
+    setTimeout(() => {
+        notification.remove();
+    }, 5000);
+}
 </script>
 {% endblock %}
 
