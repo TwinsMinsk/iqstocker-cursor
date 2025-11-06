@@ -73,22 +73,28 @@ class LexiconMapping(Mapping[str, str]):
         self._load_full()
 
     def __getitem__(self, key: str) -> str:
-        # Сначала проверяем локальный кэш
-        with self._lock:
-            if key in self._cache:
-                return self._cache[key]
-        
-        # Пытаемся получить из service
+        # Сначала пытаемся получить из service (БД/Redis), чтобы получить актуальные данные
+        # Это гарантирует, что изменения из админ-панели сразу видны в боте
+        # После инвалидации Redis кэша, get_value_sync загрузит свежие данные из БД
         value = None
         try:
-            value = self._service.get_value(key, self._category)
+            # Пытаемся получить из service (проверит Redis кэш и БД)
+            # Если Redis кэш был инвалидирован после сохранения, загрузит из БД
+            value = self._service.get_value_sync(key, self._category)
         except Exception as exc:
             logger.warning(f"Failed to get lexicon value '{key}' from service: {exc}")
 
         if value is not None:
+            # Обновляем локальный кэш актуальным значением
             with self._lock:
                 self._cache[key] = value
             return value
+
+        # Если не нашли в service, проверяем локальный кэш (fallback)
+        with self._lock:
+            if key in self._cache:
+                logger.debug(f"Using cached value for '{key}' (service returned None)")
+                return self._cache[key]
 
         # Загружаем полный словарь (с merge статического файла)
         category_map = self._load_full()

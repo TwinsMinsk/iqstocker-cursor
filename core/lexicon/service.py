@@ -446,7 +446,15 @@ class LexiconService:
             logger.warning(f"Failed to refresh lexicon cache snapshot (sync): {exc}")
 
         # Invalidate caches
+        # Инвалидируем как общий кэш, так и кэш конкретного ключа
         self.invalidate_cache()
+        # Также инвалидируем кэш конкретного ключа для этой категории
+        cache_key_single = self._get_cache_key(category_enum.value, key)
+        try:
+            self.redis_client.delete(cache_key_single)
+            logger.info(f"Invalidated cache for key '{key}' in category '{category_enum.value}'")
+        except Exception as e:
+            logger.warning(f"Failed to invalidate single key cache: {e}")
         
         logger.info(f"Saved lexicon entry: {key} ({category_enum.value})")
         return True
