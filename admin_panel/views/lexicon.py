@@ -233,7 +233,7 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
             for key, value in LEXICON_COMMANDS_RU.items():
                 try:
                     # FAQ кнопки должны быть в категории FAQ, а не buttons
-                    if key.startswith('faq_btn_'):
+                    if key.startswith('faq_btn_') or key.startswith('faq_q'):
                         categories['faq']['items'][key] = value
                     else:
                         categories['buttons']['items'][key] = value

@@ -175,14 +175,14 @@ def create_archive_navigation_keyboard(
 def get_faq_menu_keyboard() -> InlineKeyboardMarkup:
     """Create FAQ menu keyboard with list of questions.
     
-    Использует faq_q* из LEXICON_RU (из БД) для текстов кнопок.
+    Использует faq_q* из LEXICON_COMMANDS_RU (из БД) для текстов кнопок.
     """
     keyboard = []
 
-    # Используем faq_q* из LEXICON_RU вместо faq_btn_* из LEXICON_COMMANDS_RU
+    # Используем faq_q* из LEXICON_COMMANDS_RU (они были перемещены из LEXICON_RU)
     # Это гарантирует, что кнопки используют актуальные данные из БД
     faq_keys = []
-    for key in LEXICON_RU.keys():
+    for key in LEXICON_COMMANDS_RU.keys():
         if key.startswith('faq_q'):
             # Извлекаем номер из ключа (faq_q1 -> 1, faq_q10 -> 10)
             match = re.search(r'faq_q(\d+)', key)
@@ -195,7 +195,7 @@ def get_faq_menu_keyboard() -> InlineKeyboardMarkup:
     for question_num, key in faq_keys:
         keyboard.append([
             InlineKeyboardButton(
-                text=LEXICON_RU[key],  # Используем faq_q* из LEXICON_RU (из БД)
+                text=LEXICON_COMMANDS_RU[key],  # Используем faq_q* из LEXICON_COMMANDS_RU (из БД)
                 callback_data=f'faq_{question_num}'
             )
         ])

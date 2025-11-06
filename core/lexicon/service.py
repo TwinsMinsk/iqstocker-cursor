@@ -342,9 +342,9 @@ class LexiconService:
                 category_enum = LexiconCategory[category]
             elif category == 'faq':
                 # FAQ ключи могут быть в обеих категориях:
-                # faq_btn_* -> LEXICON_COMMANDS_RU (кнопки)
-                # faq_intro, faq_a*, faq_q* -> LEXICON_RU (тексты)
-                if key.startswith('faq_btn_'):
+                # faq_btn_*, faq_q* -> LEXICON_COMMANDS_RU (кнопки)
+                # faq_intro, faq_a* -> LEXICON_RU (тексты)
+                if key.startswith('faq_btn_') or key.startswith('faq_q'):
                     category_enum = LexiconCategory.LEXICON_COMMANDS_RU
                 else:
                     category_enum = LexiconCategory.LEXICON_RU
@@ -411,9 +411,9 @@ class LexiconService:
                 category_enum = LexiconCategory[category]
             elif category == 'faq':
                 # FAQ ключи могут быть в обеих категориях:
-                # faq_btn_* -> LEXICON_COMMANDS_RU (кнопки)
-                # faq_intro, faq_a*, faq_q* -> LEXICON_RU (тексты)
-                if key.startswith('faq_btn_'):
+                # faq_btn_*, faq_q* -> LEXICON_COMMANDS_RU (кнопки)
+                # faq_intro, faq_a* -> LEXICON_RU (тексты)
+                if key.startswith('faq_btn_') or key.startswith('faq_q'):
                     category_enum = LexiconCategory.LEXICON_COMMANDS_RU
                 else:
                     category_enum = LexiconCategory.LEXICON_RU
