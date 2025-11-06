@@ -9,7 +9,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 from core.notifications.scheduler import get_scheduler
 from config.settings import settings
-from bot.handlers import start, menu, profile, analytics, themes, lessons, calendar, faq, channel, payments, admin, invite
+from bot.handlers import start, menu, profile, analytics, themes, lessons, calendar, faq, channel, payments, admin, invite, referral
 from bot.middlewares.database import DatabaseMiddleware
 from bot.middlewares.subscription import SubscriptionMiddleware
 from bot.middlewares.limits import LimitsMiddleware
@@ -76,6 +76,7 @@ async def main():
     dp.include_router(payments.router)
     dp.include_router(admin.router)
     dp.include_router(invite.router)
+    dp.include_router(referral.router)
     
     logger.info("Bot started successfully")
     
