@@ -72,7 +72,7 @@ def create_redeem_menu_keyboard(balance: int) -> InlineKeyboardMarkup:
     
     # Кнопка "Назад"
     builder.button(
-        text=LEXICON_RU['button_back_to_referral'],
+        text=LEXICON_COMMANDS_RU['button_back_to_referral'],
         callback_data="referral_menu"
     )
     

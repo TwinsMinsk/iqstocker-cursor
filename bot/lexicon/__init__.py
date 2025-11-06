@@ -46,24 +46,22 @@ class LexiconMapping(Mapping[str, str]):
 
     def _load_full(self) -> Dict[str, str]:
         """Fetch entire category from service, falling back to local snapshot."""
-        # Сначала загружаем статический файл как базовую версию
-        static_snapshot = _load_local_snapshot().get(self._category, {})
-        
         try:
             # Пытаемся загрузить из service (база данных или Redis кэш)
+            # service.load_lexicon() уже делает merge с статическим файлом,
+            # но данные из БД имеют приоритет (в _merge_with_static)
             lexicon_data = self._service.load_lexicon()
             category_data = lexicon_data.get(self._category, {})
             
-            # Мержим: статический файл как база, данные из БД/кэша поверх
-            merged_data = dict(static_snapshot)
-            merged_data.update(category_data)
-            
+            # Данные из service уже содержат merge БД + статический файл,
+            # где данные из БД имеют приоритет
             with self._lock:
-                self._cache = merged_data
-            return merged_data
+                self._cache = dict(category_data)
+            return category_data
         except Exception as exc:
             logger.warning(f"Failed to refresh lexicon from service ({self._category}): {exc}")
-            # Fallback на статический файл
+            # Fallback на статический файл только если service недоступен
+            static_snapshot = _load_local_snapshot().get(self._category, {})
             with self._lock:
                 self._cache = dict(static_snapshot)
             return static_snapshot
@@ -73,9 +71,8 @@ class LexiconMapping(Mapping[str, str]):
         self._load_full()
 
     def __getitem__(self, key: str) -> str:
-        # Сначала пытаемся получить из service (БД/Redis), чтобы получить актуальные данные
+        # ВСЕГДА сначала пытаемся получить из service (БД/Redis), чтобы получить актуальные данные из БД
         # Это гарантирует, что изменения из админ-панели сразу видны в боте
-        # После инвалидации Redis кэша, get_value_sync загрузит свежие данные из БД
         value = None
         try:
             # Пытаемся получить из service (проверит Redis кэш и БД)
@@ -85,28 +82,24 @@ class LexiconMapping(Mapping[str, str]):
             logger.warning(f"Failed to get lexicon value '{key}' from service: {exc}")
 
         if value is not None:
-            # Обновляем локальный кэш актуальным значением
+            # Обновляем локальный кэш актуальным значением из БД
             with self._lock:
                 self._cache[key] = value
             return value
 
-        # Если не нашли в service, проверяем локальный кэш (fallback)
-        with self._lock:
-            if key in self._cache:
-                logger.debug(f"Using cached value for '{key}' (service returned None)")
-                return self._cache[key]
-
-        # Загружаем полный словарь (с merge статического файла)
+        # Если не нашли в service, загружаем полный словарь из service
+        # (который уже содержит merge БД + статический файл, где БД имеет приоритет)
         category_map = self._load_full()
         try:
             return category_map[key]
         except KeyError:
-            # Последняя попытка - напрямую из статического файла
+            # Только если ключ не найден ни в БД, ни в статическом файле через service
+            # делаем последнюю попытку напрямую из статического файла
             try:
                 from .lexicon_ru import LEXICON_COMMANDS_RU as FILE_COMMANDS, LEXICON_RU as FILE_LEXICON
                 static_data = FILE_LEXICON if self._category == "LEXICON_RU" else FILE_COMMANDS
                 if key in static_data:
-                    logger.info(f"Found key '{key}' in static lexicon file (final fallback)")
+                    logger.warning(f"Key '{key}' not found in database, using static file (should be added to DB)")
                     with self._lock:
                         self._cache[key] = static_data[key]
                     return static_data[key]

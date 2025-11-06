@@ -232,7 +232,11 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
         if LEXICON_COMMANDS_RU:
             for key, value in LEXICON_COMMANDS_RU.items():
                 try:
-                    categories['buttons']['items'][key] = value
+                    # FAQ кнопки должны быть в категории FAQ, а не buttons
+                    if key.startswith('faq_btn_'):
+                        categories['faq']['items'][key] = value
+                    else:
+                        categories['buttons']['items'][key] = value
                 except Exception as e:
                     logger.warning(f"Error categorizing button {key}: {e}")
         

@@ -340,6 +340,14 @@ class LexiconService:
                 category_enum = LexiconCategory.LEXICON_COMMANDS_RU
             elif category in ['LEXICON_RU', 'LEXICON_COMMANDS_RU']:
                 category_enum = LexiconCategory[category]
+            elif category == 'faq':
+                # FAQ ключи могут быть в обеих категориях:
+                # faq_btn_* -> LEXICON_COMMANDS_RU (кнопки)
+                # faq_intro, faq_a*, faq_q* -> LEXICON_RU (тексты)
+                if key.startswith('faq_btn_'):
+                    category_enum = LexiconCategory.LEXICON_COMMANDS_RU
+                else:
+                    category_enum = LexiconCategory.LEXICON_RU
             else:
                 category_enum = LexiconCategory.LEXICON_RU
         except (KeyError, ValueError):
@@ -401,6 +409,14 @@ class LexiconService:
                 category_enum = LexiconCategory.LEXICON_COMMANDS_RU
             elif category in ['LEXICON_RU', 'LEXICON_COMMANDS_RU']:
                 category_enum = LexiconCategory[category]
+            elif category == 'faq':
+                # FAQ ключи могут быть в обеих категориях:
+                # faq_btn_* -> LEXICON_COMMANDS_RU (кнопки)
+                # faq_intro, faq_a*, faq_q* -> LEXICON_RU (тексты)
+                if key.startswith('faq_btn_'):
+                    category_enum = LexiconCategory.LEXICON_COMMANDS_RU
+                else:
+                    category_enum = LexiconCategory.LEXICON_RU
             else:
                 category_enum = LexiconCategory.LEXICON_RU
         except (KeyError, ValueError):
@@ -494,15 +510,27 @@ class LexiconService:
             return 0
 
     def _merge_with_static(self, data: Dict[str, Dict[str, str]]) -> Dict[str, Dict[str, str]]:
-        """Merge provided lexicon data with static fallback values."""
+        """Merge provided lexicon data with static fallback values.
+        
+        ВАЖНО: Данные из БД (параметр data) имеют приоритет над статическим файлом.
+        Статический файл используется только для ключей, которых нет в БД.
+        """
         static_data = self._load_static_lexicon()
         merged: Dict[str, Dict[str, str]] = {}
 
         all_categories = set(static_data.keys()) | set(data.keys())
         for category in all_categories:
+            # Начинаем со статического файла как базы
             category_data = dict(static_data.get(category, {}))
+            # Данные из БД перезаписывают статический файл (имеют приоритет)
             category_data.update(data.get(category, {}))
             merged[category] = category_data
+        
+        # Логируем статистику для отладки
+        db_keys_count = sum(len(data.get(cat, {})) for cat in data.keys())
+        static_keys_count = sum(len(static_data.get(cat, {})) for cat in static_data.keys())
+        merged_keys_count = sum(len(merged.get(cat, {})) for cat in merged.keys())
+        logger.info(f"Lexicon merge: DB={db_keys_count} keys, Static={static_keys_count} keys, Merged={merged_keys_count} keys (DB has priority)")
 
         return merged
 
