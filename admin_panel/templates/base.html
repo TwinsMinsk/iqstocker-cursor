@@ -52,6 +52,10 @@
                 <i class="fas fa-cog"></i>
                 <span>Управление тарифами</span>
             </a>
+            <a class="nav-link {% if request.url.path == '/referral' or '/referral' in request.url.path %}active{% endif %}" href="/referral">
+                <i class="fas fa-gift"></i>
+                <span>Реферальная программа</span>
+            </a>
             <a class="nav-link {% if request.url.path == '/payment-test' or '/payment-test' in request.url.path %}active{% endif %}" href="/payment-test">
                 <i class="fas fa-vial"></i>
                 <span>Тест платежей</span>

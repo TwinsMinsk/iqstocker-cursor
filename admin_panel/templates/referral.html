@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+
+{% block title %}Реферальная программа - IQStocker Admin{% endblock %}
+
+{% block page_title %}
+<i class="fas fa-gift me-2"></i>Реферальная программа
+{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item active">Реферальная программа</li>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Статистика -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-users me-2"></i>Всего рефереров
+                    </h5>
+                    <h2 class="mb-0">{{ stats.total_referrers }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-coins me-2"></i>Пользователей с баллами
+                    </h5>
+                    <h2 class="mb-0">{{ stats.users_with_balance }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-star me-2"></i>Всего баллов выдано
+                    </h5>
+                    <h2 class="mb-0">{{ stats.total_balance }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Награды -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-trophy me-2"></i>Управление наградами
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Название</th>
+                                    <th>Стоимость (баллы)</th>
+                                    <th>Тип</th>
+                                    <th>Ссылка/Значение</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for reward in rewards %}
+                                <tr>
+                                    <td>{{ reward.reward_id }}</td>
+                                    <td>{{ reward.name }}</td>
+                                    <td>{{ reward.cost }}</td>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ reward.reward_type.value }}</span>
+                                    </td>
+                                    <td>
+                                        {% if reward.value %}
+                                            <code style="font-size: 0.85em;">{{ reward.value[:50] }}{% if reward.value|length > 50 %}...{% endif %}</code>
+                                        {% else %}
+                                            <span class="text-muted">Не настроено</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary" onclick="editReward({{ reward.reward_id }}, '{{ reward.name }}', {{ reward.cost }}, '{{ reward.reward_type.value }}', '{{ reward.value or '' }}')">
+                                            <i class="fas fa-edit"></i> Редактировать
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Топ рефереров -->
+    {% if top_referrers %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-medal me-2"></i>Топ рефереров
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Telegram ID</th>
+                                    <th>Рефералов</th>
+                                    <th>Баланс баллов</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for referrer in top_referrers %}
+                                <tr>
+                                    <td>{{ referrer.telegram_id }}</td>
+                                    <td>{{ referrer.referrals_count }}</td>
+                                    <td>{{ referrer.referral_balance }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Modal для редактирования награды -->
+<div class="modal fade" id="editRewardModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Редактировать награду</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="editRewardForm">
+                <div class="modal-body">
+                    <input type="hidden" id="edit_reward_id" name="reward_id">
+                    
+                    <div class="mb-3">
+                        <label for="edit_name" class="form-label">Название</label>
+                        <input type="text" class="form-control" id="edit_name" name="name" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="edit_cost" class="form-label">Стоимость (баллы)</label>
+                        <input type="number" class="form-control" id="edit_cost" name="cost" min="1" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="edit_reward_type" class="form-label">Тип награды</label>
+                        <select class="form-select" id="edit_reward_type" name="reward_type" required>
+                            <option value="LINK">LINK (ссылка)</option>
+                            <option value="FREE_PRO">FREE_PRO (бесплатный PRO)</option>
+                            <option value="FREE_ULTRA">FREE_ULTRA (бесплатный ULTRA)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3" id="value_field_container">
+                        <label for="edit_value" class="form-label">Ссылка (для типа LINK)</label>
+                        <input type="text" class="form-control" id="edit_value" name="value" placeholder="https://...">
+                        <small class="form-text text-muted">Оставьте пустым для типов FREE_PRO и FREE_ULTRA</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function editReward(rewardId, name, cost, rewardType, value) {
+    document.getElementById('edit_reward_id').value = rewardId;
+    document.getElementById('edit_name').value = name;
+    document.getElementById('edit_cost').value = cost;
+    document.getElementById('edit_reward_type').value = rewardType;
+    document.getElementById('edit_value').value = value || '';
+    
+    // Показываем/скрываем поле ссылки в зависимости от типа
+    const valueContainer = document.getElementById('value_field_container');
+    if (rewardType === 'LINK') {
+        valueContainer.style.display = 'block';
+    } else {
+        valueContainer.style.display = 'none';
+    }
+    
+    const modal = new bootstrap.Modal(document.getElementById('editRewardModal'));
+    modal.show();
+}
+
+document.getElementById('edit_reward_type').addEventListener('change', function() {
+    const valueContainer = document.getElementById('value_field_container');
+    if (this.value === 'LINK') {
+        valueContainer.style.display = 'block';
+    } else {
+        valueContainer.style.display = 'none';
+    }
+});
+
+document.getElementById('editRewardForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    
+    const response = await fetch('/referral/reward/update', {
+        method: 'POST',
+        body: formData
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+        alert(result.message);
+        location.reload();
+    } else {
+        alert('Ошибка: ' + result.message);
+    }
+});
+</script>
+{% endblock %}
+

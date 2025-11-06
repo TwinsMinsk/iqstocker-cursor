@@ -42,15 +42,15 @@ class LexiconMapping(Mapping[str, str]):
         self._category = category
         self._service = service or LexiconService()
         self._lock = threading.RLock()
-        self._cache: Dict[str, str] = dict(_load_local_snapshot().get(category, {}))
+        # НЕ загружаем локальный кэш при инициализации - всегда загружаем из БД
+        self._cache: Dict[str, str] = {}
 
     def _load_full(self) -> Dict[str, str]:
         """Fetch entire category from service, falling back to local snapshot."""
         try:
-            # Пытаемся загрузить из service (база данных или Redis кэш)
-            # service.load_lexicon() уже делает merge с статическим файлом,
-            # но данные из БД имеют приоритет (в _merge_with_static)
-            lexicon_data = self._service.load_lexicon()
+            # ВСЕГДА загружаем с force_refresh=True, чтобы обойти Redis кэш и получить актуальные данные из БД
+            # Это гарантирует, что изменения из админ-панели сразу видны в боте
+            lexicon_data = self._service.load_lexicon(force_refresh=True)
             category_data = lexicon_data.get(self._category, {})
             
             # Данные из service уже содержат merge БД + статический файл,
@@ -75,19 +75,40 @@ class LexiconMapping(Mapping[str, str]):
         # Это гарантирует, что изменения из админ-панели сразу видны в боте
         value = None
         try:
-            # Пытаемся получить из service (проверит Redis кэш и БД)
-            # Если Redis кэш был инвалидирован после сохранения, загрузит из БД
-            value = self._service.get_value_sync(key, self._category)
+            # Пытаемся получить из service напрямую из БД (минуя Redis кэш для актуальности)
+            # Используем _get_from_db_sync напрямую для гарантии актуальности данных
+            from config.database import SessionLocal
+            from database.models.lexicon_entry import LexiconEntry, LexiconCategory
+            
+            # Определяем правильную категорию
+            category_enum = LexiconCategory[self._category] if self._category in ['LEXICON_RU', 'LEXICON_COMMANDS_RU'] else LexiconCategory.LEXICON_RU
+            
+            # Загружаем напрямую из БД
+            with SessionLocal() as db_session:
+                entry = db_session.query(LexiconEntry).filter(
+                    LexiconEntry.key == key,
+                    LexiconEntry.category == category_enum
+                ).first()
+                
+                if entry:
+                    value = entry.value
+                    # Обновляем локальный кэш актуальным значением из БД
+                    with self._lock:
+                        self._cache[key] = value
+                    return value
         except Exception as exc:
-            logger.warning(f"Failed to get lexicon value '{key}' from service: {exc}")
+            logger.warning(f"Failed to get lexicon value '{key}' from database: {exc}")
+            # Пробуем через service (может быть Redis кэш)
+            try:
+                value = self._service.get_value_sync(key, self._category)
+                if value is not None:
+                    with self._lock:
+                        self._cache[key] = value
+                    return value
+            except Exception as exc2:
+                logger.warning(f"Failed to get lexicon value '{key}' from service: {exc2}")
 
-        if value is not None:
-            # Обновляем локальный кэш актуальным значением из БД
-            with self._lock:
-                self._cache[key] = value
-            return value
-
-        # Если не нашли в service, загружаем полный словарь из service
+        # Если не нашли в БД, загружаем полный словарь из service
         # (который уже содержит merge БД + статический файл, где БД имеет приоритет)
         category_map = self._load_full()
         try:
