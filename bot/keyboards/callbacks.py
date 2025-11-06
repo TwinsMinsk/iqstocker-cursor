@@ -76,3 +76,8 @@ class UpgradeCallbackData(CallbackData, prefix="upgrade"):
     """Callback data for upgrade and compare actions."""
     action: str  # "upgrade_pro", "upgrade_ultra", "compare_subscriptions", "compare_free_pro", "compare_pro_ultra"
     previous_step: Optional[str] = None  # Предыдущий шаг в цепочке навигации
+
+
+class RedeemCallback(CallbackData, prefix="redeem"):
+    """Callback data for redeeming referral points."""
+    reward_id: int  # 1-5 for different rewards
