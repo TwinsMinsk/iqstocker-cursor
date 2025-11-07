@@ -137,6 +137,8 @@ async def update_reward(
                 reward.reward_type = RewardType.FREE_PRO
             elif reward_type_lower == "free_ultra":
                 reward.reward_type = RewardType.FREE_ULTRA
+            elif reward_type_lower == "support_request":
+                reward.reward_type = RewardType.SUPPORT_REQUEST
             else:
                 # Пробуем напрямую через enum
                 try:

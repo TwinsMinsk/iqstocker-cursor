@@ -13,10 +13,12 @@ class RewardType(str, enum.Enum):
     LINK - статичная ссылка (для скидок или IQ Radar)
     FREE_PRO - выдать 1 месяц PRO
     FREE_ULTRA - выдать 1 месяц ULTRA
+    SUPPORT_REQUEST - запрос через поддержку (пользователь должен написать в поддержку для получения награды)
     """
     LINK = "link"
     FREE_PRO = "free_pro"
     FREE_ULTRA = "free_ultra"
+    SUPPORT_REQUEST = "support_request"
 
 
 class ReferralReward(Base):

@@ -67,17 +67,19 @@ async def referral_get_link_callback(callback: CallbackQuery, user: User, bot: B
 
 
 @router.callback_query(F.data == "show_redeem_menu")
-async def referral_redeem_menu_callback(callback: CallbackQuery, user: User):
+async def referral_redeem_menu_callback(callback: CallbackQuery, user: User, session: AsyncSession):
     """Handle redeem menu callback - show available rewards."""
     
     balance = user.referral_balance or 0
     
     text = LEXICON_RU['redeem_menu_header'].format(balance=balance)
     
+    keyboard = await create_redeem_menu_keyboard(balance, session)
+    
     await safe_edit_message(
         callback=callback,
         text=text,
-        reply_markup=create_redeem_menu_keyboard(balance)
+        reply_markup=keyboard
     )
     await callback.answer()
 
@@ -110,10 +112,43 @@ async def redeem_reward_callback(
         )
         return
     
-    # Списываем баллы
+    # Обрабатываем награду в зависимости от типа
+    if reward.reward_type == RewardType.SUPPORT_REQUEST:
+        # Для наград типа SUPPORT_REQUEST - НЕ списываем баллы сразу
+        # Показываем сообщение с инструкцией написать в поддержку
+        support_text = LEXICON_RU['redeem_support_request'].format(
+            reward_name=reward.name,
+            cost=reward.cost
+        )
+        
+        # Создаем клавиатуру с кнопкой для связи с поддержкой
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    text=LEXICON_RU['contact_support_button'],
+                    url=LEXICON_RU.get('support_contact_url', 'https://t.me/your_support')
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text=LEXICON_COMMANDS_RU['button_back_to_referral'],
+                    callback_data="referral_menu"
+                )
+            ]
+        ]
+        
+        await safe_edit_message(
+            callback=callback,
+            text=support_text,
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
+        )
+        
+        await callback.answer()
+        return  # Не списываем баллы, не обновляем меню
+    
+    # Для остальных типов наград - списываем баллы и обрабатываем автоматически
     user.referral_balance -= reward.cost
     
-    # Обрабатываем награду в зависимости от типа
     if reward.reward_type == RewardType.LINK:
         # Проверяем, настроена ли ссылка админом
         if not reward.value:
@@ -175,9 +210,11 @@ async def redeem_reward_callback(
     new_balance = user.referral_balance or 0
     text = LEXICON_RU['redeem_menu_header'].format(balance=new_balance)
     
+    keyboard = await create_redeem_menu_keyboard(new_balance, session)
+    
     await safe_edit_message(
         callback=callback,
         text=text,
-        reply_markup=create_redeem_menu_keyboard(new_balance)
+        reply_markup=keyboard
     )
 

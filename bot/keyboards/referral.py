@@ -2,9 +2,12 @@
 
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from bot.lexicon import LEXICON_RU, LEXICON_COMMANDS_RU
 from bot.keyboards.callbacks import RedeemCallback
+from database.models import ReferralReward
 
 
 def create_referral_menu_keyboard() -> InlineKeyboardMarkup:
@@ -35,40 +38,32 @@ def create_referral_menu_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def create_redeem_menu_keyboard(balance: int) -> InlineKeyboardMarkup:
-    """Create redeem rewards menu keyboard based on user balance."""
+async def create_redeem_menu_keyboard(balance: int, session: AsyncSession) -> InlineKeyboardMarkup:
+    """Create redeem rewards menu keyboard based on user balance and available rewards from DB."""
     builder = InlineKeyboardBuilder()
     
-    # Динамически добавляем кнопки наград в зависимости от баланса
-    if balance >= 1:
-        builder.button(
-            text=LEXICON_RU['redeem_reward_1'],
-            callback_data=RedeemCallback(reward_id=1).pack()
-        )
+    # Загружаем все награды из БД, отсортированные по стоимости
+    rewards_query = select(ReferralReward).order_by(ReferralReward.cost)
+    rewards_result = await session.execute(rewards_query)
+    rewards = rewards_result.scalars().all()
     
-    if balance >= 2:
-        builder.button(
-            text=LEXICON_RU['redeem_reward_2'],
-            callback_data=RedeemCallback(reward_id=2).pack()
-        )
-    
-    if balance >= 3:
-        builder.button(
-            text=LEXICON_RU['redeem_reward_3'],
-            callback_data=RedeemCallback(reward_id=3).pack()
-        )
-    
-    if balance >= 4:
-        builder.button(
-            text=LEXICON_RU['redeem_reward_4'],
-            callback_data=RedeemCallback(reward_id=4).pack()
-        )
-    
-    if balance >= 5:
-        builder.button(
-            text=LEXICON_RU['redeem_reward_5'],
-            callback_data=RedeemCallback(reward_id=5).pack()
-        )
+    # Добавляем кнопки только для наград, которые пользователь может себе позволить
+    for reward in rewards:
+        if balance >= reward.cost:
+            # Формируем текст кнопки: "X баллов - Название награды"
+            # Определяем правильное склонение слова "балл"
+            if reward.cost == 1:
+                ball_word = "балл"
+            elif reward.cost in [2, 3, 4]:
+                ball_word = "балла"
+            else:
+                ball_word = "баллов"
+            
+            button_text = f"{reward.cost} {ball_word} — {reward.name}"
+            builder.button(
+                text=button_text,
+                callback_data=RedeemCallback(reward_id=reward.reward_id).pack()
+            )
     
     # Кнопка "Назад"
     builder.button(

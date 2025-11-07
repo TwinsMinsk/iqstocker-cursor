@@ -83,6 +83,8 @@
                                                 <span class="badge bg-success">FREE_PRO</span>
                                             {% elif reward.reward_type.value == 'free_ultra' %}
                                                 <span class="badge bg-warning text-dark">FREE_ULTRA</span>
+                                            {% elif reward.reward_type.value == 'support_request' %}
+                                                <span class="badge bg-primary">SUPPORT_REQUEST</span>
                                             {% else %}
                                                 <span class="badge bg-secondary">{{ reward.reward_type.value }}</span>
                                             {% endif %}
@@ -188,8 +190,9 @@
                             <option value="link">LINK (ссылка)</option>
                             <option value="free_pro">FREE_PRO (бесплатный PRO)</option>
                             <option value="free_ultra">FREE_ULTRA (бесплатный ULTRA)</option>
+                            <option value="support_request">SUPPORT_REQUEST (запрос через поддержку)</option>
                         </select>
-                        <small class="form-text text-muted">LINK - для скидок и IQ Radar, FREE_PRO/FREE_ULTRA - для бесплатных подписок</small>
+                        <small class="form-text text-muted">LINK - для скидок и IQ Radar, FREE_PRO/FREE_ULTRA - для бесплатных подписок, SUPPORT_REQUEST - пользователь должен написать в поддержку</small>
                     </div>
                     
                     <div class="mb-3" id="value_field_container">
@@ -313,4 +316,3 @@ function showNotification(message, type) {
 }
 </script>
 {% endblock %}
-
