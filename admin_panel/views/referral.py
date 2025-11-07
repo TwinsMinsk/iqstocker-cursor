@@ -28,7 +28,16 @@ async def referral_page(request: Request):
             # Log rewards for debugging
             logger.info(f"Found {len(rewards)} rewards in database")
             for reward in rewards:
-                logger.debug(f"Reward: ID={reward.reward_id}, Name={reward.name}, Cost={reward.cost}, Type={reward.reward_type}")
+                logger.info(f"Reward: ID={reward.reward_id}, Name={reward.name}, Cost={reward.cost}, Type={reward.reward_type.value}")
+            
+            # Convert rewards to list to ensure they're serializable
+            rewards_list = [{
+                'reward_id': r.reward_id,
+                'name': r.name,
+                'cost': r.cost,
+                'reward_type': r.reward_type,
+                'value': r.value
+            } for r in rewards]
             
             # Get statistics
             # Total users with referrers
@@ -93,17 +102,41 @@ async def referral_page(request: Request):
             # Sort by referrals count
             top_referrers.sort(key=lambda x: x['referrals_count'], reverse=True)
             
+            # Get all users with their referral data (for the "Рефералы и баллы" table)
+            all_users_query = select(User).order_by(desc(User.referral_balance), desc(User.id))
+            all_users_result = await session.execute(all_users_query)
+            all_users = all_users_result.scalars().all()
+            
+            # Prepare users data with referral counts
+            users_with_referrals = []
+            for user in all_users:
+                # Count how many users this user referred
+                referrals_count_query = select(func.count(User.id)).where(User.referrer_id == user.id)
+                referrals_count_result = await session.execute(referrals_count_query)
+                referrals_count = referrals_count_result.scalar() or 0
+                
+                users_with_referrals.append({
+                    'id': user.id,
+                    'telegram_id': user.telegram_id,
+                    'username': user.username or '—',
+                    'first_name': user.first_name or '—',
+                    'last_name': user.last_name or '—',
+                    'referral_balance': user.referral_balance or 0,
+                    'referrals_count': referrals_count
+                })
+            
             return templates.TemplateResponse(
                 "referral.html",
                 {
                     "request": request,
-                    "rewards": rewards,
+                    "rewards": rewards,  # Передаем оригинальные объекты SQLAlchemy
                     "stats": {
                         "total_referrers": total_referrers,
                         "users_with_balance": users_with_balance,
                         "total_balance": total_balance or 0,
                     },
-                    "top_referrers": top_referrers[:10]
+                    "top_referrers": top_referrers[:10],
+                    "users_with_referrals": users_with_referrals
                 }
             )
     except Exception as e:
@@ -156,6 +189,42 @@ async def update_reward(
     except Exception as e:
         import traceback
         logger.error(f"Error updating reward: {e}\n{traceback.format_exc()}")
+        return JSONResponse({
+            "success": False,
+            "message": str(e)
+        }, status_code=400)
+
+
+@router.post("/referral/user/balance/update", response_class=JSONResponse)
+async def update_user_balance(
+    user_id: int = Form(...),
+    balance_change: int = Form(...)  # Может быть положительным (добавить) или отрицательным (убрать)
+):
+    """Update user referral balance."""
+    try:
+        async with AsyncSessionLocal() as session:
+            user = await session.get(User, user_id)
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+            
+            current_balance = user.referral_balance or 0
+            new_balance = current_balance + balance_change
+            
+            # Не позволяем балансу быть отрицательным
+            if new_balance < 0:
+                new_balance = 0
+            
+            user.referral_balance = new_balance
+            await session.commit()
+            
+            return JSONResponse({
+                "success": True,
+                "message": f"Баланс пользователя {user_id} обновлен: {current_balance} → {new_balance}",
+                "new_balance": new_balance
+            })
+    except Exception as e:
+        import traceback
+        logger.error(f"Error updating user balance: {e}\n{traceback.format_exc()}")
         return JSONResponse({
             "success": False,
             "message": str(e)
