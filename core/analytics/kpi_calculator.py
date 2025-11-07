@@ -10,7 +10,17 @@ class KPICalculator:
     
     def __init__(self):
         """Initialize KPI Calculator with settings."""
-        self.new_works_id_threshold = int(settings.new_works_id_prefix)
+        # Try to get value from lexicon first (if available in admin panel), otherwise use settings
+        try:
+            from bot.lexicon import LEXICON_RU
+            lexicon_value = LEXICON_RU.get('new_works_id_prefix')
+            if lexicon_value:
+                self.new_works_id_threshold = int(lexicon_value)
+            else:
+                self.new_works_id_threshold = int(settings.new_works_id_prefix)
+        except (ImportError, ValueError, KeyError):
+            # Fallback to settings if lexicon is not available or value is invalid
+            self.new_works_id_threshold = int(settings.new_works_id_prefix)
     
     def calculate_portfolio_sold_percent(self, total_sales: int, portfolio_size: int) -> float:
         """

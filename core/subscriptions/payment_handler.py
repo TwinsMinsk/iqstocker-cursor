@@ -225,6 +225,37 @@ class PaymentHandler:
             # Отмечаем, что бонус выплачен
             user.referral_bonus_paid = True
             
+            # Обновляем баланс в БД перед отправкой уведомления
+            await session.flush()
+            
+            # Отправляем уведомление рефереру
+            try:
+                from aiogram import Bot
+                from config.settings import settings
+                from bot.lexicon import LEXICON_RU
+                
+                bot = Bot(token=settings.bot_token)
+                
+                # Формируем текст уведомления
+                subscription_type_name = user.subscription_type.value
+                notification_text = LEXICON_RU['referral_points_awarded_notification'].format(
+                    subscription_type=subscription_type_name,
+                    balance=referrer.referral_balance
+                )
+                
+                # Отправляем уведомление
+                await bot.send_message(
+                    chat_id=referrer.telegram_id,
+                    text=notification_text,
+                    parse_mode="HTML"
+                )
+                await bot.session.close()
+                
+                logger.info(f"Sent referral points notification to user {referrer.id} (telegram_id: {referrer.telegram_id})")
+            except Exception as e:
+                # Не прерываем процесс начисления, если уведомление не отправилось
+                logger.warning(f"Failed to send referral points notification to user {referrer.id}: {e}")
+            
             print(f"✅ Начислен 1 IQ Балл пользователю {referrer.id} (telegram_id: {referrer.telegram_id}) "
                   f"за реферала {user.id} (telegram_id: {user.telegram_id})")
             logger.info(f"Awarded 1 referral point to user {referrer.id} for referrer {user.id}")
