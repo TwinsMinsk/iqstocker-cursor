@@ -10,16 +10,22 @@ class KPICalculator:
     
     def __init__(self):
         """Initialize KPI Calculator with settings."""
-        # Try to get value from lexicon first (if available in admin panel), otherwise use settings
+        # Try to get value from lexicon database first (if available in admin panel), otherwise use settings
+        # Use sync method to avoid async issues in worker processes
         try:
-            from bot.lexicon import LEXICON_RU
-            lexicon_value = LEXICON_RU.get('new_works_id_prefix')
+            from core.lexicon.service import LexiconService
+            lexicon_service = LexiconService()
+            # Use load_lexicon_sync for synchronous loading (safe for worker processes)
+            lexicon = lexicon_service.load_lexicon_sync()
+            lexicon_ru = lexicon.get('LEXICON_RU', {})
+            lexicon_value = lexicon_ru.get('new_works_id_prefix')
             if lexicon_value:
                 self.new_works_id_threshold = int(lexicon_value)
             else:
                 self.new_works_id_threshold = int(settings.new_works_id_prefix)
-        except (ImportError, ValueError, KeyError):
+        except (ImportError, ValueError, KeyError, Exception) as e:
             # Fallback to settings if lexicon is not available or value is invalid
+            # This ensures worker processes can still work even if lexicon service fails
             self.new_works_id_threshold = int(settings.new_works_id_prefix)
     
     def calculate_portfolio_sold_percent(self, total_sales: int, portfolio_size: int) -> float:
