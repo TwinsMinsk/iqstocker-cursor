@@ -123,8 +123,7 @@ async def create_new_user(message: Message, session: AsyncSession, referrer_tele
         last_activity_at=now,
         referrer_id=referrer_id,
         referral_balance=0,
-        referral_bonus_paid=False,
-        next_payment_discount_percent=0
+        referral_bonus_paid=False
     )
     session.add(user)
     await session.flush()  # Get user ID
