@@ -8,7 +8,7 @@ from sqlalchemy import select, func, desc
 import logging
 
 from config.database import AsyncSessionLocal
-from database.models import ReferralReward, RewardType, User
+from database.models import User
 
 router = APIRouter()
 templates = Jinja2Templates(directory="admin_panel/templates")
@@ -20,25 +20,6 @@ async def referral_page(request: Request):
     """Referral program management page."""
     try:
         async with AsyncSessionLocal() as session:
-            # Get all referral rewards
-            rewards_query = select(ReferralReward).order_by(ReferralReward.reward_id)
-            rewards_result = await session.execute(rewards_query)
-            rewards = rewards_result.scalars().all()
-            
-            # Log rewards for debugging
-            logger.info(f"Found {len(rewards)} rewards in database")
-            for reward in rewards:
-                logger.info(f"Reward: ID={reward.reward_id}, Name={reward.name}, Cost={reward.cost}, Type={reward.reward_type.value}")
-            
-            # Convert rewards to list to ensure they're serializable
-            rewards_list = [{
-                'reward_id': r.reward_id,
-                'name': r.name,
-                'cost': r.cost,
-                'reward_type': r.reward_type,
-                'value': r.value
-            } for r in rewards]
-            
             # Get statistics
             # Total users with referrers
             referrers_query = select(func.count(User.id)).where(User.referrer_id.isnot(None))
@@ -129,7 +110,6 @@ async def referral_page(request: Request):
                 "referral.html",
                 {
                     "request": request,
-                    "rewards": rewards,  # Передаем оригинальные объекты SQLAlchemy
                     "stats": {
                         "total_referrers": total_referrers,
                         "users_with_balance": users_with_balance,
@@ -143,56 +123,6 @@ async def referral_page(request: Request):
         import traceback
         logger.error(f"Error loading referral page: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/referral/reward/update", response_class=JSONResponse)
-async def update_reward(
-    reward_id: int = Form(...),
-    name: str = Form(...),
-    cost: int = Form(...),
-    reward_type: str = Form(...),
-    value: str = Form(None)
-):
-    """Update referral reward."""
-    try:
-        async with AsyncSessionLocal() as session:
-            reward = await session.get(ReferralReward, reward_id)
-            if not reward:
-                raise HTTPException(status_code=404, detail="Reward not found")
-            
-            reward.name = name
-            reward.cost = int(cost)
-            # Преобразуем строку в enum (может быть "link", "free_pro", "free_ultra" или "LINK", "FREE_PRO", "FREE_ULTRA")
-            reward_type_lower = reward_type.lower()
-            if reward_type_lower == "link":
-                reward.reward_type = RewardType.LINK
-            elif reward_type_lower == "free_pro":
-                reward.reward_type = RewardType.FREE_PRO
-            elif reward_type_lower == "free_ultra":
-                reward.reward_type = RewardType.FREE_ULTRA
-            elif reward_type_lower == "support_request":
-                reward.reward_type = RewardType.SUPPORT_REQUEST
-            else:
-                # Пробуем напрямую через enum
-                try:
-                    reward.reward_type = RewardType[reward_type.upper()]
-                except KeyError:
-                    raise HTTPException(status_code=400, detail=f"Invalid reward type: {reward_type}")
-            reward.value = value.strip() if value and value.strip() else None
-            
-            await session.commit()
-            
-            return JSONResponse({
-                "success": True,
-                "message": f"Награда {reward_id} успешно обновлена"
-            })
-    except Exception as e:
-        import traceback
-        logger.error(f"Error updating reward: {e}\n{traceback.format_exc()}")
-        return JSONResponse({
-            "success": False,
-            "message": str(e)
-        }, status_code=400)
 
 
 @router.post("/referral/user/balance/update", response_class=JSONResponse)

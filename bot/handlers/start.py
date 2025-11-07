@@ -36,11 +36,15 @@ async def start_command(message: Message, state: FSMContext, session: AsyncSessi
     # Parse deep-link parameter (e.g., /start ref_123456)
     referrer_telegram_id = None
     text_parts = message.text.split()
+    logger.info(f"Start command received: text='{message.text}', parts={text_parts}")
+    
     if len(text_parts) > 1:
         ref_param = text_parts[1]
+        logger.info(f"Found parameter: {ref_param}")
         if ref_param.startswith("ref_"):
             try:
                 referrer_telegram_id = int(ref_param.replace("ref_", ""))
+                logger.info(f"Parsed referrer_telegram_id: {referrer_telegram_id}")
             except ValueError:
                 logger.warning(f"Invalid referrer ID format: {ref_param}")
     
@@ -49,10 +53,25 @@ async def start_command(message: Message, state: FSMContext, session: AsyncSessi
     result = await session.execute(stmt)
     user = result.scalar_one_or_none()
     
+    # Если пользователь переходит по реферальной ссылке, обрабатываем как нового пользователя
+    is_referral_link = referrer_telegram_id is not None
+    
     if user is None:
         logging.info(f"Creating new user for {telegram_id}")
         # Create new user with TEST_PRO subscription
         user = await create_new_user(message, session, referrer_telegram_id)
+        await send_welcome_sequence(message, user)
+    elif is_referral_link:
+        # Пользователь переходит по реферальной ссылке - показываем приветствие как для нового
+        logger.info(f"User {telegram_id} found, but came via referral link (ref_{referrer_telegram_id}) - showing welcome sequence")
+        # Handle referrer assignment if needed
+        if not user.referrer_id and referrer_telegram_id != telegram_id:
+            logger.info(f"Assigning referrer {referrer_telegram_id} to user {user.id}")
+            await handle_referrer_assignment(user, referrer_telegram_id, session)
+        else:
+            logger.info(f"User {user.id} already has referrer {user.referrer_id} or self-referral attempt")
+        # Показываем приветственное сообщение (как для нового пользователя)
+        logger.info(f"Sending welcome sequence to user {user.id} via referral link")
         await send_welcome_sequence(message, user)
     else:
         logging.info(f"User {telegram_id} found with ID: {user.id}")
