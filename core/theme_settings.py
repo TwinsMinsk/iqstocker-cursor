@@ -1,12 +1,16 @@
 """Core functions for theme settings."""
 
-from typing import Dict, Any, Optional
+from datetime import datetime, timedelta, timezone
+from typing import Dict, Any, Optional, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, desc
 from sqlalchemy.orm import Session
+import logging
 
-from database.models import SystemMessage, Limits
+from database.models import SystemMessage, Limits, ThemeRequest, User
 from config.database import get_async_session, SessionLocal
+
+logger = logging.getLogger(__name__)
 
 # Константы для cooldown тем по умолчанию
 DEFAULT_THEME_COOLDOWN_DAYS = 7
@@ -92,3 +96,118 @@ async def get_theme_cooldown_days_for_session(session: AsyncSession, user_id: Op
     except Exception:
         pass
     return DEFAULT_THEME_COOLDOWN_DAYS
+
+
+async def check_theme_cooldown_from_tariff_start(
+    session: AsyncSession,
+    user: User,
+    limits: Limits
+) -> Tuple[bool, int]:
+    """
+    Проверяет кулдаун тем от начала текущего тарифа.
+    
+    Args:
+        session: AsyncSession для работы с БД
+        user: Объект пользователя
+        limits: Объект лимитов пользователя
+    
+    Returns:
+        Tuple[bool, int]: (can_request, days_remaining)
+        - can_request: True если можно запросить темы, False если кулдаун активен
+        - days_remaining: количество дней до окончания кулдауна (0 если можно запросить)
+    """
+    if not limits.current_tariff_started_at:
+        # Если дата не установлена - можно запросить (первый раз или старые данные)
+        return True, 0
+    
+    cooldown_days = await get_theme_cooldown_days_for_session(session, user.id)
+    tariff_start_time = limits.current_tariff_started_at
+    
+    # Приводим к timezone-aware для корректного сравнения
+    if tariff_start_time.tzinfo is None:
+        tariff_start_time = tariff_start_time.replace(tzinfo=timezone.utc)
+    
+    now = datetime.now(timezone.utc)
+    time_diff = now - tariff_start_time
+    
+    # Проверяем, прошло ли 7 дней с начала тарифа
+    if time_diff >= timedelta(days=cooldown_days):
+        return True, 0  # Можно запросить
+    
+    days_remaining = (timedelta(days=cooldown_days) - time_diff).days
+    if days_remaining <= 0:
+        days_remaining = 1  # Минимум 1 день
+    
+    return False, days_remaining
+
+
+async def check_and_burn_unused_theme_limits(
+    session: AsyncSession,
+    user: User,
+    limits: Limits
+) -> bool:
+    """
+    Проверяет, прошло ли 7 дней с начала тарифа без запроса тем.
+    Если да - списывает 1 неиспользованный лимит.
+    
+    Args:
+        session: AsyncSession для работы с БД
+        user: Объект пользователя
+        limits: Объект лимитов пользователя
+    
+    Returns:
+        bool: True если лимит был списан, False если нет
+    """
+    if not limits.current_tariff_started_at:
+        return False
+    
+    cooldown_days = await get_theme_cooldown_days_for_session(session, user.id)
+    tariff_start_time = limits.current_tariff_started_at
+    
+    # Приводим к timezone-aware
+    if tariff_start_time.tzinfo is None:
+        tariff_start_time = tariff_start_time.replace(tzinfo=timezone.utc)
+    
+    now = datetime.now(timezone.utc)
+    time_diff = now - tariff_start_time
+    
+    # Проверяем, прошло ли 7 дней
+    if time_diff < timedelta(days=cooldown_days):
+        return False  # Еще не прошло 7 дней
+    
+    # Вычисляем, сколько периодов по 7 дней прошло
+    periods_passed = int(time_diff.total_seconds() / (cooldown_days * 24 * 3600))
+    
+    if periods_passed <= 0:
+        return False  # Еще не прошел ни один период
+    
+    # Проверяем, сколько запросов тем было за все прошедшие периоды
+    query = select(ThemeRequest).where(
+        ThemeRequest.user_id == user.id,
+        ThemeRequest.status == "ISSUED",
+        ThemeRequest.created_at >= limits.current_tariff_started_at
+    )
+    
+    result = await session.execute(query)
+    requests_in_period = result.scalars().all()
+    
+    # Количество периодов, за которые не было запросов тем
+    # Если прошло 2 периода (14 дней), но был 1 запрос - сгорает 1 лимит
+    # Если прошло 2 периода и не было запросов - сгорает 2 лимита
+    requests_count = len(requests_in_period)
+    periods_without_request = periods_passed - requests_count
+    
+    if periods_without_request > 0 and limits.themes_total > 0:
+        # Списываем лимиты за периоды без запросов (но не больше, чем есть)
+        limits_to_burn = min(periods_without_request, limits.themes_total)
+        limits.themes_total -= limits_to_burn
+        
+        logger.info(
+            f"Burned {limits_to_burn} unused theme limit(s) for user {user.id} "
+            f"(tariff started: {limits.current_tariff_started_at}, "
+            f"periods passed: {periods_passed}, requests: {requests_count}, "
+            f"remaining: {limits.themes_total})"
+        )
+        return True
+    
+    return False

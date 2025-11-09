@@ -625,46 +625,55 @@ def set_admin_subscription(user: User, limits: Limits, target_type: str):
     now = datetime.utcnow()
     tariff_service = TariffService()
     
+    # Store old subscription type to check if it changed
+    old_subscription_type = user.subscription_type
+    
+    # Map target_type string to SubscriptionType enum
+    target_subscription_type_map = {
+        "TEST_PRO": SubscriptionType.TEST_PRO,
+        "FREE": SubscriptionType.FREE,
+        "PRO": SubscriptionType.PRO,
+        "ULTRA": SubscriptionType.ULTRA
+    }
+    
+    if target_type not in target_subscription_type_map:
+        raise ValueError("Unsupported subscription type")
+    
+    target_subscription_type = target_subscription_type_map[target_type]
+    tariff_limits = tariff_service.get_tariff_limits(target_subscription_type)
+    
+    # Check if subscription type is changing
+    is_changing = old_subscription_type != target_subscription_type
+    
+    # Update user subscription
+    user.subscription_type = target_subscription_type
+    
     if target_type == "TEST_PRO":
-        user.subscription_type = SubscriptionType.TEST_PRO
-        test_pro_limits = tariff_service.get_tariff_limits(SubscriptionType.TEST_PRO)
         test_pro_duration = tariff_service.get_test_pro_duration_days()
         user.subscription_expires_at = now + timedelta(days=test_pro_duration)
-        limits.analytics_total = test_pro_limits['analytics_limit']
-        limits.analytics_used = 0
-        limits.themes_total = test_pro_limits['themes_limit']
-        limits.themes_used = 0
-        limits.theme_cooldown_days = test_pro_limits['theme_cooldown_days']
     elif target_type == "FREE":
-        user.subscription_type = SubscriptionType.FREE
         user.subscription_expires_at = None
-        free_limits = tariff_service.get_tariff_limits(SubscriptionType.FREE)
-        limits.analytics_total = free_limits['analytics_limit']
-        limits.analytics_used = 0
-        limits.themes_total = free_limits['themes_limit']
-        limits.themes_used = 0
-        limits.theme_cooldown_days = free_limits['theme_cooldown_days']
-    elif target_type == "PRO":
-        user.subscription_type = SubscriptionType.PRO
+    elif target_type in ["PRO", "ULTRA"]:
         user.subscription_expires_at = now + timedelta(days=30)
-        pro_limits = tariff_service.get_tariff_limits(SubscriptionType.PRO)
-        limits.analytics_total = pro_limits['analytics_limit']
+    
+    # Update limits
+    if is_changing:
+        # СМЕНА тарифа - лимиты сгорают, начинается новый отсчет
+        limits.analytics_total = tariff_limits['analytics_limit']
         limits.analytics_used = 0
-        limits.themes_total = pro_limits['themes_limit']
+        limits.themes_total = tariff_limits['themes_limit']
         limits.themes_used = 0
-        limits.theme_cooldown_days = pro_limits['theme_cooldown_days']
-    elif target_type == "ULTRA":
-        user.subscription_type = SubscriptionType.ULTRA
-        user.subscription_expires_at = now + timedelta(days=30)
-        ultra_limits = tariff_service.get_tariff_limits(SubscriptionType.ULTRA)
-        limits.analytics_total = ultra_limits['analytics_limit']
-        limits.analytics_used = 0
-        limits.themes_total = ultra_limits['themes_limit']
-        limits.themes_used = 0
-        limits.theme_cooldown_days = ultra_limits['theme_cooldown_days']
+        limits.current_tariff_started_at = now  # Новая дата начала тарифа
+        limits.last_theme_request_at = None  # Сбрасываем дату последнего запроса
     else:
-        raise ValueError("Unsupported subscription type")
-
+        # ПРОДЛЕНИЕ того же тарифа - только обновляем лимиты без сброса
+        limits.analytics_total = tariff_limits['analytics_limit']
+        limits.themes_total = tariff_limits['themes_limit']
+        # Если current_tariff_started_at не установлена - устанавливаем сейчас
+        if not limits.current_tariff_started_at:
+            limits.current_tariff_started_at = now
+    
+    limits.theme_cooldown_days = tariff_limits['theme_cooldown_days']
     user.updated_at = now
 
 

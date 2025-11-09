@@ -14,7 +14,11 @@ from bot.keyboards.callbacks import ThemesCallback
 from bot.keyboards.themes import get_themes_menu_keyboard
 from bot.keyboards.common import create_cooldown_keyboard, create_archive_navigation_keyboard
 from bot.utils.safe_edit import safe_edit_message
-from core.theme_settings import get_theme_cooldown_days_for_session
+from core.theme_settings import (
+    get_theme_cooldown_days_for_session,
+    check_theme_cooldown_from_tariff_start,
+    check_and_burn_unused_theme_limits
+)
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -31,32 +35,31 @@ async def has_archive(session: AsyncSession, user_id: int) -> bool:
 
 
 @router.callback_query(F.data == "themes")
-async def themes_callback(callback: CallbackQuery, user: User, session: AsyncSession):
+async def themes_callback(
+    callback: CallbackQuery, 
+    user: User, 
+    limits: Limits,
+    session: AsyncSession
+):
     """Handle themes callback - show welcome screen."""
     
-    # Check cooldown
-    query = select(ThemeRequest).where(
-        ThemeRequest.user_id == user.id,
-        ThemeRequest.status == "ISSUED"
-    ).order_by(desc(ThemeRequest.created_at)).limit(1)
-    result = await session.execute(query)
-    last_request = result.scalar_one_or_none()
+    # Проверяем и списываем неиспользованные лимиты (если прошло 7 дней)
+    burned = await check_and_burn_unused_theme_limits(session, user, limits)
+    if burned:
+        await session.commit()
+        await session.refresh(limits)  # Обновляем объект после возможного изменения
     
-    if last_request:
-        cooldown_days = await get_theme_cooldown_days_for_session(session, user.id)
-        last_request_time = last_request.created_at.replace(tzinfo=timezone.utc)
-        now = datetime.now(timezone.utc)
-        time_diff = now - last_request_time
-        
-        if time_diff < timedelta(days=cooldown_days):
-            days_remaining = (timedelta(days=cooldown_days) - time_diff).days or 1
-            await safe_edit_message(
-                callback=callback,
-                text=LEXICON_RU['themes_cooldown'].format(days=days_remaining),
-                reply_markup=create_cooldown_keyboard(user.subscription_type)
-            )
-            await callback.answer()
-            return
+    # НОВАЯ ЛОГИКА: проверка кулдауна от начала тарифа
+    can_request, days_remaining = await check_theme_cooldown_from_tariff_start(session, user, limits)
+    
+    if not can_request:
+        await safe_edit_message(
+            callback=callback,
+            text=LEXICON_RU['themes_cooldown'].format(days=days_remaining),
+            reply_markup=create_cooldown_keyboard(user.subscription_type)
+        )
+        await callback.answer()
+        return
     
     # Determine message text by tariff
     tariff = user.subscription_type
@@ -94,29 +97,23 @@ async def generate_themes_callback(
         return
     
     try:
-        # Check cooldown again
-        query = select(ThemeRequest).where(
-            ThemeRequest.user_id == user.id,
-            ThemeRequest.status == "ISSUED"
-        ).order_by(desc(ThemeRequest.created_at)).limit(1)
-        result = await session.execute(query)
-        last_request = result.scalar_one_or_none()
+        # Проверяем и списываем неиспользованные лимиты (если прошло 7 дней)
+        burned = await check_and_burn_unused_theme_limits(session, user, limits)
+        if burned:
+            await session.commit()
+            await session.refresh(limits)  # Обновляем объект после возможного изменения
         
-        if last_request:
-            cooldown_days = await get_theme_cooldown_days_for_session(session, user.id)
-            last_request_time = last_request.created_at.replace(tzinfo=timezone.utc)
-            now = datetime.now(timezone.utc)
-            time_diff = now - last_request_time
-            
-            if time_diff < timedelta(days=cooldown_days):
-                days_remaining = (timedelta(days=cooldown_days) - time_diff).days or 1
-                await safe_edit_message(
-                    callback=callback,
-                    text=LEXICON_RU['themes_cooldown'].format(days=days_remaining),
-                    reply_markup=create_cooldown_keyboard(user.subscription_type)
-                )
-                await callback.answer()
-                return
+        # НОВАЯ ЛОГИКА: проверка кулдауна от начала тарифа
+        can_request, days_remaining = await check_theme_cooldown_from_tariff_start(session, user, limits)
+        
+        if not can_request:
+            await safe_edit_message(
+                callback=callback,
+                text=LEXICON_RU['themes_cooldown'].format(days=days_remaining),
+                reply_markup=create_cooldown_keyboard(user.subscription_type)
+            )
+            await callback.answer()
+            return
         
         # Determine amount by tariff
         tariff = user.subscription_type

@@ -33,6 +33,9 @@ class Limits(Base):
     # Last theme request timestamp
     last_theme_request_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     
+    # Date when current tariff started (for 7-day cooldown calculation)
+    current_tariff_started_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, 

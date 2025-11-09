@@ -135,7 +135,8 @@ async def create_new_user(message: Message, session: AsyncSession, referrer_tele
         analytics_used=0,
         themes_total=test_pro_limits['themes_limit'],
         themes_used=0,
-        theme_cooldown_days=test_pro_limits['theme_cooldown_days']
+        theme_cooldown_days=test_pro_limits['theme_cooldown_days'],
+        current_tariff_started_at=now  # Устанавливаем дату начала тарифа
     )
     session.add(limits)
     await session.commit()  # Сохраняем нового юзера

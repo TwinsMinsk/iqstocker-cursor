@@ -1,7 +1,10 @@
+# Альтернативный Dockerfile с использованием GitHub Container Registry
+# Используйте этот файл, если Docker Hub недоступен из-за rate limit
+# Переименуйте в Dockerfile или используйте в railway.json: "dockerfilePath": "Dockerfile.alt"
+
 # Этап 1: Сборщик с зависимостями
-# Railway использует кэш образов, но если rate limit - можно использовать альтернативный registry
-# Альтернатива: ghcr.io/docker-library/python:3.11-slim (если Docker Hub недоступен)
-FROM python:3.11-slim AS builder
+# Используем GitHub Container Registry как альтернативу Docker Hub
+FROM ghcr.io/docker-library/python:3.11-slim AS builder
 
 WORKDIR /app
 
@@ -17,9 +20,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # ---
 # Этап 2: Финальный, чистый образ
-# Railway использует кэш образов, но если rate limit - можно использовать альтернативный registry
-# Альтернатива: ghcr.io/docker-library/python:3.11-slim (если Docker Hub недоступен)
-FROM python:3.11-slim
+FROM ghcr.io/docker-library/python:3.11-slim
 
 WORKDIR /app
 
@@ -77,3 +78,4 @@ USER app
 
 # Открытие портов
 EXPOSE 8000 5000
+

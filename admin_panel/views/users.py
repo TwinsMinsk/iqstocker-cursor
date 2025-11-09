@@ -364,11 +364,23 @@ async def edit_user_submit(
                 limits = Limits(user_id=user_id)
                 session.add(limits)
             
+            # Check if subscription type is changing
+            is_changing = old_subscription_type != new_sub_type
+            
             # Update limits
             limits.analytics_total = analytics_total
             limits.analytics_used = analytics_used
             limits.themes_total = themes_total
             limits.themes_used = themes_used
+            
+            # If subscription type changed, reset tariff start date
+            if is_changing:
+                from core.tariffs.tariff_service import TariffService
+                tariff_service = TariffService()
+                tariff_limits = tariff_service.get_tariff_limits(new_sub_type)
+                limits.current_tariff_started_at = datetime.utcnow()
+                limits.theme_cooldown_days = tariff_limits['theme_cooldown_days']
+                limits.last_theme_request_at = None  # Сбрасываем дату последнего запроса
             
             await session.commit()
             

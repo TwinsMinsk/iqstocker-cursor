@@ -7,11 +7,16 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from core.notifications.notification_manager import get_notification_manager
-from core.notifications.themes_notifications import notify_weekly_themes
+from core.notifications.themes_notifications import notify_weekly_themes, send_theme_limit_burn_reminders
 from core.admin.calendar_manager import CalendarManager
-from database.models import CalendarEntry
+from core.theme_settings import check_and_burn_unused_theme_limits
+from database.models import CalendarEntry, User, Limits, SubscriptionType
+from sqlalchemy import select
 from config.database import AsyncSessionLocal
 from config.settings import settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class TaskScheduler:
@@ -79,6 +84,30 @@ class TaskScheduler:
             CronTrigger(day=25, hour=12, minute=0),
             id='create_monthly_calendar',
             name='Create next month calendar'
+        )
+        
+        # Daily burn unused theme limits (at 01:00 UTC)
+        self.scheduler.add_job(
+            self.burn_unused_theme_limits,
+            CronTrigger(hour=1, minute=0),
+            id='burn_unused_theme_limits',
+            name='Burn unused theme limits daily'
+        )
+        
+        # Daily theme limit burn reminders - 3 days before (at 10:00 UTC)
+        self.scheduler.add_job(
+            self.send_theme_limit_burn_reminders_3_days,
+            CronTrigger(hour=10, minute=0),
+            id='theme_limit_burn_reminder_3_days',
+            name='Send 3-day theme limit burn reminders'
+        )
+        
+        # Daily theme limit burn reminders - 1 day before (at 11:00 UTC)
+        self.scheduler.add_job(
+            self.send_theme_limit_burn_reminders_1_day,
+            CronTrigger(hour=11, minute=0),
+            id='theme_limit_burn_reminder_1_day',
+            name='Send 1-day theme limit burn reminders'
         )
         
         # Start the scheduler
@@ -199,6 +228,66 @@ class TaskScheduler:
             print(f"Removed job: {job_id}")
         except Exception as e:
             print(f"Error removing job {job_id}: {e}")
+    
+    async def burn_unused_theme_limits(self):
+        """Burn unused theme limits for users who didn't request themes within 7 days."""
+        print("Burning unused theme limits...")
+        async with AsyncSessionLocal() as session:
+            try:
+                # Get all users with active subscriptions
+                stmt = select(User, Limits).join(Limits).where(
+                    User.subscription_type.in_([
+                        SubscriptionType.TEST_PRO,
+                        SubscriptionType.PRO,
+                        SubscriptionType.ULTRA,
+                        SubscriptionType.FREE
+                    ])
+                )
+                result = await session.execute(stmt)
+                
+                burned_count = 0
+                for user, limits in result.all():
+                    if await check_and_burn_unused_theme_limits(session, user, limits):
+                        burned_count += 1
+                
+                await session.commit()
+                logger.info(f"Burned unused theme limits for {burned_count} users")
+                print(f"Burned unused theme limits for {burned_count} users")
+                
+            except Exception as e:
+                logger.error(f"Error burning unused theme limits: {e}")
+                print(f"Error burning unused theme limits: {e}")
+                await session.rollback()
+    
+    async def send_theme_limit_burn_reminders_3_days(self):
+        """Send reminders 3 days before theme limit burn."""
+        print("Sending 3-day theme limit burn reminders...")
+        if not self.bot:
+            print("Bot not available for sending reminders")
+            return
+        
+        async with AsyncSessionLocal() as session:
+            try:
+                sent_count = await send_theme_limit_burn_reminders(self.bot, session, days_before=3)
+                print(f"Sent {sent_count} 3-day theme limit burn reminders")
+            except Exception as e:
+                logger.error(f"Error sending 3-day reminders: {e}")
+                print(f"Error sending 3-day reminders: {e}")
+    
+    async def send_theme_limit_burn_reminders_1_day(self):
+        """Send reminders 1 day before theme limit burn."""
+        print("Sending 1-day theme limit burn reminders...")
+        if not self.bot:
+            print("Bot not available for sending reminders")
+            return
+        
+        async with AsyncSessionLocal() as session:
+            try:
+                sent_count = await send_theme_limit_burn_reminders(self.bot, session, days_before=1)
+                print(f"Sent {sent_count} 1-day theme limit burn reminders")
+            except Exception as e:
+                logger.error(f"Error sending 1-day reminders: {e}")
+                print(f"Error sending 1-day reminders: {e}")
     
     def list_jobs(self):
         """List all scheduled jobs."""

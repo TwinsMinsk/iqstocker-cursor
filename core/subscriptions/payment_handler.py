@@ -50,6 +50,9 @@ class PaymentHandler:
                 # Calculate expiration date
                 expires_at = datetime.utcnow() + timedelta(days=30)  # Monthly subscription
                 
+                # Store old subscription type BEFORE changing it
+                old_subscription_type = user.subscription_type
+                
                 # Create subscription record
                 subscription = Subscription(
                     user_id=user.id,
@@ -72,7 +75,13 @@ class PaymentHandler:
                 limits = limits_result.scalar_one_or_none()
                 
                 if limits:
-                    self._update_limits_for_subscription(limits, sub_type)
+                    # Check if subscription type is changing
+                    if old_subscription_type != sub_type:
+                        # СМЕНА тарифа - лимиты сгорают, начинается новый отсчет
+                        self._update_limits_for_subscription_change(limits, old_subscription_type, sub_type)
+                    else:
+                        # ПРОДЛЕНИЕ того же тарифа - лимиты накапливаются
+                        self._update_limits_for_subscription(limits, sub_type)
                 else:
                     limits = self._create_limits_for_subscription(user.id, sub_type)
                     session.add(limits)
@@ -135,6 +144,37 @@ class PaymentHandler:
         limits.analytics_total += tariff_limits['analytics_limit']
         limits.themes_total += tariff_limits['themes_limit']
     
+    def _update_limits_for_subscription_change(
+        self, 
+        limits: Limits, 
+        old_subscription_type: SubscriptionType,
+        new_subscription_type: SubscriptionType
+    ):
+        """Update limits when subscription type CHANGES (not extends).
+        
+        При СМЕНЕ тарифа:
+        - Неиспользованные лимиты СГОРАЮТ
+        - Устанавливаются новые лимиты (не добавляются!)
+        - Начинается новый отсчет 7 дней с момента смены тарифа
+        """
+        tariff_service = TariffService()
+        new_tariff_limits = tariff_service.get_tariff_limits(new_subscription_type)
+        
+        # ВАЖНО: НЕ добавляем, а УСТАНАВЛИВАЕМ новые лимиты
+        limits.analytics_total = new_tariff_limits['analytics_limit']
+        limits.themes_total = new_tariff_limits['themes_limit']
+        
+        # Сбрасываем использованные лимиты (они сгорают)
+        limits.analytics_used = 0
+        limits.themes_used = 0
+        
+        # Устанавливаем новую дату начала тарифа (для отсчета 7 дней)
+        limits.current_tariff_started_at = datetime.utcnow()
+        limits.theme_cooldown_days = new_tariff_limits['theme_cooldown_days']
+        
+        # Сбрасываем дату последнего запроса тем
+        limits.last_theme_request_at = None
+    
     def _create_limits_for_subscription(self, user_id: int, subscription_type: SubscriptionType) -> Limits:
         """Create limits for subscription type."""
         tariff_service = TariffService()
@@ -144,7 +184,8 @@ class PaymentHandler:
             user_id=user_id,
             analytics_total=tariff_limits['analytics_limit'],
             themes_total=tariff_limits['themes_limit'],
-            theme_cooldown_days=tariff_limits['theme_cooldown_days']
+            theme_cooldown_days=tariff_limits['theme_cooldown_days'],
+            current_tariff_started_at=datetime.utcnow()  # Устанавливаем дату начала тарифа
         )
         
         return limits
@@ -184,6 +225,9 @@ class PaymentHandler:
                         free_limits = tariff_service.get_tariff_limits(SubscriptionType.FREE)
                         limits.analytics_total = free_limits['analytics_limit']
                         limits.themes_total = free_limits['themes_limit']
+                        # Устанавливаем новую дату начала тарифа (для отсчета 7 дней)
+                        limits.current_tariff_started_at = datetime.utcnow()
+                        limits.theme_cooldown_days = free_limits['theme_cooldown_days']
                         # analytics_used и themes_used НЕ трогаем - это история
                     
                     expired_count += 1
