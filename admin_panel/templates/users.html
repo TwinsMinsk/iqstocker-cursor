@@ -17,13 +17,13 @@
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
 </div>
 {% endif %}
-<!-- Фильтры и статистика -->
-<div class="row mb-4">
-    <div class="col-md-8">
+<!-- Фильтры -->
+<div class="row mb-3">
+    <div class="col-12">
         <div class="card">
-            <div class="card-body">
-                <form method="get" action="/users" class="row g-3">
-                    <div class="col-md-6">
+            <div class="card-body py-2">
+                <form method="get" action="/users" class="row g-2 align-items-end">
+                    <div class="col-md-5">
                         <div class="search-box">
                             <i class="fas fa-search"></i>
                             <input type="text" class="form-control" name="search" 
@@ -31,8 +31,9 @@
                                    value="{{ search_query }}">
                         </div>
                     </div>
-                    <div class="col-md-4">
-                        <select name="subscription_type" class="form-select">
+                    <div class="col-md-3">
+                        <label class="form-label small mb-1">Тариф</label>
+                        <select name="subscription_type" class="form-select form-select-sm">
                             <option value="all" {% if current_filter == "all" %}selected{% endif %}>Все тарифы</option>
                             <option value="FREE" {% if current_filter == "FREE" %}selected{% endif %}>FREE</option>
                             <option value="PRO" {% if current_filter == "PRO" %}selected{% endif %}>PRO</option>
@@ -41,69 +42,31 @@
                         </select>
                     </div>
                     <div class="col-md-2">
-                        <button type="submit" class="btn btn-primary w-100">
+                        <button type="submit" class="btn btn-primary btn-sm w-100">
                             <i class="fas fa-search me-1"></i>Найти
                         </button>
                     </div>
-                </form>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card mb-4">
-            <div class="card-body">
-                <h6 class="mb-3">Статистика по тарифам</h6>
-                <div class="d-flex justify-content-between mb-2">
-                    <span>FREE:</span>
-                    <strong>{{ stats_by_type.get('FREE', 0) }}</strong>
-                </div>
-                <div class="d-flex justify-content-between mb-2">
-                    <span>PRO:</span>
-                    <strong>{{ stats_by_type.get('PRO', 0) }}</strong>
-                </div>
-                <div class="d-flex justify-content-between mb-2">
-                    <span>ULTRA:</span>
-                    <strong>{{ stats_by_type.get('ULTRA', 0) }}</strong>
-                </div>
-                <div class="d-flex justify-content-between">
-                    <span>TEST_PRO:</span>
-                    <strong>{{ stats_by_type.get('TEST_PRO', 0) }}</strong>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Блок администраторов -->
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h6 class="mb-0">
-                    <i class="fas fa-shield-alt me-2"></i>Администраторы
-                    <span class="badge bg-danger ms-2">{{ admins_data|length }}</span>
-                </h6>
-                <button class="btn btn-sm btn-outline-primary" onclick="showAdminManagementModal()" title="Управление администраторами">
-                    <i class="fas fa-cog me-1"></i>Управление
-                </button>
-            </div>
-            <div class="card-body">
-                {% if admins_data %}
-                <div class="list-group list-group-flush">
-                    {% for admin in admins_data %}
-                    <div class="list-group-item px-0 py-2 d-flex justify-content-between align-items-center">
-                        <div>
-                            <strong>{{ admin.name }}</strong>
-                            {% if admin.username %}
-                            <br><small class="text-muted">@{{ admin.username }}</small>
-                            {% endif %}
-                            {% if not admin.registered %}
-                            <br><small class="text-warning"><i class="fas fa-exclamation-triangle"></i> Не зарегистрирован в боте</small>
-                            {% endif %}
-                            <br><small class="text-muted"><code>{{ admin.telegram_id }}</code></small>
+                    <div class="col-md-2 text-end">
+                        <div class="d-flex gap-2 justify-content-end">
+                            <div class="text-center">
+                                <div class="small text-muted">FREE</div>
+                                <strong>{{ stats_by_type.get('FREE', 0) }}</strong>
+                            </div>
+                            <div class="text-center">
+                                <div class="small text-muted">PRO</div>
+                                <strong>{{ stats_by_type.get('PRO', 0) }}</strong>
+                            </div>
+                            <div class="text-center">
+                                <div class="small text-muted">ULTRA</div>
+                                <strong>{{ stats_by_type.get('ULTRA', 0) }}</strong>
+                            </div>
+                            <div class="text-center">
+                                <div class="small text-muted">TEST</div>
+                                <strong>{{ stats_by_type.get('TEST_PRO', 0) }}</strong>
+                            </div>
                         </div>
                     </div>
-                    {% endfor %}
-                </div>
-                {% else %}
-                <p class="text-muted text-center mb-0">Нет администраторов</p>
-                {% endif %}
+                </form>
             </div>
         </div>
     </div>
@@ -111,11 +74,19 @@
 
 <!-- Таблица пользователей -->
 <div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">
-            <i class="fas fa-table me-2"></i>Список пользователей
-            <span class="badge bg-secondary ms-2">{{ total_count }}</span>
-        </h5>
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-3">
+            <h5 class="mb-0">
+                <i class="fas fa-table me-2"></i>Список пользователей
+                <span class="badge bg-secondary ms-2">{{ total_count }}</span>
+            </h5>
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-sm btn-outline-primary" onclick="showAdminManagementModal()" title="Управление администраторами">
+                    <i class="fas fa-shield-alt me-1"></i>Админы
+                    <span class="badge bg-danger ms-1">{{ admins_data|length }}</span>
+                </button>
+            </div>
+        </div>
         <a href="/admin/user/create" class="btn btn-sm btn-primary">
             <i class="fas fa-plus me-1"></i>Добавить
         </a>

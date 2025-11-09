@@ -33,14 +33,18 @@ async def analytics_page(
         total_reports = await session.execute(select(func.count(AnalyticsReport.id)))
         total_reports_count = total_reports.scalar() or 0
         
-        # Get reports in period
-        recent_reports = await session.execute(
-            select(AnalyticsReport)
-            .join(CSVAnalysis)
+        # Get reports in period with user info
+        recent_reports_query = await session.execute(
+            select(
+                AnalyticsReport,
+                User.username
+            )
+            .join(CSVAnalysis, AnalyticsReport.csv_analysis_id == CSVAnalysis.id)
+            .join(User, CSVAnalysis.user_id == User.id)
             .where(CSVAnalysis.created_at >= period_start)
             .order_by(desc(CSVAnalysis.created_at))
         )
-        recent_reports_list = recent_reports.scalars().all()
+        recent_reports_list = [(row[0], row[1]) for row in recent_reports_query.all()]
         
         # Calculate total revenue
         revenue_query = await session.execute(

@@ -31,7 +31,7 @@ async def get_dashboard_stats(session: AsyncSession) -> Dict[str, Any]:
     )
     latest_users_list = latest_users.scalars().all()
     
-    # Calculate conversion rate (non-free subscriptions)
+    # Calculate conversion rate (only paid PRO/ULTRA subscriptions via Tribute)
     total_users = await session.execute(select(func.count(User.id)))
     total_users_count = total_users.scalar()
     
@@ -40,8 +40,19 @@ async def get_dashboard_stats(session: AsyncSession) -> Dict[str, Any]:
     ultra_count = subscription_counts.get('ULTRA', 0)
     test_pro_count = subscription_counts.get('TEST_PRO', 0)
     
-    non_free_count = pro_count + ultra_count + test_pro_count
-    conversion_rate = (non_free_count / total_users_count * 100) if total_users_count > 0 else 0
+    # Count only users with PRO or ULTRA subscriptions that have payment_id (paid via Tribute)
+    paid_users_query = await session.execute(
+        select(func.count(func.distinct(User.id)))
+        .join(Subscription, Subscription.user_id == User.id)
+        .where(
+            User.subscription_type.in_([SubscriptionType.PRO, SubscriptionType.ULTRA]),
+            Subscription.subscription_type.in_([SubscriptionType.PRO, SubscriptionType.ULTRA]),
+            Subscription.payment_id.isnot(None)
+        )
+    )
+    paid_users_count = paid_users_query.scalar() or 0
+    
+    conversion_rate = (paid_users_count / total_users_count * 100) if total_users_count > 0 else 0
     
     # Get active users (last 30 days)
     thirty_days_ago = datetime.utcnow() - timedelta(days=30)
@@ -123,35 +134,48 @@ async def get_dashboard_stats(session: AsyncSession) -> Dict[str, Any]:
         current_date += timedelta(days=1)
     
     # Conversion history (daily conversion rate for last 30 days)
-    # Optimized: get all users data once, then calculate in Python
-    conversion_dates = []
-    conversion_rates = []
-    
-    # Get all users with their registration date and subscription type
+    # Get all users with their registration date
     all_users = await session.execute(
-        select(User.created_at, User.subscription_type)
+        select(User.id, User.created_at)
         .where(User.created_at <= datetime.utcnow())
         .order_by(User.created_at)
     )
     users_data = all_users.all()
+    user_ids = [u.id for u in users_data]
+    
+    # Get all paid subscriptions (PRO/ULTRA with payment_id) grouped by user
+    paid_subscriptions_query = await session.execute(
+        select(Subscription.user_id, func.min(Subscription.started_at).label('first_paid_date'))
+        .where(
+            Subscription.user_id.in_(user_ids),
+            Subscription.subscription_type.in_([SubscriptionType.PRO, SubscriptionType.ULTRA]),
+            Subscription.payment_id.isnot(None)
+        )
+        .group_by(Subscription.user_id)
+    )
+    paid_subscriptions_dict = {row.user_id: row.first_paid_date for row in paid_subscriptions_query.all()}
     
     # Calculate conversion rate for each day
     from datetime import time
+    conversion_dates = []
+    conversion_rates = []
     current_date = thirty_days_ago.date()
     while current_date <= today:
-        # Use end of day (23:59:59) for comparison
-        date_end = datetime.combine(current_date, time(23, 59, 59))
-        
-        # Count in Python (much faster than DB queries)
-        total_users_by_date = sum(1 for u in users_data if u.created_at and u.created_at.date() <= current_date)
-        non_free_users_by_date = sum(
+        # Count total users registered by this date
+        total_users_by_date = sum(
             1 for u in users_data 
             if u.created_at and u.created_at.date() <= current_date
-            and u.subscription_type in [SubscriptionType.PRO, SubscriptionType.ULTRA, SubscriptionType.TEST_PRO]
+        )
+        
+        # Count paid users (who got their first paid subscription by this date)
+        paid_users_by_date = sum(
+            1 for user_id, first_paid_date in paid_subscriptions_dict.items()
+            if first_paid_date and first_paid_date.date() <= current_date
+            and any(u.id == user_id and u.created_at and u.created_at.date() <= current_date for u in users_data)
         )
         
         # Calculate conversion rate
-        conv_rate = (non_free_users_by_date / total_users_by_date * 100) if total_users_by_date > 0 else 0
+        conv_rate = (paid_users_by_date / total_users_by_date * 100) if total_users_by_date > 0 else 0
         
         conversion_dates.append(current_date.strftime('%d.%m'))
         conversion_rates.append(round(conv_rate, 2))

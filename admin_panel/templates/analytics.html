@@ -113,6 +113,7 @@
                         <thead>
                             <tr>
                                 <th>ID</th>
+                                <th>Username</th>
                                 <th>Анализ ID</th>
                                 <th>Продаж</th>
                                 <th>Доход</th>
@@ -120,9 +121,18 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% for report in recent_reports %}
+                            {% for report_data in recent_reports %}
+                            {% set report = report_data[0] %}
+                            {% set username = report_data[1] %}
                             <tr>
                                 <td>{{ report.id }}</td>
+                                <td>
+                                    {% if username %}
+                                        <code>@{{ username }}</code>
+                                    {% else %}
+                                        <em class="text-muted">-</em>
+                                    {% endif %}
+                                </td>
                                 <td>{{ report.csv_analysis_id }}</td>
                                 <td>{{ report.total_sales }}</td>
                                 <td><strong>${{ "%.2f"|format(report.total_revenue) }}</strong></td>
