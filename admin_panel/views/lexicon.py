@@ -116,6 +116,29 @@ def convert_quill_html_to_telegram(html: str) -> str:
 def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
     """Organize lexicon entries by category."""
     try:
+        # Список ключей, которые нужно скрыть в админ-панели
+        hidden_keys = {
+            # Аналитика портфеля
+            'csv_instruction',
+            # Прочее
+            'payment_btn_text_pro_to_ultra',
+            'payment_pro_button',
+            'payment_ultra_button',
+            'upgrade_pro_text',
+            'payment_ultra_with_discount',
+            'payment_ultra_without_discount',
+            'upgrade_ultra_text',
+            'compare_subscriptions_text',
+            'compare_free_pro_text',
+            'compare_pro_ultra_text',
+        }
+        
+        # Список кнопок FAQ, которые нужно скрыть
+        hidden_faq_buttons = {
+            'faq_btn_1', 'faq_btn_2', 'faq_btn_3', 'faq_btn_4', 
+            'faq_btn_5', 'faq_btn_6', 'faq_btn_7'
+        }
+        
         # Load lexicon from database or file
         if lexicon_service:
             try:
@@ -175,6 +198,10 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
         if LEXICON_RU:
             for key, value in LEXICON_RU.items():
                 try:
+                    # Пропускаем скрытые ключи
+                    if key in hidden_keys:
+                        continue
+                    
                     # Broadcast category (notifications) - check FIRST before other categories
                     if key.startswith('notification_'):
                         categories['broadcast']['items'][key] = value
@@ -186,7 +213,7 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
                         key.startswith('portfolio_rate') or key.startswith('new_work_rate') or
                         key in ['ask_portfolio_size', 'ask_monthly_limit', 'ask_monthly_uploads', 
                                 'ask_profit_percentage', 'ask_content_type', 'processing_csv', 
-                                'csv_upload_prompt', 'csv_instruction', 'final_analytics_report', 
+                                'csv_upload_prompt', 'final_analytics_report', 
                                 'limits_analytics_exhausted']):
                         categories['analytics']['items'][key] = value
                     # Themes category
@@ -195,13 +222,15 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
                     # TG Channel category
                     elif key == 'tg_channel_info':
                         categories['tg_channel']['items'][key] = value
-                    # Referral category - all keys starting with referral_ or redeem_
-                    elif key.startswith('referral_') or key.startswith('redeem_') or key == 'invite_friend_dev':
+                    # Referral category - all keys starting with referral_ or redeem_, plus specific referral keys
+                    elif (key.startswith('referral_') or key.startswith('redeem_') or key == 'invite_friend_dev' or
+                          key in ['get_referral_link_button', 'use_referral_points_button', 'your_referral_link']):
                         categories['referral']['items'][key] = value
                     # Other categories
                     elif key.startswith('lessons'):
                         categories['lessons']['items'][key] = value
-                    elif key.startswith('profile'):
+                    # Profile category - but exclude comparison keys (they go to "Прочее")
+                    elif key.startswith('profile') and key not in ['profile_pro_compare', 'profile_free_compare']:
                         categories['profile']['items'][key] = value
                     # Payments category - only specific keys
                     elif key in ['payment_pro_button_free', 'payment_ultra_button_free',
@@ -222,6 +251,9 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
                         categories['calendar']['items'][key] = value
                     elif key.startswith('start') or key.startswith('main_menu') or key.startswith('returning'):
                         categories['main']['items'][key] = value
+                    # Profile comparison keys go to "Прочее"
+                    elif key in ['profile_pro_compare', 'profile_free_compare']:
+                        categories['other']['items'][key] = value
                     else:
                         categories['other']['items'][key] = value
                 except Exception as e:
@@ -232,9 +264,18 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
         if LEXICON_COMMANDS_RU:
             for key, value in LEXICON_COMMANDS_RU.items():
                 try:
-                    # FAQ кнопки должны быть в категории FAQ, а не buttons
+                    # Пропускаем скрытые FAQ кнопки
+                    if key in hidden_faq_buttons:
+                        continue
+                    
+                    # FAQ кнопки должны быть в категории FAQ, а не buttons (кроме скрытых)
                     if key.startswith('faq_btn_') or key.startswith('faq_q'):
                         categories['faq']['items'][key] = value
+                    # Payment button texts from buttons category go to payments
+                    elif key in ['payment_btn_text_free_to_pro', 'payment_btn_text_free_to_ultra',
+                                'payment_btn_text_test_to_pro', 'payment_btn_text_test_to_ultra',
+                                'payment_btn_text_pro_to_ultra']:
+                        categories['payments']['items'][key] = value
                     else:
                         categories['buttons']['items'][key] = value
                 except Exception as e:
