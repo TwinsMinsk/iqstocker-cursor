@@ -139,12 +139,16 @@ async def check_theme_cooldown_from_tariff_start(
     period_start = tariff_start_time + timedelta(days=current_period * cooldown_days)
     period_end = period_start + timedelta(days=cooldown_days)
     
+    # Преобразуем в naive datetime для сравнения с БД (TIMESTAMP WITHOUT TIME ZONE)
+    period_start_naive = period_start.replace(tzinfo=None) if period_start.tzinfo else period_start
+    period_end_naive = period_end.replace(tzinfo=None) if period_end.tzinfo else period_end
+    
     # Проверяем, был ли уже запрос в текущем периоде
     query = select(ThemeRequest).where(
         ThemeRequest.user_id == user.id,
         ThemeRequest.status == "ISSUED",
-        ThemeRequest.created_at >= period_start,
-        ThemeRequest.created_at < period_end
+        ThemeRequest.created_at >= period_start_naive,
+        ThemeRequest.created_at < period_end_naive
     )
     result = await session.execute(query)
     request_in_current_period = result.scalar_one_or_none()
@@ -209,12 +213,16 @@ async def check_and_burn_unused_theme_limits(
         period_start = tariff_start_time + timedelta(days=period_num * cooldown_days)
         period_end = period_start + timedelta(days=cooldown_days)
         
+        # Преобразуем в naive datetime для сравнения с БД (TIMESTAMP WITHOUT TIME ZONE)
+        period_start_naive = period_start.replace(tzinfo=None) if period_start.tzinfo else period_start
+        period_end_naive = period_end.replace(tzinfo=None) if period_end.tzinfo else period_end
+        
         # Проверяем, был ли запрос в этом периоде
         query = select(ThemeRequest).where(
             ThemeRequest.user_id == user.id,
             ThemeRequest.status == "ISSUED",
-            ThemeRequest.created_at >= period_start,
-            ThemeRequest.created_at < period_end
+            ThemeRequest.created_at >= period_start_naive,
+            ThemeRequest.created_at < period_end_naive
         )
         result = await session.execute(query)
         request_in_period = result.scalar_one_or_none()
