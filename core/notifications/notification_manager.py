@@ -216,28 +216,6 @@ class NotificationManager:
             print(f"Error in send_weekly_themes_notifications: {e}")
             return 0
     
-    async def send_calendar_update_notifications(self, session: AsyncSession) -> int:
-        """Send notifications about calendar updates."""
-        
-        sent_count = 0
-        
-        # Send to all users
-        stmt = select(User)
-        result = await session.execute(stmt)
-        all_users = result.scalars().all()
-        
-        for user in all_users:
-            message = """📅 <b>Календарь стокера обновлен!</b>
-
-Новая подборка сезонных тем и праздников уже доступна в разделе «Календарь стокера».
-
-Не упусти возможность заработать на актуальных трендах! 🎯"""
-            
-            if await self.send_notification(user.telegram_id, message):
-                sent_count += 1
-        
-        return sent_count
-    
     async def send_broadcast(self, session: AsyncSession, message: str, subscription_type: Optional[SubscriptionType] = None) -> int:
         """Send broadcast message to users."""
         

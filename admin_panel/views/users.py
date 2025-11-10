@@ -388,8 +388,8 @@ async def edit_user_submit(
             await session.refresh(user)
             await session.refresh(limits)
             
-            # Send notification if tariff actually changed and not to TEST_PRO
-            if new_sub_type != SubscriptionType.TEST_PRO and old_subscription_type != new_sub_type:
+            # Send notification if tariff actually changed and not to TEST_PRO or FREE
+            if new_sub_type not in [SubscriptionType.TEST_PRO, SubscriptionType.FREE] and old_subscription_type != new_sub_type:
                 try:
                     from aiogram import Bot
                     from config.settings import settings

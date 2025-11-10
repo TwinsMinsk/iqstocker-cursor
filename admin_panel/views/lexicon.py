@@ -120,6 +120,8 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
         hidden_keys = {
             # Аналитика портфеля
             'csv_instruction',
+            # Реферальная программа
+            'redeem_support_request',
             # Прочее
             'payment_btn_text_pro_to_ultra',
             'payment_pro_button',

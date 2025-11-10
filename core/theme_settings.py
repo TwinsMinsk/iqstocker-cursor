@@ -105,6 +105,7 @@ async def check_theme_cooldown_from_tariff_start(
 ) -> Tuple[bool, int]:
     """
     Проверяет кулдаун тем от начала текущего тарифа.
+    Проверяет, был ли уже запрос в текущем 7-дневном периоде.
     
     Args:
         session: AsyncSession для работы с БД
@@ -130,15 +131,35 @@ async def check_theme_cooldown_from_tariff_start(
     now = datetime.now(timezone.utc)
     time_diff = now - tariff_start_time
     
-    # Проверяем, прошло ли 7 дней с начала тарифа
-    if time_diff >= timedelta(days=cooldown_days):
-        return True, 0  # Можно запросить
+    # Определяем текущий период (0, 1, 2, 3...)
+    # Период 0: дни 0-6, Период 1: дни 7-13, Период 2: дни 14-20, и т.д.
+    current_period = int(time_diff.total_seconds() / (cooldown_days * 24 * 3600))
     
-    days_remaining = (timedelta(days=cooldown_days) - time_diff).days
-    if days_remaining <= 0:
-        days_remaining = 1  # Минимум 1 день
+    # Вычисляем начало и конец текущего периода
+    period_start = tariff_start_time + timedelta(days=current_period * cooldown_days)
+    period_end = period_start + timedelta(days=cooldown_days)
     
-    return False, days_remaining
+    # Проверяем, был ли уже запрос в текущем периоде
+    query = select(ThemeRequest).where(
+        ThemeRequest.user_id == user.id,
+        ThemeRequest.status == "ISSUED",
+        ThemeRequest.created_at >= period_start,
+        ThemeRequest.created_at < period_end
+    )
+    result = await session.execute(query)
+    request_in_current_period = result.scalar_one_or_none()
+    
+    if request_in_current_period:
+        # Уже был запрос в текущем периоде - нужно ждать следующего периода
+        next_period_start = period_end
+        days_until_next_period = (next_period_start - now).days
+        if days_until_next_period <= 0:
+            days_until_next_period = 1
+        return False, days_until_next_period
+    
+    # Не было запроса в текущем периоде - можно запросить сразу
+    # (независимо от того, какой это период - 0, 1, 2, 3...)
+    return True, 0
 
 
 async def check_and_burn_unused_theme_limits(
@@ -147,8 +168,8 @@ async def check_and_burn_unused_theme_limits(
     limits: Limits
 ) -> bool:
     """
-    Проверяет, прошло ли 7 дней с начала тарифа без запроса тем.
-    Если да - списывает 1 неиспользованный лимит.
+    Проверяет завершенные периоды и сжигает лимиты за периоды без запросов.
+    Каждый завершенный период проверяется отдельно.
     
     Args:
         session: AsyncSession для работы с БД
@@ -156,7 +177,7 @@ async def check_and_burn_unused_theme_limits(
         limits: Объект лимитов пользователя
     
     Returns:
-        bool: True если лимит был списан, False если нет
+        bool: True если хотя бы один лимит был списан, False если нет
     """
     if not limits.current_tariff_started_at:
         return False
@@ -171,43 +192,42 @@ async def check_and_burn_unused_theme_limits(
     now = datetime.now(timezone.utc)
     time_diff = now - tariff_start_time
     
-    # Проверяем, прошло ли 7 дней
+    # Проверяем, прошло ли хотя бы 7 дней
     if time_diff < timedelta(days=cooldown_days):
-        return False  # Еще не прошло 7 дней
-    
-    # Вычисляем, сколько периодов по 7 дней прошло
-    periods_passed = int(time_diff.total_seconds() / (cooldown_days * 24 * 3600))
-    
-    if periods_passed <= 0:
         return False  # Еще не прошел ни один период
     
-    # Проверяем, сколько запросов тем было за все прошедшие периоды
-    query = select(ThemeRequest).where(
-        ThemeRequest.user_id == user.id,
-        ThemeRequest.status == "ISSUED",
-        ThemeRequest.created_at >= limits.current_tariff_started_at
-    )
+    # Определяем текущий период
+    current_period = int(time_diff.total_seconds() / (cooldown_days * 24 * 3600))
     
-    result = await session.execute(query)
-    requests_in_period = result.scalars().all()
+    if current_period <= 0:
+        return False  # Еще не прошел ни один период
     
-    # Количество периодов, за которые не было запросов тем
-    # Если прошло 2 периода (14 дней), но был 1 запрос - сгорает 1 лимит
-    # Если прошло 2 периода и не было запросов - сгорает 2 лимита
-    requests_count = len(requests_in_period)
-    periods_without_request = periods_passed - requests_count
-    
-    if periods_without_request > 0 and limits.themes_total > 0:
-        # Списываем лимиты за периоды без запросов (но не больше, чем есть)
-        limits_to_burn = min(periods_without_request, limits.themes_total)
-        limits.themes_total -= limits_to_burn
+    # Проверяем каждый завершенный период (от 0 до current_period - 1)
+    # Текущий период (current_period) еще не завершен, поэтому не проверяем его
+    burned_any = False
+    for period_num in range(current_period):
+        period_start = tariff_start_time + timedelta(days=period_num * cooldown_days)
+        period_end = period_start + timedelta(days=cooldown_days)
         
-        logger.info(
-            f"Burned {limits_to_burn} unused theme limit(s) for user {user.id} "
-            f"(tariff started: {limits.current_tariff_started_at}, "
-            f"periods passed: {periods_passed}, requests: {requests_count}, "
-            f"remaining: {limits.themes_total})"
+        # Проверяем, был ли запрос в этом периоде
+        query = select(ThemeRequest).where(
+            ThemeRequest.user_id == user.id,
+            ThemeRequest.status == "ISSUED",
+            ThemeRequest.created_at >= period_start,
+            ThemeRequest.created_at < period_end
         )
-        return True
+        result = await session.execute(query)
+        request_in_period = result.scalar_one_or_none()
+        
+        # Если не было запроса в этом периоде и еще есть лимиты - сжигаем
+        if not request_in_period and limits.themes_remaining > 0:
+            limits.themes_used += 1
+            burned_any = True
+            logger.info(
+                f"Burned 1 unused theme limit for user {user.id} "
+                f"in period {period_num} "
+                f"(period: {period_start.date()} - {period_end.date()}, "
+                f"themes_used: {limits.themes_used}/{limits.themes_total})"
+            )
     
-    return False
+    return burned_any

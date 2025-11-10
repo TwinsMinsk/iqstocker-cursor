@@ -183,21 +183,4 @@ class NotificationSender:
                 await asyncio.sleep(0.05)  # Rate limiting
         
         print("Sent new themes notifications")
-    
-    async def send_calendar_update_notifications(self):
-        """Send notifications about calendar updates."""
-        
-        all_users = self.db.query(User).all()
-        
-        # Import LEXICON_RU here to avoid circular imports
-        from bot.lexicon import LEXICON_RU
-        message = LEXICON_RU['calendar_update_notification']
-        
-        sent_count = 0
-        for user in all_users:
-            success = await self.send_notification(user.telegram_id, message)
-            if success:
-                sent_count += 1
-            await asyncio.sleep(0.05)  # Rate limiting
-        
-        print(f"Sent calendar update notifications to {sent_count} users")
+

@@ -54,14 +54,6 @@ class TaskScheduler:
             name='Send monthly marketing notifications'
         )
         
-        # Monthly calendar update notifications (1st day of month at 11:00 UTC)
-        self.scheduler.add_job(
-            self.send_calendar_update_notifications,
-            CronTrigger(day=1, hour=11, minute=0),
-            id='monthly_calendar_notifications',
-            name='Send monthly calendar update notifications'
-        )
-        
         # Daily TEST_PRO expiration notifications (at 12:00 UTC)
         self.scheduler.add_job(
             self.send_test_pro_expiring_notifications,
@@ -148,16 +140,6 @@ class TaskScheduler:
                 print(f"Sent {sent_count} marketing notifications")
             except Exception as e:
                 print(f"Error sending marketing notifications: {e}")
-    
-    async def send_calendar_update_notifications(self):
-        """Send calendar update notifications."""
-        print("Sending calendar update notifications...")
-        async with AsyncSessionLocal() as session:
-            try:
-                sent_count = await self.notification_manager.send_calendar_update_notifications(session)
-                print(f"Sent {sent_count} calendar update notifications")
-            except Exception as e:
-                print(f"Error sending calendar update notifications: {e}")
     
     async def send_test_pro_expiring_notifications(self):
         """Send TEST_PRO expiration notifications."""

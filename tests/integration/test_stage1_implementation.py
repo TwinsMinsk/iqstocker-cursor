@@ -87,11 +87,6 @@ async def test_notification_system():
         sent_count = await notification_manager.send_weekly_themes_notifications()
         print(f"   - Sent {sent_count} weekly themes notifications")
         
-        # Test calendar update notifications
-        print("   - Testing calendar update notifications...")
-        sent_count = await notification_manager.send_calendar_update_notifications()
-        print(f"   - Sent {sent_count} calendar update notifications")
-        
         print("✅ Notification system test completed")
         
     except Exception as e:

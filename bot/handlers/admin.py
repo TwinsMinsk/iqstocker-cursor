@@ -582,7 +582,7 @@ async def admin_set_tariff(callback: CallbackQuery, callback_data: ActionCallbac
         except (KeyError, ValueError):
             new_sub_type = None
         
-        if new_sub_type and new_sub_type != SubscriptionType.TEST_PRO and old_subscription_type != new_sub_type:
+        if new_sub_type and new_sub_type not in [SubscriptionType.TEST_PRO, SubscriptionType.FREE] and old_subscription_type != new_sub_type:
             try:
                 from aiogram import Bot
                 from config.settings import settings

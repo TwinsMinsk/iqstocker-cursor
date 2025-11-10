@@ -96,8 +96,8 @@ class PaymentHandler:
                 await session.refresh(user)
                 await session.refresh(limits)
                 
-                # Send notification about tariff change (except for TEST_PRO)
-                if sub_type != SubscriptionType.TEST_PRO:
+                # Send notification about tariff change (except for TEST_PRO and FREE)
+                if sub_type not in [SubscriptionType.TEST_PRO, SubscriptionType.FREE]:
                     try:
                         from aiogram import Bot
                         from config.settings import settings
