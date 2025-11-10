@@ -60,6 +60,127 @@
     </div>
 </div>
 
+<!-- Метрики конверсии подписок -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-pie me-2"></i>Метрики конверсии подписок
+                </h5>
+                <form method="get" action="/dashboard" class="d-inline-flex align-items-center">
+                    <label for="month-select" class="me-2 mb-0">Период:</label>
+                    <select name="month" id="month-select" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                        {% for month_option in available_months %}
+                        <option value="{{ month_option.value }}" {% if (selected_month and selected_month == month_option.value) or (not selected_month and month_option.is_current) %}selected{% endif %}>
+                            {{ month_option.display }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </form>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <!-- Метрика 1: Новые пользователи -->
+                    <div class="col-md-4 col-lg-3 mb-3">
+                        <div class="stat-card info">
+                            <div class="stat-icon">
+                                <i class="fas fa-user-plus"></i>
+                            </div>
+                            <div class="stat-label">Новые пользователи</div>
+                            <div class="stat-number">{{ stats.new_users or 0 }}</div>
+                            <div class="stat-change">Пришли на TEST_PRO</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Метрика 2: TEST_PRO → PRO -->
+                    <div class="col-md-4 col-lg-3 mb-3">
+                        <div class="stat-card success">
+                            <div class="stat-icon">
+                                <i class="fas fa-arrow-up"></i>
+                            </div>
+                            <div class="stat-label">TEST_PRO → PRO</div>
+                            <div class="stat-number">{{ stats.test_pro_to_pro or 0 }}</div>
+                            <div class="stat-change">Оплаченные переходы</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Метрика 3: TEST_PRO → ULTRA -->
+                    <div class="col-md-4 col-lg-3 mb-3">
+                        <div class="stat-card success">
+                            <div class="stat-icon">
+                                <i class="fas fa-arrow-up"></i>
+                            </div>
+                            <div class="stat-label">TEST_PRO → ULTRA</div>
+                            <div class="stat-number">{{ stats.test_pro_to_ultra or 0 }}</div>
+                            <div class="stat-change">Оплаченные переходы</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Метрика 4: TEST_PRO → FREE -->
+                    <div class="col-md-4 col-lg-3 mb-3">
+                        <div class="stat-card warning">
+                            <div class="stat-icon">
+                                <i class="fas fa-arrow-down"></i>
+                            </div>
+                            <div class="stat-label">TEST_PRO → FREE</div>
+                            <div class="stat-number">{{ stats.test_pro_to_free or 0 }}</div>
+                            <div class="stat-change">Переходы на бесплатный</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Метрика 5: FREE → Платный тариф -->
+                    <div class="col-md-4 col-lg-3 mb-3">
+                        <div class="stat-card success">
+                            <div class="stat-icon">
+                                <i class="fas fa-arrow-circle-up"></i>
+                            </div>
+                            <div class="stat-label">FREE → Платный</div>
+                            <div class="stat-number">{{ stats.free_to_paid or 0 }}</div>
+                            <div class="stat-change">PRO или ULTRA</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Метрика 6: Отток PRO -->
+                    <div class="col-md-4 col-lg-3 mb-3">
+                        <div class="stat-card" style="border-left: 4px solid #dc3545;">
+                            <div class="stat-icon" style="color: #dc3545;">
+                                <i class="fas fa-user-times"></i>
+                            </div>
+                            <div class="stat-label">Отток PRO</div>
+                            <div class="stat-number">{{ stats.pro_churn_count or 0 }}</div>
+                            <div class="stat-change">
+                                <span class="text-danger">{{ stats.pro_churn_percent or 0 }}%</span> не продлили
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Метрика 7: Отток ULTRA -->
+                    <div class="col-md-4 col-lg-3 mb-3">
+                        <div class="stat-card" style="border-left: 4px solid #dc3545;">
+                            <div class="stat-icon" style="color: #dc3545;">
+                                <i class="fas fa-user-times"></i>
+                            </div>
+                            <div class="stat-label">Отток ULTRA</div>
+                            <div class="stat-number">{{ stats.ultra_churn_count or 0 }}</div>
+                            <div class="stat-change">
+                                <span class="text-danger">{{ stats.ultra_churn_percent or 0 }}%</span> не продлили
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                {% if stats.month_display %}
+                <div class="mt-3 text-muted small">
+                    <i class="fas fa-info-circle me-1"></i>
+                    Данные за период: <strong>{{ stats.month_display }}</strong>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Таблица последних пользователей -->
 <div class="row">
     <div class="col-12">
