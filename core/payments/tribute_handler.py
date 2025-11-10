@@ -35,13 +35,13 @@ class TributePaymentHandler:
 
     def _get_subscription_data(self, sub_type: SubscriptionType, discount_percent: int = 0) -> Dict[str, Any]:
         """
-        (Логика скопирована из boosty_handler.py для отображения цен в боте)
+        Возвращает данные о подписке с ценами в евро (EUR).
         """
         base_price = 0
         if sub_type == SubscriptionType.PRO:
-            base_price = 990
+            base_price = 5  # 5 EUR
         elif sub_type == SubscriptionType.ULTRA:
-            base_price = 1990
+            base_price = 8  # 8 EUR
 
         discount_amount = (base_price * discount_percent) / 100
         final_price = base_price - discount_amount

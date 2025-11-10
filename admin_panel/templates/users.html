@@ -441,7 +441,7 @@ async function showUserActions(userId) {
                         <td><span class="badge bg-primary">${sub.type}</span></td>
                         <td>${sub.started_at || '-'}</td>
                         <td>${sub.expires_at || '-'}</td>
-                        <td>${sub.amount > 0 ? sub.amount.toFixed(2) + '₽' : '-'}</td>
+                        <td>${sub.amount > 0 ? sub.amount.toFixed(2) + '€' : '-'}</td>
                     </tr>
                 `;
             });

@@ -100,7 +100,8 @@ class TributeWebhookHandler:
         payload = data.get('payload', {})
         
         telegram_user_id = payload.get('telegram_user_id') or payload.get('user_id') or data.get('telegram_user_id') or data.get('user_id')
-        amount_cents = payload.get('amount') or data.get('amount')  # Сумма в копейках/центах
+        amount_cents = payload.get('amount') or data.get('amount')  # Сумма в минимальных единицах валюты (центах/копейках)
+        currency = payload.get('currency', '').lower() or data.get('currency', '').lower()  # Валюта: "eur", "usd", "rub"
         
         if is_subscription:
             payment_id = payload.get('subscription_id') or data.get('id') or data.get('subscription_id')
@@ -121,7 +122,30 @@ class TributeWebhookHandler:
             print(f"Полные данные: {data}")
             return
 
-        print(f"Tribute '{data.get('name')}': {payment_id}, user: {telegram_user_id}, amount: {amount_cents}")
+        print(f"Tribute '{data.get('name')}': {payment_id}, user: {telegram_user_id}, amount: {amount_cents}, currency: {currency}")
+        
+        # Конвертируем сумму из минимальных единиц в основные единицы валюты
+        amount_in_currency = float(amount_cents) / 100
+        
+        # Конвертируем в евро, если валюта не EUR
+        # Все суммы в БД хранятся в евро
+        if currency == 'eur':
+            amount_eur = amount_in_currency
+        elif currency == 'usd':
+            # Примерный курс: 1 USD = 0.92 EUR (можно настроить)
+            usd_to_eur_rate = 0.92
+            amount_eur = amount_in_currency * usd_to_eur_rate
+            print(f"ВНИМАНИЕ: Конвертация USD в EUR по курсу {usd_to_eur_rate}: {amount_in_currency} USD = {amount_eur:.2f} EUR")
+        elif currency == 'rub':
+            # Курс: 100 RUB = 1 EUR
+            rub_to_eur_rate = 0.01
+            amount_eur = amount_in_currency * rub_to_eur_rate
+            print(f"ВНИМАНИЕ: Конвертация RUB в EUR по курсу {rub_to_eur_rate}: {amount_in_currency} RUB = {amount_eur:.2f} EUR")
+        else:
+            # Если валюта не указана или неизвестна, предполагаем EUR
+            if currency:
+                print(f"ВНИМАНИЕ: Неизвестная валюта '{currency}', предполагаем EUR")
+            amount_eur = amount_in_currency
         
         # Вызываем универсальный обработчик БД
         db_handler = PaymentHandler()
@@ -129,7 +153,7 @@ class TributeWebhookHandler:
         success = await db_handler.process_payment_success(
             payment_id=str(payment_id),
             user_id=int(telegram_user_id),
-            amount=float(amount_cents) / 100,  # Приводим к рублям/долларам
+            amount=amount_eur,  # Сумма в евро
             subscription_type=subscription_type_str,
             discount_percent=0  # Tribute не передает скидку в вебхуке
         )

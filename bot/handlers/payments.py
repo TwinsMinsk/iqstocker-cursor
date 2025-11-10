@@ -75,10 +75,10 @@ async def upgrade_pro_from_analytics_callback(callback: CallbackQuery, user: Use
     
     # Format price text
     if discount_percent > 0:
-        price_text = f"~~{subscription_data['original_price']}₽~~ <b>{subscription_data['price']}₽</b> ({discount_percent}% скидка)"
+        price_text = f"~~{subscription_data['original_price']}€~~ <b>{subscription_data['price']}€</b> ({discount_percent}% скидка)"
         discount_message = f"\n🎉 <b>Скидка {discount_percent}%!</b>"
     else:
-        price_text = f"<b>{subscription_data['price']}₽/месяц</b>"
+        price_text = f"<b>{subscription_data['price']}€/месяц</b>"
         discount_message = ""
     
     # Use single message key for analytics upgrade
@@ -701,8 +701,8 @@ async def payment_pro_test_discount_callback(callback: CallbackQuery, callback_d
         return
     
     # Show payment information with 50% discount
-    base_price = 990
-    discounted_price = int(base_price * 0.5)
+    base_price = 5  # 5 EUR
+    discounted_price = base_price * 0.5
     
     payment_text = LEXICON_RU['payment_pro_test_discount'].format(
         original_price=base_price,
@@ -835,8 +835,8 @@ async def payment_ultra_test_discount_callback(callback: CallbackQuery, callback
         return
     
     # Show payment information with 50% discount
-    base_price = 1990
-    discounted_price = int(base_price * 0.5)
+    base_price = 8  # 8 EUR
+    discounted_price = base_price * 0.5
     
     payment_text = LEXICON_RU['payment_ultra_test_discount'].format(
         original_price=base_price,

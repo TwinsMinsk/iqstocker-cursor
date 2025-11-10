@@ -47,7 +47,7 @@ async def simulate_payment(
     telegram_user_id: int = Form(...),
     subscription_type: str = Form(...),
     payment_id: str = Form(None),
-    amount: float = Form(990.0)
+    amount: float = Form(5.0)  # Сумма в евро
 ):
     """Simulate payment webhook."""
     from api.webhooks.tribute import tribute_handler
@@ -65,7 +65,8 @@ async def simulate_payment(
         "payload": {
             "telegram_user_id": telegram_user_id,
             "user_id": telegram_user_id,
-            "amount": int(amount * 100),  # Tribute передает в копейках
+            "amount": int(amount * 100),  # Tribute передает в центах (для EUR)
+            "currency": "eur",  # Валюта: EUR
             "subscription_id": payment_id,
             "subscription_name": f"TEST {subscription_type.upper()}",
             "product_name": f"TEST {subscription_type.upper()} Subscription"

@@ -62,8 +62,8 @@
                     </div>
                     
                     <div class="mb-3">
-                        <label for="amount" class="form-label">Сумма (рублей)</label>
-                        <input type="number" class="form-control" id="amount" name="amount" value="990" step="0.01" min="0" required>
+                        <label for="amount" class="form-label">Сумма (евро)</label>
+                        <input type="number" class="form-control" id="amount" name="amount" value="5" step="0.01" min="0" required>
                     </div>
                     
                     <div class="mb-3">
@@ -131,7 +131,7 @@
                             </div>
                             {% if payment.amount %}
                             <div class="text-end">
-                                <strong class="text-success">{{ "%.2f"|format(payment.amount) }} ₽</strong>
+                                <strong class="text-success">{{ "%.2f"|format(payment.amount) }} €</strong>
                             </div>
                             {% endif %}
                         </div>
@@ -202,7 +202,7 @@ document.getElementById('testPaymentForm').addEventListener('submit', async func
                             <li>Истекает: ${result.database_check.subscription_expires_at || 'N/A'}</li>
                             ${result.database_check.latest_subscription ? 
                                 `<li>Последняя подписка ID: ${result.database_check.latest_subscription.id}</li>
-                                <li>Сумма: ${result.database_check.latest_subscription.amount || 'N/A'} ₽</li>
+                                <li>Сумма: ${result.database_check.latest_subscription.amount || 'N/A'} €</li>
                                 <li>Payment ID: ${result.database_check.latest_subscription.payment_id || 'N/A'}</li>` 
                                 : '<li>Подписка не найдена</li>'
                             }
@@ -221,7 +221,7 @@ document.getElementById('testPaymentForm').addEventListener('submit', async func
                         <li>Telegram ID: ${result.test_data.telegram_user_id}</li>
                         <li>Тип подписки: ${result.test_data.subscription_type}</li>
                         <li>Payment ID: ${result.test_data.payment_id}</li>
-                        <li>Сумма: ${result.test_data.amount} ₽</li>
+                        <li>Сумма: ${result.test_data.amount} €</li>
                     </ul>
                 </div>
             </div>`;
@@ -269,7 +269,7 @@ async function checkUserStatus() {
                     <p><strong>Тип:</strong> ${data.latest_subscription.type}</p>
                     <p><strong>Начало:</strong> ${data.latest_subscription.started_at}</p>
                     <p><strong>Истекает:</strong> ${data.latest_subscription.expires_at || 'N/A'}</p>
-                    <p><strong>Сумма:</strong> ${data.latest_subscription.amount || 'N/A'} ₽</p>
+                    <p><strong>Сумма:</strong> ${data.latest_subscription.amount || 'N/A'} €</p>
                     <p><strong>Payment ID:</strong> ${data.latest_subscription.payment_id || 'N/A'}</p>
                 </div>`;
             }

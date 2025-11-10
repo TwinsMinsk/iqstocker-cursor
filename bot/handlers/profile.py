@@ -322,13 +322,13 @@ async def upgrade_pro_callback(callback: CallbackQuery, user: User, lexicon: Map
     discount_info = payment_handler.get_discount_info(user.subscription_type)
     
     # Calculate price with discount
-    base_price = 990
+    base_price = 5  # 5 EUR
     if discount_info["has_discount"]:
         discounted_price = base_price * (1 - discount_info["discount_percent"] / 100)
-        price_text = f"~~{base_price}₽~~ <b>{discounted_price:.0f}₽</b> ({discount_info['discount_percent']}% скидка)"
+        price_text = f"~~{base_price}€~~ <b>{discounted_price:.0f}€</b> ({discount_info['discount_percent']}% скидка)"
         discount_message = f"\n🎉 <b>{discount_info['message']}</b>"
     else:
-        price_text = f"<b>{base_price}₽/месяц</b>"
+        price_text = f"<b>{base_price}€/месяц</b>"
         discount_message = ""
     
     upgrade_text_template = lexicon.get('upgrade_pro_text', LEXICON_RU.get('upgrade_pro_text', ''))
@@ -381,13 +381,13 @@ async def upgrade_ultra_callback(callback: CallbackQuery, user: User, lexicon: M
     discount_info = payment_handler.get_discount_info(user.subscription_type)
     
     # Calculate price with discount
-    base_price = 1990
+    base_price = 8  # 8 EUR
     if discount_info["has_discount"]:
         discounted_price = base_price * (1 - discount_info["discount_percent"] / 100)
-        price_text = f"~~{base_price}₽~~ <b>{discounted_price:.0f}₽</b> ({discount_info['discount_percent']}% скидка)"
+        price_text = f"~~{base_price}€~~ <b>{discounted_price:.0f}€</b> ({discount_info['discount_percent']}% скидка)"
         discount_message = f"\n🎉 <b>{discount_info['message']}</b>"
     else:
-        price_text = f"<b>{base_price}₽/месяц</b>"
+        price_text = f"<b>{base_price}€/месяц</b>"
         discount_message = ""
     
     upgrade_text_template = lexicon.get('upgrade_ultra_text', LEXICON_RU.get('upgrade_ultra_text', ''))
