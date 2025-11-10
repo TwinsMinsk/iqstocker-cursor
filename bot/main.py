@@ -12,6 +12,7 @@ from config.settings import settings
 from bot.handlers import start, menu, profile, analytics, themes, lessons, calendar, faq, channel, payments, admin, invite, referral
 from bot.middlewares.database import DatabaseMiddleware
 from bot.middlewares.subscription import SubscriptionMiddleware
+from bot.middlewares.blocked_user import BlockedUserMiddleware
 from bot.middlewares.limits import LimitsMiddleware
 from core.utils.lexicon_validator import validate_or_raise
 
@@ -60,6 +61,8 @@ async def main():
     dp.callback_query.middleware(DatabaseMiddleware())
     dp.message.middleware(SubscriptionMiddleware())
     dp.callback_query.middleware(SubscriptionMiddleware())
+    dp.message.middleware(BlockedUserMiddleware())
+    dp.callback_query.middleware(BlockedUserMiddleware())
     dp.message.middleware(LimitsMiddleware())
     dp.callback_query.middleware(LimitsMiddleware())
     

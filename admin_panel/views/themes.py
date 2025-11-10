@@ -18,16 +18,23 @@ templates = Jinja2Templates(directory="admin_panel/templates")
 async def themes_page(request: Request, status: Optional[str] = Query(None), page: int = 1, per_page: int = 20):
     """Themes management page."""
     async with AsyncSessionLocal() as session:
-        # Build query
-        query = select(ThemeRequest)
-        
-        if status and status != "ALL":
-            query = query.where(ThemeRequest.status == status)
+        # Build query - показываем только выданные темы (ISSUED) по умолчанию
+        if not status or status == "ISSUED":
+            query = select(ThemeRequest).where(ThemeRequest.status == "ISSUED")
+        elif status == "ALL":
+            query = select(ThemeRequest)  # Показываем все
+        else:
+            query = select(ThemeRequest).where(ThemeRequest.status == status)
         
         # Get total count
-        total_count = await session.execute(
-            select(func.count(ThemeRequest.id))
-        )
+        if not status or status == "ISSUED":
+            total_count_query = select(func.count(ThemeRequest.id)).where(ThemeRequest.status == "ISSUED")
+        elif status == "ALL":
+            total_count_query = select(func.count(ThemeRequest.id))
+        else:
+            total_count_query = select(func.count(ThemeRequest.id)).where(ThemeRequest.status == status)
+        
+        total_count = await session.execute(total_count_query)
         total = total_count.scalar() or 0
         
         # Get paginated results
@@ -88,7 +95,7 @@ async def themes_page(request: Request, status: Optional[str] = Query(None), pag
                 "request": request,
                 "theme_requests": requests_with_users,
                 "stats": stats,
-                "status": status or "ALL",
+                "status": status or "ISSUED",  # По умолчанию показываем только выданные
                 "page": page,
                 "per_page": per_page,
                 "total_pages": total_pages,

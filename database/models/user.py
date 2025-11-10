@@ -53,6 +53,9 @@ class User(Base):
     # Admin flag
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     
+    # Blocked flag
+    is_blocked: Mapped[bool] = mapped_column(Boolean, default=False)
+    
     # Referral system fields
     referrer_id: Mapped[int | None] = mapped_column(
         ForeignKey('users.id'), 

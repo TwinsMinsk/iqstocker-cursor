@@ -152,6 +152,26 @@ async def users_page(
                     'registered': False
                 })
         
+        # Get list of blocked users
+        blocked_users_query = select(User).where(User.is_blocked == True).order_by(desc(User.updated_at))
+        blocked_users_result = await session.execute(blocked_users_query)
+        blocked_users = blocked_users_result.scalars().all()
+        
+        blocked_data = []
+        for user in blocked_users:
+            # Get limits if exists
+            limits_query = select(Limits).where(Limits.user_id == user.id)
+            limits_result = await session.execute(limits_query)
+            limits = limits_result.scalar_one_or_none()
+            
+            blocked_data.append({
+                'user': user,
+                'name': f"{user.first_name or ''} {user.last_name or ''}".strip() or user.username or f"User {user.id}",
+                'username': user.username,
+                'telegram_id': user.telegram_id,
+                'limits': limits
+            })
+        
         total_pages = (total_count + per_page - 1) // per_page
         
         return templates.TemplateResponse(
@@ -161,6 +181,7 @@ async def users_page(
                 "users_data": users_data,
                 "stats_by_type": stats_by_type,
                 "admins_data": admins_data,
+                "blocked_data": blocked_data,
                 "current_filter": subscription_type or 'all',
                 "search_query": search or '',
                 "current_page": page,
@@ -457,6 +478,46 @@ async def toggle_admin_status(user_id: int = Path(...)):
                 "success": True,
                 "is_admin": user.is_admin,
                 "message": f"Статус администратора {'назначен' if user.is_admin else 'снят'}"
+            })
+        except Exception as e:
+            await session.rollback()
+            return JSONResponse(
+                status_code=500,
+                content={"success": False, "message": f"Ошибка: {str(e)}"}
+            )
+
+
+@router.post("/api/users/{user_id}/toggle_block", response_class=JSONResponse)
+async def toggle_block_status(user_id: int = Path(...)):
+    """Toggle block status for a user."""
+    async with AsyncSessionLocal() as session:
+        try:
+            # Get user
+            user_query = select(User).where(User.id == user_id)
+            user_result = await session.execute(user_query)
+            user = user_result.scalar_one_or_none()
+            
+            if not user:
+                return JSONResponse(
+                    status_code=404,
+                    content={"success": False, "message": "Пользователь не найден"}
+                )
+            
+            # Prevent blocking admins
+            if user.is_admin:
+                return JSONResponse(
+                    status_code=400,
+                    content={"success": False, "message": "Нельзя заблокировать администратора"}
+                )
+            
+            # Toggle block status
+            user.is_blocked = not user.is_blocked
+            await session.commit()
+            
+            return JSONResponse(content={
+                "success": True,
+                "is_blocked": user.is_blocked,
+                "message": f"Пользователь {'заблокирован' if user.is_blocked else 'разблокирован'}"
             })
         except Exception as e:
             await session.rollback()
