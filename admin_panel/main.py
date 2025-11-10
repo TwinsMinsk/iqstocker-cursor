@@ -12,7 +12,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request as StarletteRequest
 import logging
 
-from config.database import get_async_session
+from config.database import get_async_session, AsyncSessionLocal
 # SQLAdmin model imports removed - not needed anymore
 from admin_panel.auth import authentication_backend, ADMIN_SECRET_KEY
 from admin_panel.views import dashboard, themes, placeholders, lexicon, users, analytics, broadcast, payments, payment_test, tariff_limits, referral
@@ -94,6 +94,33 @@ app.include_router(themes.router, prefix="", tags=["themes"])
 app.include_router(webhook_router, prefix="", tags=["webhooks"])
 # Placeholders router should be last to catch any unmatched routes
 app.include_router(placeholders.router, prefix="", tags=["placeholders"])
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for Railway."""
+    try:
+        # Test database connection
+        from sqlalchemy import text
+        
+        async with AsyncSessionLocal() as session:
+            await session.execute(text("SELECT 1"))
+        
+        return {
+            "status": "healthy",
+            "service": "iqstocker-admin",
+            "version": "2.0",
+            "database": "connected",
+            "admin_panel": "available"
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return {
+            "status": "unhealthy",
+            "service": "iqstocker-admin",
+            "version": "2.0",
+            "error": str(e)
+        }
 
 
 @app.get("/")
