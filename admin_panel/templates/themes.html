@@ -88,7 +88,8 @@
                         <th>Username</th>
                         <th>Статус</th>
                         <th>Создано</th>
-                        <th>Сколько тем из общего количества выдано пользователю</th>
+                        <th>Тем в запросе</th>
+                        <th>Выдано всего тем</th>
                         <th>Действия</th>
                     </tr>
                 </thead>
@@ -114,6 +115,7 @@
                             {% endif %}
                         </td>
                         <td>{{ request.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                        <td>{{ request.current_request_themes_count or 0 }}</td>
                         <td>{{ request.total_issued_themes }}</td>
                         <td>
                             <button class="btn btn-sm btn-primary" onclick="showThemeDetails({{ request.id }})">

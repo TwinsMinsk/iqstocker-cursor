@@ -67,6 +67,12 @@ async def themes_page(request: Request, status: Optional[str] = Query(None), pag
                     themes = [t.strip() for t in issued_req.theme_name.split('\n') if t.strip()]
                     total_issued_themes += len(themes)
             
+            # Count themes in current request
+            current_request_themes_count = 0
+            if tr.theme_name:
+                current_themes = [t.strip() for t in tr.theme_name.split('\n') if t.strip()]
+                current_request_themes_count = len(current_themes)
+            
             requests_with_users.append({
                 "id": tr.id,
                 "user_id": tr.user_id,
@@ -75,6 +81,7 @@ async def themes_page(request: Request, status: Optional[str] = Query(None), pag
                 "username": user.username if user else None,
                 "status": tr.status,
                 "created_at": tr.created_at,
+                "current_request_themes_count": current_request_themes_count,
                 "total_issued_themes": total_issued_themes
             })
         
