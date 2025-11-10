@@ -78,9 +78,14 @@ class UserCacheService:
         }
     
     def _dict_to_user(self, data: Dict[str, Any], session: AsyncSession) -> Optional[User]:
-        """Convert dictionary to User model (reconstruct from cache)."""
+        """Convert dictionary to User model (reconstruct from cache).
+        
+        Note: The returned object is NOT attached to session. Use session.merge() 
+        to attach it properly before using in handlers.
+        """
         try:
             from database.models import SubscriptionType
+            from sqlalchemy.orm import make_transient
             
             user = User()
             user.id = data["id"]
@@ -100,16 +105,23 @@ class UserCacheService:
             user.updated_at = datetime.fromisoformat(data["updated_at"]) if data.get("updated_at") else None
             user.last_activity_at = datetime.fromisoformat(data["last_activity_at"]) if data.get("last_activity_at") else None
             
-            # Mark as expired so SQLAlchemy knows it's not in session
-            # We'll use this cached object only for reading
+            # Explicitly mark as transient so SQLAlchemy knows it's not in session
+            # This prevents accidental INSERT when object is used in relationships
+            make_transient(user)
             return user
         except Exception as e:
             logger.warning(f"Failed to reconstruct User from cache: {e}")
             return None
     
     def _dict_to_limits(self, data: Dict[str, Any], session: AsyncSession) -> Optional[Limits]:
-        """Convert dictionary to Limits model (reconstruct from cache)."""
+        """Convert dictionary to Limits model (reconstruct from cache).
+        
+        Note: The returned object is NOT attached to session. Use session.merge() 
+        to attach it properly before using in handlers.
+        """
         try:
+            from sqlalchemy.orm import make_transient
+            
             limits = Limits()
             limits.id = data["id"]
             limits.user_id = data["user_id"]
@@ -123,6 +135,9 @@ class UserCacheService:
             limits.created_at = datetime.fromisoformat(data["created_at"]) if data.get("created_at") else None
             limits.updated_at = datetime.fromisoformat(data["updated_at"]) if data.get("updated_at") else None
             
+            # Explicitly mark as transient so SQLAlchemy knows it's not in session
+            # This prevents accidental INSERT when object is used in relationships
+            make_transient(limits)
             return limits
         except Exception as e:
             logger.warning(f"Failed to reconstruct Limits from cache: {e}")
@@ -157,6 +172,12 @@ class UserCacheService:
                     limits = self._dict_to_limits(limits_data, session)
                     
                     if user and limits:
+                        # IMPORTANT: Use merge() to attach objects to session properly
+                        # This prevents SQLAlchemy from trying to INSERT existing objects
+                        # merge() will either return existing object from session or attach the new one
+                        user = await session.merge(user)
+                        limits = await session.merge(limits)
+                        
                         # Link limits to user for relationship access
                         user.limits = limits
                         limits.user = user

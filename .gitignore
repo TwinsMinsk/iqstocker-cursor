@@ -188,7 +188,6 @@ ml_models/
 
 # Cache
 .cache/
-cache/
 
 # Node modules (if any frontend)
 node_modules/
