@@ -37,14 +37,6 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card text-white bg-info mb-3">
-            <div class="card-body">
-                <h5 class="card-title">Глобальных тем</h5>
-                <p class="card-text fs-3">{{ global_themes_total }}</p>
-            </div>
-        </div>
-    </div>
 </div>
 
 <!-- Filters -->
@@ -92,12 +84,11 @@
             <table class="table table-hover">
                 <thead>
                     <tr>
-                        <th>ID</th>
-                        <th>Пользователь</th>
-                        <th>Тема</th>
+                        <th>ID запросы</th>
+                        <th>Username</th>
                         <th>Статус</th>
                         <th>Создано</th>
-                        <th>Обновлено</th>
+                        <th>Сколько тем из общего количества выдано пользователю</th>
                         <th>Действия</th>
                     </tr>
                 </thead>
@@ -107,15 +98,10 @@
                         <td>{{ request.id }}</td>
                         <td>
                             <div>
-                                <strong>{{ request.user_name }}</strong>
+                                <strong>{% if request.username %}@{{ request.username }}{% else %}{{ request.user_name }}{% endif %}</strong>
                                 {% if request.user_telegram_id %}
                                 <br><small class="text-muted">ID: {{ request.user_telegram_id }}</small>
                                 {% endif %}
-                            </div>
-                        </td>
-                        <td>
-                            <div class="text-truncate" style="max-width: 300px;" title="{{ request.theme_name }}">
-                                {{ request.theme_name[:50] }}{% if request.theme_name|length > 50 %}...{% endif %}
                             </div>
                         </td>
                         <td>
@@ -128,7 +114,7 @@
                             {% endif %}
                         </td>
                         <td>{{ request.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
-                        <td>{{ request.updated_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                        <td>{{ request.total_issued_themes }}</td>
                         <td>
                             <button class="btn btn-sm btn-primary" onclick="showThemeDetails({{ request.id }})">
                                 <i class="fas fa-eye"></i>
@@ -174,10 +160,10 @@
 
 <!-- Theme Details Modal -->
 <div id="themeDetailsModal" class="modal fade" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Детали запроса темы</h5>
+                <h5 class="modal-title">Все запросы тем пользователя</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body" id="themeDetailsContent">
@@ -211,47 +197,92 @@ async function showThemeDetails(id) {
         
         // Build HTML content
         let html = `
-            <div class="mb-3">
+            <div class="mb-4">
                 <h6>Информация о пользователе</h6>
                 <p class="mb-1"><strong>Имя:</strong> ${data.user.name}</p>
                 <p class="mb-1"><strong>Username:</strong> ${data.user.username ? '@' + data.user.username : 'Не указан'}</p>
                 <p class="mb-0"><strong>Telegram ID:</strong> <code>${data.user.telegram_id}</code></p>
             </div>
-            
-            <div class="mb-3">
-                <h6>Информация о запросе</h6>
-                <p class="mb-1"><strong>ID запроса:</strong> #${data.request.id}</p>
-                <p class="mb-1"><strong>Статус:</strong> <span class="badge bg-info">${data.request.status}</span></p>
-                <p class="mb-1"><strong>Создан:</strong> ${data.request.created_at || 'Не указано'}</p>
-                <p class="mb-0"><strong>Обновлен:</strong> ${data.request.updated_at || 'Не указано'}</p>
-            </div>
         `;
         
-        // Issued themes list
-        if (data.issued_themes && data.issued_themes.length > 0) {
+        // Display all theme requests
+        if (data.requests && data.requests.length > 0) {
             html += `
                 <div class="mb-3">
-                    <h6>Выданные темы пользователю</h6>
-                    <ol class="list-group list-group-numbered">
+                    <h6>Все запросы тем пользователя</h6>
+                    <div class="accordion" id="themeRequestsAccordion">
             `;
-            data.issued_themes.forEach((theme, index) => {
+            
+            data.requests.forEach((req, index) => {
+                const accordionId = `request-${req.request_id}`;
+                const isFirst = index === 0;
+                
+                // Format tariff badge
+                let tariffBadge = '';
+                if (req.tariff === 'PRO') {
+                    tariffBadge = '<span class="badge bg-primary">PRO</span>';
+                } else if (req.tariff === 'ULTRA') {
+                    tariffBadge = '<span class="badge bg-success">ULTRA</span>';
+                } else if (req.tariff === 'TEST_PRO') {
+                    tariffBadge = '<span class="badge bg-info">TEST_PRO</span>';
+                } else {
+                    tariffBadge = '<span class="badge bg-secondary">FREE</span>';
+                }
+                
                 html += `
-                    <li class="list-group-item d-flex justify-content-between align-items-start">
-                        <div class="ms-2 me-auto">
-                            <div class="fw-bold">${theme.theme_name}</div>
-                            <small class="text-muted">Выдано: ${theme.issued_at || 'Дата не указана'}</small>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="heading-${accordionId}">
+                            <button class="accordion-button ${isFirst ? '' : 'collapsed'}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-${accordionId}" aria-expanded="${isFirst ? 'true' : 'false'}" aria-controls="collapse-${accordionId}">
+                                <div class="d-flex justify-content-between align-items-center w-100 me-3">
+                                    <div>
+                                        <strong>Запрос #${req.request_id}</strong>
+                                        <span class="ms-2">${tariffBadge}</span>
+                                    </div>
+                                    <div class="text-muted small">
+                                        ${req.created_at || 'Дата не указана'} | Количество тем: ${req.theme_count}
+                                    </div>
+                                </div>
+                            </button>
+                        </h2>
+                        <div id="collapse-${accordionId}" class="accordion-collapse collapse ${isFirst ? 'show' : ''}" aria-labelledby="heading-${accordionId}" data-bs-parent="#themeRequestsAccordion">
+                            <div class="accordion-body">
+                                <div class="mb-2">
+                                    <strong>Дата запроса:</strong> ${req.created_at || 'Не указана'}
+                                </div>
+                                <div class="mb-2">
+                                    <strong>Тариф:</strong> ${tariffBadge}
+                                </div>
+                                <div class="mb-2">
+                                    <strong>Количество тем:</strong> ${req.theme_count}
+                                </div>
+                                <div class="mt-3">
+                                    <strong>Темы:</strong>
+                                    <ul class="list-group mt-2">
+                `;
+                
+                req.themes.forEach((theme) => {
+                    html += `
+                        <li class="list-group-item">${theme}</li>
+                    `;
+                });
+                
+                html += `
+                                    </ul>
+                                </div>
+                            </div>
                         </div>
-                    </li>
+                    </div>
                 `;
             });
+            
             html += `
-                    </ol>
+                    </div>
                 </div>
             `;
         } else {
             html += `
                 <div class="mb-3">
-                    <h6>Выданные темы пользователю</h6>
+                    <h6>Все запросы тем пользователя</h6>
                     <p class="text-muted mb-0">Пользователь еще не получал тем.</p>
                 </div>
             `;

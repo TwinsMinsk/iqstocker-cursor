@@ -8,7 +8,7 @@ from sqlalchemy import select, func, desc, or_
 from typing import Optional
 
 from config.database import AsyncSessionLocal
-from database.models import ThemeRequest, User, GlobalTheme, UserIssuedTheme
+from database.models import ThemeRequest, User, Subscription
 
 router = APIRouter()
 templates = Jinja2Templates(directory="admin_panel/templates")
@@ -37,7 +37,7 @@ async def themes_page(request: Request, status: Optional[str] = Query(None), pag
         result = await session.execute(query)
         theme_requests = result.scalars().all()
         
-        # Get user information for each request
+        # Get user information for each request and calculate issued themes count
         requests_with_users = []
         for tr in theme_requests:
             user_result = await session.execute(
@@ -45,15 +45,30 @@ async def themes_page(request: Request, status: Optional[str] = Query(None), pag
             )
             user = user_result.scalar_one_or_none()
             
+            # Calculate total issued themes count for this user
+            issued_requests_query = select(ThemeRequest).where(
+                ThemeRequest.user_id == tr.user_id,
+                ThemeRequest.status == "ISSUED"
+            )
+            issued_requests_result = await session.execute(issued_requests_query)
+            issued_requests = issued_requests_result.scalars().all()
+            
+            # Count themes (split by \n)
+            total_issued_themes = 0
+            for issued_req in issued_requests:
+                if issued_req.theme_name:
+                    themes = [t.strip() for t in issued_req.theme_name.split('\n') if t.strip()]
+                    total_issued_themes += len(themes)
+            
             requests_with_users.append({
                 "id": tr.id,
                 "user_id": tr.user_id,
                 "user_name": f"{user.first_name} {user.last_name}" if user and user.first_name else (user.username if user and user.username else f"ID: {tr.user_id}"),
                 "user_telegram_id": user.telegram_id if user else None,
-                "theme_name": tr.theme_name,
+                "username": user.username if user else None,
                 "status": tr.status,
                 "created_at": tr.created_at,
-                "updated_at": tr.updated_at
+                "total_issued_themes": total_issued_themes
             })
         
         # Get statistics
@@ -67,10 +82,6 @@ async def themes_page(request: Request, status: Optional[str] = Query(None), pag
         
         total_pages = (total + per_page - 1) // per_page if total > 0 else 1
         
-        # Get GlobalThemes statistics
-        global_themes_count = await session.execute(select(func.count(GlobalTheme.id)))
-        global_themes_total = global_themes_count.scalar() or 0
-        
         return templates.TemplateResponse(
             "themes.html",
             {
@@ -81,17 +92,16 @@ async def themes_page(request: Request, status: Optional[str] = Query(None), pag
                 "page": page,
                 "per_page": per_page,
                 "total_pages": total_pages,
-                "total": total,
-                "global_themes_total": global_themes_total
+                "total": total
             }
         )
 
 
 @router.get("/api/themes/request/{request_id}/details", response_class=JSONResponse)
 async def get_theme_request_details(request_id: int = Path(...)):
-    """Get theme request details with user's issued themes."""
+    """Get all theme requests for the user with detailed information."""
     async with AsyncSessionLocal() as session:
-        # Get theme request
+        # Get theme request to find user
         theme_request_query = select(ThemeRequest).where(ThemeRequest.id == request_id)
         theme_request_result = await session.execute(theme_request_query)
         theme_request = theme_request_result.scalar_one_or_none()
@@ -107,36 +117,55 @@ async def get_theme_request_details(request_id: int = Path(...)):
         if not user:
             return JSONResponse(status_code=404, content={"error": "User not found"})
         
-        # Get all issued themes for this user with join to GlobalTheme
-        issued_themes_query = select(UserIssuedTheme, GlobalTheme).join(
-            GlobalTheme, UserIssuedTheme.theme_id == GlobalTheme.id
-        ).where(
-            UserIssuedTheme.user_id == theme_request.user_id
-        ).order_by(desc(UserIssuedTheme.issued_at))
+        # Get all issued theme requests for this user
+        issued_requests_query = select(ThemeRequest).where(
+            ThemeRequest.user_id == user.id,
+            ThemeRequest.status == "ISSUED"
+        ).order_by(desc(ThemeRequest.created_at))
         
-        issued_themes_result = await session.execute(issued_themes_query)
-        issued_themes_data = []
+        issued_requests_result = await session.execute(issued_requests_query)
+        issued_requests = issued_requests_result.scalars().all()
         
-        for user_theme, global_theme in issued_themes_result.all():
-            issued_themes_data.append({
-                "theme_name": global_theme.theme_name,
-                "issued_at": user_theme.issued_at.strftime('%d.%m.%Y %H:%M') if user_theme.issued_at else None,
-                "theme_id": global_theme.id
+        # Get all subscriptions for this user to determine tariff at request time
+        subscriptions_query = select(Subscription).where(
+            Subscription.user_id == user.id
+        ).order_by(desc(Subscription.started_at))
+        
+        subscriptions_result = await session.execute(subscriptions_query)
+        subscriptions = subscriptions_result.scalars().all()
+        
+        # Process each issued request
+        requests_data = []
+        for req in issued_requests:
+            # Parse themes from theme_name (split by \n)
+            themes = [t.strip() for t in req.theme_name.split('\n') if t.strip()] if req.theme_name else []
+            theme_count = len(themes)
+            
+            # Find active subscription at the time of request
+            tariff_at_request = user.subscription_type.value if user.subscription_type else "FREE"  # Default to user's current tariff
+            request_date = req.created_at
+            
+            for sub in subscriptions:
+                # Check if subscription was active at request time
+                if sub.started_at <= request_date:
+                    if sub.expires_at is None or sub.expires_at >= request_date:
+                        tariff_at_request = sub.subscription_type.value
+                        break
+            
+            requests_data.append({
+                "request_id": req.id,
+                "theme_count": theme_count,
+                "themes": themes,
+                "tariff": tariff_at_request,
+                "created_at": req.created_at.strftime('%d.%m.%Y %H:%M') if req.created_at else None
             })
         
         return JSONResponse(content={
-            "request": {
-                "id": theme_request.id,
-                "theme_name": theme_request.theme_name,
-                "status": theme_request.status.value,
-                "created_at": theme_request.created_at.strftime('%d.%m.%Y %H:%M') if theme_request.created_at else None,
-                "updated_at": theme_request.updated_at.strftime('%d.%m.%Y %H:%M') if theme_request.updated_at else None
-            },
             "user": {
                 "id": user.id,
                 "name": f"{user.first_name or ''} {user.last_name or ''}".strip() or user.username or f"User {user.id}",
                 "username": user.username,
                 "telegram_id": user.telegram_id
             },
-            "issued_themes": issued_themes_data
+            "requests": requests_data
         })
