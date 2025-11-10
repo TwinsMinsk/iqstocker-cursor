@@ -136,11 +136,11 @@ async def show_csv_guide_callback(callback: CallbackQuery):
 async def show_intro_callback(callback: CallbackQuery, user: User, session: AsyncSession, state: FSMContext):
     """Handle back to analytics intro."""
     # Re-check if user has reports
-    user_id = callback.from_user.id
+    # Use user.id (internal DB ID) instead of telegram_id to avoid int32 overflow
     query = (
         select(AnalyticsReport.id)
         .join(CSVAnalysis, AnalyticsReport.csv_analysis_id == CSVAnalysis.id)
-        .where(CSVAnalysis.user_id == user_id)
+        .where(CSVAnalysis.user_id == user.id)
         .limit(1)
     )
     result = await session.execute(query)

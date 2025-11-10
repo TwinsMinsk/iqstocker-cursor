@@ -67,18 +67,18 @@ if is_postgresql:
         engine_kwargs["poolclass"] = NullPool
         db_logger.info("Using Supabase PostgreSQL configuration with NullPool")
     else:
-        # Regular PostgreSQL specific settings
+        # Regular PostgreSQL specific settings (optimized for production)
         engine_kwargs.update(
             {
-                "pool_size": 10,
-                "max_overflow": 20,
+                "pool_size": 20,  # Increased from 10 to handle more concurrent connections
+                "max_overflow": 10,  # Reduced from 20 to prevent too many temporary connections
                 "pool_recycle": 3600,
-                "pool_timeout": 10,  # Reduced from 30 to fail faster
+                "pool_timeout": 30,  # Increased to 30s to allow reasonable wait time for connections
             }
         )
         engine_kwargs.setdefault("connect_args", {})
         engine_kwargs["connect_args"].setdefault("sslmode", "require")
-        db_logger.info("Using PostgreSQL engine configuration")
+        db_logger.info("Using PostgreSQL engine configuration (pool_size=20, max_overflow=10)")
 else:
     # SQLite specific settings
     engine_kwargs["poolclass"] = StaticPool
@@ -131,12 +131,14 @@ else:
 # Configure async engine
 async_engine_kwargs = {"pool_pre_ping": True, "echo": settings.debug}
 if is_postgresql:
+    # Default PostgreSQL pool settings (optimized for production)
+    # These will be overridden for Supabase (NullPool)
     async_engine_kwargs.update(
         {
-            "pool_size": 10,
-            "max_overflow": 20,
+            "pool_size": 20,  # Increased from 10 to handle more concurrent connections
+            "max_overflow": 10,  # Reduced from 20 to prevent too many temporary connections
             "pool_recycle": 3600,
-            "pool_timeout": 30,
+            "pool_timeout": 30,  # Keep at 30s for reasonable wait time
         }
     )
 
@@ -147,9 +149,12 @@ if is_postgresql:
     is_supabase_async = parsed_async_url.hostname and "supabase.com" in parsed_async_url.hostname
     
     if is_supabase_async:
-        # Supabase session poolers work best without long-lived pools; use NullPool
+        # Supabase uses pgbouncer in transaction pooler mode (port 6543) or session pooler (port 5432)
+        # For transaction pooler, we MUST use NullPool to avoid connection conflicts
+        # For session pooler, we could use a small pool, but NullPool is safer and more predictable
         # This prevents "MaxClientsInSessionMode" errors
         async_engine_kwargs["poolclass"] = NullPool
+        # Remove pool settings as they don't apply to NullPool
         async_engine_kwargs.pop("pool_size", None)
         async_engine_kwargs.pop("max_overflow", None)
         async_engine_kwargs.pop("pool_timeout", None)
@@ -159,7 +164,7 @@ if is_postgresql:
         async_engine_kwargs["connect_args"]["timeout"] = 5
         # Command timeout to prevent queries from hanging
         async_engine_kwargs["connect_args"]["command_timeout"] = 10
-        db_logger.info("Configured NullPool, 5s connection timeout, 10s command timeout for Supabase async engine")
+        db_logger.info("Configured NullPool for Supabase (transaction/session pooler), 5s connection timeout, 10s command timeout")
     
     # Disable statement cache for pgbouncer compatibility
     # Many cloud PostgreSQL providers (Railway, Supabase, etc.) use pgbouncer or similar poolers
