@@ -5,12 +5,11 @@ from aiogram import Router, F, Bot
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models import User, ReferralReward, RewardType, SubscriptionType
+from database.models import User, ReferralReward
 from bot.lexicon import LEXICON_RU, LEXICON_COMMANDS_RU
 from bot.keyboards.referral import create_referral_menu_keyboard, create_redeem_menu_keyboard
 from bot.keyboards.callbacks import RedeemCallback
 from bot.utils.safe_edit import safe_edit_message
-from core.subscriptions.referral_manager import grant_free_subscription
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -92,7 +91,7 @@ async def redeem_reward_callback(
     session: AsyncSession,
     bot: Bot
 ):
-    """Handle redeem reward callback - process reward redemption."""
+    """Handle redeem reward callback - show support request message."""
     
     reward_id = callback_data.reward_id
     balance = user.referral_balance or 0
@@ -107,114 +106,39 @@ async def redeem_reward_callback(
     # Проверяем баланс
     if balance < reward.cost:
         await callback.answer(
-            LEXICON_RU['redeem_not_enough_points'],
+            "Недостаточно баллов для этой награды.",
             show_alert=True
         )
         return
     
-    # Обрабатываем награду в зависимости от типа
-    if reward.reward_type == RewardType.SUPPORT_REQUEST:
-        # Для наград типа SUPPORT_REQUEST - НЕ списываем баллы сразу
-        # Показываем сообщение с инструкцией написать в поддержку
-        support_text = LEXICON_RU['redeem_support_request'].format(
-            reward_name=reward.name,
-            cost=reward.cost
-        )
-        
-        # Создаем клавиатуру с кнопкой для связи с поддержкой
-        keyboard = [
-            [
-                InlineKeyboardButton(
-                    text=LEXICON_RU['contact_support_button'],
-                    url=LEXICON_RU.get('support_contact_url', 'https://t.me/your_support')
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    text=LEXICON_COMMANDS_RU['button_back_to_referral'],
-                    callback_data="referral_menu"
-                )
-            ]
+    # Все награды теперь обрабатываются через поддержку
+    # Показываем сообщение с инструкцией написать в поддержку
+    support_text = LEXICON_RU['redeem_support_request'].format(
+        reward_name=reward.name,
+        cost=reward.cost
+    )
+    
+    # Создаем клавиатуру с кнопкой для связи с поддержкой
+    keyboard = [
+        [
+            InlineKeyboardButton(
+                text=LEXICON_RU['contact_support_button'],
+                url=LEXICON_RU.get('support_contact_url', 'https://t.me/your_support')
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text=LEXICON_COMMANDS_RU['button_back_to_referral'],
+                callback_data="referral_menu"
+            )
         ]
-        
-        await safe_edit_message(
-            callback=callback,
-            text=support_text,
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
-        )
-        
-        await callback.answer()
-        return  # Не списываем баллы, не обновляем меню
-    
-    # Для остальных типов наград - списываем баллы и обрабатываем автоматически
-    user.referral_balance -= reward.cost
-    
-    if reward.reward_type == RewardType.LINK:
-        # Проверяем, настроена ли ссылка админом
-        if not reward.value:
-            await callback.answer(
-                LEXICON_RU['redeem_admin_not_setup_link'],
-                show_alert=True
-            )
-            # Возвращаем баллы обратно
-            user.referral_balance += reward.cost
-            await session.commit()
-            return
-        
-        # Определяем тип сообщения в зависимости от reward_id
-        if reward_id == 5:
-            # IQ Radar (reward_id == 5)
-            text = LEXICON_RU['redeem_success_radar'].format(link=reward.value)
-        else:
-            # Скидки (25% или 50%)
-            percent = 25 if reward_id == 1 else 50
-            text = LEXICON_RU['redeem_success_discount'].format(
-                percent=percent,
-                link=reward.value
-            )
-        
-        # Отправляем новое сообщение с ссылкой
-        await bot.send_message(
-            chat_id=callback.from_user.id,
-            text=text
-        )
-        
-        # Отвечаем на callback
-        await callback.answer(
-            LEXICON_RU['redeem_link_sent_privately'],
-            show_alert=False
-        )
-        
-    elif reward.reward_type == RewardType.FREE_PRO:
-        # Выдаем бесплатную подписку PRO
-        await grant_free_subscription(session, user, SubscriptionType.PRO)
-        
-        await callback.answer(
-            LEXICON_RU['redeem_success_free_month'].format(plan_name="PRO"),
-            show_alert=True
-        )
-        
-    elif reward.reward_type == RewardType.FREE_ULTRA:
-        # Выдаем бесплатную подписку ULTRA
-        await grant_free_subscription(session, user, SubscriptionType.ULTRA)
-        
-        await callback.answer(
-            LEXICON_RU['redeem_success_free_month'].format(plan_name="ULTRA"),
-            show_alert=True
-        )
-    
-    # Сохраняем изменения
-    await session.commit()
-    
-    # Обновляем меню наград с новым балансом
-    new_balance = user.referral_balance or 0
-    text = LEXICON_RU['redeem_menu_header'].format(balance=new_balance)
-    
-    keyboard = await create_redeem_menu_keyboard(new_balance, session)
+    ]
     
     await safe_edit_message(
         callback=callback,
-        text=text,
-        reply_markup=keyboard
+        text=support_text,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
     )
+    
+    await callback.answer()
 
