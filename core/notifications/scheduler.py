@@ -228,11 +228,21 @@ class TaskScheduler:
                 result = await session.execute(stmt)
                 
                 burned_count = 0
+                users_with_burned_limits = []
                 for user, limits in result.all():
                     if await check_and_burn_unused_theme_limits(session, user, limits):
                         burned_count += 1
+                        users_with_burned_limits.append((user, limits))
                 
                 await session.commit()
+                
+                # Invalidate cache for users whose limits were updated
+                if users_with_burned_limits:
+                    from core.cache.user_cache import get_user_cache_service
+                    cache_service = get_user_cache_service()
+                    for user, limits in users_with_burned_limits:
+                        cache_service.invalidate_limits(user.id)
+                
                 logger.info(f"Burned unused theme limits for {burned_count} users")
                 print(f"Burned unused theme limits for {burned_count} users")
                 

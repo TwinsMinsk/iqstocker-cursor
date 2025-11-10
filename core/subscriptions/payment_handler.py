@@ -10,6 +10,7 @@ from config.database import AsyncSessionLocal
 from database.models import User, Subscription, SubscriptionType, Limits
 from config.settings import settings
 from core.tariffs.tariff_service import TariffService
+from core.cache.user_cache import get_user_cache_service
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +92,10 @@ class PaymentHandler:
                     await self._award_referral_points(user, session)
                 
                 await session.commit()
+                
+                # Invalidate cache after updating user and limits
+                cache_service = get_user_cache_service()
+                cache_service.invalidate_user_and_limits(user.telegram_id, user.id)
                 
                 # Refresh user and limits to get latest data
                 await session.refresh(user)
@@ -233,6 +238,12 @@ class PaymentHandler:
                     expired_count += 1
                 
                 await session.commit()
+                
+                # Invalidate cache for all expired users
+                cache_service = get_user_cache_service()
+                for user in expired_users:
+                    cache_service.invalidate_user_and_limits(user.telegram_id, user.id)
+                
                 print(f"Updated {expired_count} expired subscriptions")
                 
             except Exception as e:
@@ -271,6 +282,10 @@ class PaymentHandler:
             
             # Обновляем баланс в БД перед отправкой уведомления
             await session.flush()
+            
+            # Invalidate cache for referrer (balance changed)
+            cache_service = get_user_cache_service()
+            cache_service.invalidate_user(referrer.telegram_id)
             
             # Отправляем уведомление рефереру
             try:

@@ -18,6 +18,7 @@ from database.models import (
 )
 from core.admin.broadcast_manager import get_broadcast_manager
 from core.tariffs.tariff_service import TariffService
+from core.cache.user_cache import get_user_cache_service
 from bot.keyboards.main_menu import get_main_menu_keyboard
 from bot.lexicon import LEXICON_RU, LEXICON_COMMANDS_RU
 from bot.keyboards.admin import get_admin_tariff_keyboard
@@ -564,6 +565,10 @@ async def admin_set_tariff(callback: CallbackQuery, callback_data: ActionCallbac
         old_subscription_type = user.subscription_type
         set_admin_subscription(user, limits, target_type)
         db.commit()
+        
+        # Invalidate cache after updating user and limits
+        cache_service = get_user_cache_service()
+        cache_service.invalidate_user_and_limits(user.telegram_id, user.id)
         
         # Refresh to get updated data
         db.refresh(user)

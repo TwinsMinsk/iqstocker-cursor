@@ -997,6 +997,11 @@ async def process_csv_analysis(
             
             db.commit()
             
+            # Invalidate cache after updating limits
+            from core.cache.user_cache import get_user_cache_service
+            cache_service = get_user_cache_service()
+            cache_service.invalidate_limits(user.id)
+            
             print(f"✅ Результаты сохранены в базу данных, лимит списан")
             
             # Delete processing message and intro message before showing report

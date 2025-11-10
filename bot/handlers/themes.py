@@ -47,6 +47,12 @@ async def themes_callback(
     burned = await check_and_burn_unused_theme_limits(session, user, limits)
     if burned:
         await session.commit()
+        
+        # Invalidate cache after updating limits
+        from core.cache.user_cache import get_user_cache_service
+        cache_service = get_user_cache_service()
+        cache_service.invalidate_limits(user.id)
+        
         await session.refresh(limits)  # Обновляем объект после возможного изменения
     
     # НОВАЯ ЛОГИКА: проверка кулдауна от начала тарифа
@@ -203,6 +209,11 @@ async def generate_themes_callback(
         session.add(limits)
         
         await session.commit()
+        
+        # Invalidate cache after updating limits
+        from core.cache.user_cache import get_user_cache_service
+        cache_service = get_user_cache_service()
+        cache_service.invalidate_limits(user.id)
         
         logger.info(
             f"Successfully generated themes for user {user.id}, "
