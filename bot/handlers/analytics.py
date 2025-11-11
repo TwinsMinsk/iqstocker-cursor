@@ -928,115 +928,119 @@ async def process_csv_analysis(
 ):
     """Process CSV analysis in background using advanced processor."""
     
+    import time
+    from core.utils.performance import PerformanceContext
+    
     print(f"🔄 Начинаем обработку CSV анализа {csv_analysis_id}")
     
     try:
-        # Use advanced CSV processor
-        advanced_processor = AdvancedCSVProcessor()
-        db = SessionLocal()
-        
-        try:
-            csv_analysis = db.query(CSVAnalysis).filter(
-                CSVAnalysis.id == csv_analysis_id
-            ).first()
+        with PerformanceContext(f"process_csv_analysis_{csv_analysis_id}", threshold_ms=3000):
+            # Use advanced CSV processor
+            advanced_processor = AdvancedCSVProcessor()
+            db = SessionLocal()
             
-            if not csv_analysis:
-                print(f"❌ CSV анализ {csv_analysis_id} не найден")
-                return
-            
-            # Get user for main menu
-            user = db.query(User).filter(User.id == csv_analysis.user_id).first()
-            if not user:
-                print(f"❌ Пользователь для CSV анализа {csv_analysis_id} не найден")
-                return
-            
-            print(f"📊 Обрабатываем файл: {csv_analysis.file_path}")
-            
-            # Process CSV with advanced processor
-            result = advanced_processor.process_csv(
-                csv_path=csv_analysis.file_path,
-                portfolio_size=csv_analysis.portfolio_size or 100,
-                upload_limit=csv_analysis.upload_limit or 50,
-                monthly_uploads=csv_analysis.monthly_uploads or 30,
-                acceptance_rate=csv_analysis.acceptance_rate or 65.0
-            )
-            
-            print(f"✅ CSV обработан: {result.rows_used} продаж, ${result.total_revenue_usd}")
-            
-            # Generate bot report data using fixed generator
-            report_generator = FixedReportGenerator()
-            report_data = report_generator.generate_monthly_report(result)
-            
-            # Save results to database
-            
-            # Create analytics report (save combined format for archive)
-            analytics_report = AnalyticsReport(
-                csv_analysis_id=csv_analysis_id,
-                total_sales=result.rows_used,
-                total_revenue=result.total_revenue_usd,
-                avg_revenue_per_sale=result.avg_revenue_per_sale,
-                portfolio_sold_percent=result.portfolio_sold_percent,
-                new_works_sales_percent=result.new_works_sales_percent,
-                acceptance_rate_calc=result.acceptance_rate,
-                upload_limit_usage=result.upload_limit_usage,
-                report_text_html=report_generator.generate_combined_report_for_archive(result),  # Combined report for archive
-                period_human_ru=result.period_human_ru  # Сохраняем период
-            )
-            db.add(analytics_report)
-            db.flush()
-            
-            
-            # Update CSV analysis status
-            csv_analysis.status = AnalysisStatus.COMPLETED
-            csv_analysis.processed_at = datetime.now(timezone.utc)
-            
-            # СПИСЫВАЕМ ЛИМИТ ТОЛЬКО ПОСЛЕ УСПЕШНОЙ ОБРАБОТКИ
-            user_limits = db.query(Limits).filter(Limits.user_id == user.id).first()
-            if user_limits:
-                user_limits.analytics_used += 1
-            
-            db.commit()
-            
-            # Invalidate cache after updating limits
-            from core.cache.user_cache import get_user_cache_service
-            cache_service = get_user_cache_service()
-            cache_service.invalidate_limits(user.id)
-            
-            print(f"✅ Результаты сохранены в базу данных, лимит списан")
-            
-            # Delete processing message and intro message before showing report
-            if processing_msg_id:
-                try:
-                    await message.bot.delete_message(chat_id=message.chat.id, message_id=processing_msg_id)
-                except TelegramBadRequest:
-                    pass  # Message already deleted
-            
-            if intro_message_id:
-                try:
-                    await message.bot.delete_message(chat_id=message.chat.id, message_id=intro_message_id)
-                except TelegramBadRequest:
-                    pass  # Message already deleted
-            
-            # Удаляем предыдущие сообщения аналитики этого пользователя, если они есть
             try:
-                prev_analyses = db.query(CSVAnalysis).filter(
-                    CSVAnalysis.user_id == user.id,
-                    CSVAnalysis.id != csv_analysis_id,
-                    CSVAnalysis.analytics_message_ids.isnot(None)
-                ).all()
+                csv_analysis = db.query(CSVAnalysis).filter(
+                    CSVAnalysis.id == csv_analysis_id
+                ).first()
                 
-                for prev_analysis in prev_analyses:
-                    if prev_analysis.analytics_message_ids:
-                        prev_message_ids = [int(msg_id) for msg_id in prev_analysis.analytics_message_ids.split(',')]
-                        for msg_id in prev_message_ids:
-                            try:
-                                await message.bot.delete_message(chat_id=message.chat.id, message_id=msg_id)
-                            except TelegramBadRequest:
-                                pass  # Игнорируем ошибки (сообщение может быть уже удалено)
-                        prev_analysis.analytics_message_ids = None
+                if not csv_analysis:
+                    print(f"❌ CSV анализ {csv_analysis_id} не найден")
+                    return
+                
+                # Get user for main menu
+                user = db.query(User).filter(User.id == csv_analysis.user_id).first()
+                if not user:
+                    print(f"❌ Пользователь для CSV анализа {csv_analysis_id} не найден")
+                    return
+                
+                print(f"📊 Обрабатываем файл: {csv_analysis.file_path}")
+                
+                # Process CSV with advanced processor
+                result = advanced_processor.process_csv(
+                    csv_path=csv_analysis.file_path,
+                    portfolio_size=csv_analysis.portfolio_size or 100,
+                    upload_limit=csv_analysis.upload_limit or 50,
+                    monthly_uploads=csv_analysis.monthly_uploads or 30,
+                    acceptance_rate=csv_analysis.acceptance_rate or 65.0
+                )
+                
+                print(f"✅ CSV обработан: {result.rows_used} продаж, ${result.total_revenue_usd}")
+                
+                # Generate bot report data using fixed generator
+                report_generator = FixedReportGenerator()
+                report_data = report_generator.generate_monthly_report(result)
+                
+                # Save results to database
+                
+                # Create analytics report (save combined format for archive)
+                analytics_report = AnalyticsReport(
+                    csv_analysis_id=csv_analysis_id,
+                    total_sales=result.rows_used,
+                    total_revenue=result.total_revenue_usd,
+                    avg_revenue_per_sale=result.avg_revenue_per_sale,
+                    portfolio_sold_percent=result.portfolio_sold_percent,
+                    new_works_sales_percent=result.new_works_sales_percent,
+                    acceptance_rate_calc=result.acceptance_rate,
+                    upload_limit_usage=result.upload_limit_usage,
+                    report_text_html=report_generator.generate_combined_report_for_archive(result),  # Combined report for archive
+                    period_human_ru=result.period_human_ru  # Сохраняем период
+                )
+                db.add(analytics_report)
+                db.flush()
+                
+                
+                # Update CSV analysis status
+                csv_analysis.status = AnalysisStatus.COMPLETED
+                csv_analysis.processed_at = datetime.now(timezone.utc)
+                
+                # СПИСЫВАЕМ ЛИМИТ ТОЛЬКО ПОСЛЕ УСПЕШНОЙ ОБРАБОТКИ
+                user_limits = db.query(Limits).filter(Limits.user_id == user.id).first()
+                if user_limits:
+                    user_limits.analytics_used += 1
+                
                 db.commit()
-            except Exception as e:
-                print(f"⚠️ Ошибка удаления предыдущих сообщений: {e}")
+                
+                # Invalidate cache after updating limits
+                from core.cache.user_cache import get_user_cache_service
+                cache_service = get_user_cache_service()
+                cache_service.invalidate_limits(user.id)
+                
+                print(f"✅ Результаты сохранены в базу данных, лимит списан")
+                
+                # Delete processing message and intro message before showing report
+                if processing_msg_id:
+                    try:
+                        await message.bot.delete_message(chat_id=message.chat.id, message_id=processing_msg_id)
+                    except TelegramBadRequest:
+                        pass  # Message already deleted
+                
+                if intro_message_id:
+                    try:
+                        await message.bot.delete_message(chat_id=message.chat.id, message_id=intro_message_id)
+                    except TelegramBadRequest:
+                        pass  # Message already deleted
+                
+                # Удаляем предыдущие сообщения аналитики этого пользователя, если они есть
+                try:
+                    prev_analyses = db.query(CSVAnalysis).filter(
+                        CSVAnalysis.user_id == user.id,
+                        CSVAnalysis.id != csv_analysis_id,
+                        CSVAnalysis.analytics_message_ids.isnot(None)
+                    ).all()
+                    
+                    for prev_analysis in prev_analyses:
+                        if prev_analysis.analytics_message_ids:
+                            prev_message_ids = [int(msg_id) for msg_id in prev_analysis.analytics_message_ids.split(',')]
+                            for msg_id in prev_message_ids:
+                                try:
+                                    await message.bot.delete_message(chat_id=message.chat.id, message_id=msg_id)
+                                except TelegramBadRequest:
+                                    pass  # Игнорируем ошибки (сообщение может быть уже удалено)
+                            prev_analysis.analytics_message_ids = None
+                    db.commit()
+                except Exception as e:
+                    print(f"⚠️ Ошибка удаления предыдущих сообщений: {e}")
 
             # Отправляем последовательность сообщений с отчетом
             # 1. Итоговый отчет

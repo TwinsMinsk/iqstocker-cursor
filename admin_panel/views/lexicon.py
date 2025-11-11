@@ -127,6 +127,7 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
             'payment_pro_button',
             'payment_ultra_button',
             'upgrade_pro_text',
+            'payment_pro_with_discount',
             'payment_ultra_with_discount',
             'payment_ultra_without_discount',
             'upgrade_ultra_text',
@@ -144,14 +145,8 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
         # Load lexicon from database or file
         if lexicon_service:
             try:
-                # Invalidate cache first to ensure fresh data
-                try:
-                    lexicon_service.invalidate_cache()
-                    logger.debug("Cache invalidated before loading lexicon")
-                except Exception as cache_error:
-                    logger.warning(f"Failed to invalidate cache (non-critical): {cache_error}")
-                
-                # Use force_refresh to bypass cache and get fresh data
+                # В админ-панели используем force_refresh для актуальности данных
+                # Это нормально, так как админ-панель используется реже
                 lexicon_data = lexicon_service.load_lexicon(force_refresh=True)
                 LEXICON_RU = lexicon_data.get('LEXICON_RU', {})
                 LEXICON_COMMANDS_RU = lexicon_data.get('LEXICON_COMMANDS_RU', {})
@@ -325,20 +320,13 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
 async def lexicon_page(request: Request, category: str = "main", search: str = ""):
     """Lexicon management page."""
     try:
-        # Force cache invalidation to get fresh data
+        # В админ-панели используем force_refresh для получения актуальных данных
+        # Это нормально, так как админ-панель используется реже и нужны актуальные данные
         if lexicon_service:
             try:
-                lexicon_service.invalidate_cache()
-                logger.debug("Cache invalidated for lexicon page")
-            except Exception as e:
-                logger.warning(f"Failed to invalidate cache (non-critical): {e}")
-        
-        # Load lexicon with force_refresh to bypass cache
-        if lexicon_service:
-            try:
-                # Force refresh to ensure we get fresh data including new notification keys
+                # Force refresh только в админ-панели для актуальности данных
                 lexicon_data = lexicon_service.load_lexicon_sync(force_refresh=True)
-                logger.info("Lexicon loaded with force_refresh=True")
+                logger.debug("Lexicon loaded with force_refresh=True for admin panel")
             except Exception as e:
                 logger.warning(f"Failed to force refresh lexicon: {e}")
         

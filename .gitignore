@@ -175,6 +175,7 @@ test.csv
 *.bak
 *.backup
 *_backup.*
+backups/
 
 # Local configuration
 config_local.py
