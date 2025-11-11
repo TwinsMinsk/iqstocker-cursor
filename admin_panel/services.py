@@ -335,11 +335,16 @@ async def get_subscription_metrics(
     free_to_paid = 0
     
     # Get all users data for better previous subscription detection
+    # Also get current subscription_type to help determine previous type
     all_users_data = await session.execute(
         select(User.id, User.created_at, User.test_pro_started_at, User.subscription_type)
         .where(User.id.in_(user_ids) if user_ids else False)
     )
     users_dict = {u.id: u for u in all_users_data.all()}
+    
+    # Get user subscription history from User table changes
+    # We'll check if user had TEST_PRO before this subscription by looking at created_at
+    # and test_pro_started_at relative to subscription.started_at
     
     for sub in subscriptions_list:
         user_id = sub.user_id
@@ -357,30 +362,38 @@ async def get_subscription_metrics(
         # Improved logic to determine previous subscription type
         if previous_sub is None:
             # No previous subscription in subscriptions table
+            # This means this is the first paid subscription for this user
             # Check if user had TEST_PRO before this subscription
             if user_data:
-                # Check if user was on TEST_PRO before this subscription
-                # TEST_PRO typically lasts 14 days from test_pro_started_at or created_at
-                if user_data.test_pro_started_at:
-                    test_pro_expires = user_data.test_pro_started_at + timedelta(days=14)
-                elif user_data.created_at:
-                    test_pro_expires = user_data.created_at + timedelta(days=14)
-                else:
-                    test_pro_expires = None
-                
-                # If subscription started after TEST_PRO would have expired, user was likely on FREE
-                if test_pro_expires and sub.started_at > test_pro_expires:
-                    # Too long after TEST_PRO expiration, likely was on FREE
-                    previous_sub_type = SubscriptionType.FREE
-                elif user_data.created_at and sub.started_at > user_data.created_at:
-                    # Within TEST_PRO period (14 days), assume TEST_PRO
-                    time_diff = (sub.started_at - user_data.created_at).days
-                    if time_diff <= 14:
+                # Determine TEST_PRO expiration date
+                test_pro_start = user_data.test_pro_started_at if user_data.test_pro_started_at else user_data.created_at
+                if test_pro_start:
+                    test_pro_expires = test_pro_start + timedelta(days=14)
+                    
+                    # If subscription started BEFORE or ON TEST_PRO expiration date, user was on TEST_PRO
+                    # Also check if subscription started within reasonable time after user creation (max 30 days)
+                    # to avoid false positives for very old users
+                    days_since_creation = (sub.started_at - user_data.created_at).days if user_data.created_at else 999
+                    
+                    if sub.started_at <= test_pro_expires and days_since_creation <= 30:
                         previous_sub_type = SubscriptionType.TEST_PRO
+                    elif days_since_creation > 30:
+                        # User created too long ago, likely was on FREE
+                        previous_sub_type = SubscriptionType.FREE
                     else:
+                        # Subscription started after TEST_PRO expired, user was on FREE
                         previous_sub_type = SubscriptionType.FREE
                 else:
-                    previous_sub_type = None
+                    # No test_pro_started_at or created_at, can't determine
+                    # If user was created recently (within 14 days), assume TEST_PRO
+                    if user_data.created_at:
+                        days_since_creation = (sub.started_at - user_data.created_at).days
+                        if days_since_creation <= 14:
+                            previous_sub_type = SubscriptionType.TEST_PRO
+                        else:
+                            previous_sub_type = SubscriptionType.FREE
+                    else:
+                        previous_sub_type = None
             else:
                 previous_sub_type = None
         else:
@@ -391,12 +404,19 @@ async def get_subscription_metrics(
             previous_sub_type == SubscriptionType.TEST_PRO and
             sub.payment_id is not None):
             test_pro_to_pro += 1
+            # Debug logging
+            print(f"DEBUG: TEST_PRO → PRO transition found: user_id={user_id}, sub_id={sub.id}, "
+                  f"started_at={sub.started_at}, payment_id={sub.payment_id}, "
+                  f"previous_sub_type={previous_sub_type}")
         
         # Metric 3: TEST_PRO → ULTRA (paid)
         elif (sub.subscription_type == SubscriptionType.ULTRA and 
               previous_sub_type == SubscriptionType.TEST_PRO and
               sub.payment_id is not None):
             test_pro_to_ultra += 1
+            # Debug logging
+            print(f"DEBUG: TEST_PRO → ULTRA transition found: user_id={user_id}, sub_id={sub.id}, "
+                  f"started_at={sub.started_at}, payment_id={sub.payment_id}")
         
         # Metric 4: TEST_PRO → FREE (handled separately below, not in subscriptions table)
         # This is skipped here as TEST_PRO→FREE doesn't create subscription record
@@ -406,6 +426,10 @@ async def get_subscription_metrics(
               sub.subscription_type in [SubscriptionType.PRO, SubscriptionType.ULTRA] and
               sub.payment_id is not None):
             free_to_paid += 1
+            # Debug logging
+            print(f"DEBUG: FREE → Paid transition found: user_id={user_id}, sub_id={sub.id}, "
+                  f"started_at={sub.started_at}, subscription_type={sub.subscription_type}, "
+                  f"previous_sub_type={previous_sub_type}")
     
     # Metric 4: TEST_PRO → FREE (users whose TEST_PRO expired in this month)
     # TEST_PRO expires after 14 days, and user.subscription_type changes to FREE
@@ -528,7 +552,22 @@ async def get_subscription_metrics(
         current_type = user_query.scalar()
         
         # Churn if not renewed and current type is FREE
-        if renewed == 0 and current_type == SubscriptionType.FREE:
+        # Also check if user upgraded to ULTRA (not churn, but upgrade)
+        upgraded_to_ultra_query = await session.execute(
+            select(func.count(Subscription.id))
+            .where(
+                and_(
+                    Subscription.user_id == expired_sub.user_id,
+                    Subscription.subscription_type == SubscriptionType.ULTRA,
+                    Subscription.started_at > expired_sub.expires_at,
+                    Subscription.payment_id.isnot(None)
+                )
+            )
+        )
+        upgraded_to_ultra = upgraded_to_ultra_query.scalar() or 0
+        
+        # Churn only if: not renewed, not upgraded, and current type is FREE
+        if renewed == 0 and upgraded_to_ultra == 0 and current_type == SubscriptionType.FREE:
             pro_churn_count += 1
     
     ultra_churn_count = 0
@@ -555,6 +594,7 @@ async def get_subscription_metrics(
         current_type = user_query.scalar()
         
         # Churn if not renewed and current type is FREE
+        # Note: ULTRA users can't upgrade further, so we only check renewal
         if renewed == 0 and current_type == SubscriptionType.FREE:
             ultra_churn_count += 1
     

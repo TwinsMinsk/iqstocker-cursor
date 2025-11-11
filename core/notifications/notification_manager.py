@@ -187,7 +187,7 @@ class NotificationManager:
                     # Проверяем, прошла ли неделя с последнего запроса
                     stmt = select(ThemeRequest).filter(
                         ThemeRequest.user_id == user.id
-                    ).order_by(desc(ThemeRequest.requested_at)).limit(1)
+                    ).order_by(desc(ThemeRequest.created_at)).limit(1)
                     result = await session.execute(stmt)
                     last_request = result.scalar_one_or_none()
                     
@@ -195,10 +195,10 @@ class NotificationManager:
                         week_ago = datetime.now(timezone.utc) - timedelta(days=7)
                         
                         # Приводим к timezone-aware
-                        if last_request.requested_at.tzinfo is None:
-                            last_request_time = last_request.requested_at.replace(tzinfo=timezone.utc)
+                        if last_request.created_at.tzinfo is None:
+                            last_request_time = last_request.created_at.replace(tzinfo=timezone.utc)
                         else:
-                            last_request_time = last_request.requested_at
+                            last_request_time = last_request.created_at
                         
                         # Проверяем, что прошла неделя И уведомление еще не отправлялось
                         time_diff = datetime.now(timezone.utc) - last_request_time

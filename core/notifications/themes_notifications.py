@@ -15,6 +15,121 @@ from core.lexicon.service import LexiconService
 logger = logging.getLogger(__name__)
 
 
+async def notify_new_period_themes(bot: Bot, session: AsyncSession) -> int:
+    """
+    Отправляет уведомления пользователям о начале нового 7-дневного периода,
+    в котором они снова могут запросить темы.
+    
+    Логика:
+    - Определяет текущий период на основе current_tariff_started_at
+    - Проверяет, что мы находимся в начале нового периода (первые 6 часов)
+    - Проверяет, что у пользователя есть доступные лимиты
+    - Отправляет уведомление ВСЕМ пользователям, у которых начался новый период
+    """
+    sent = 0
+    try:
+        # Получаем всех пользователей с активными тарифами и лимитами
+        stmt = select(User, Limits).join(Limits).where(
+            User.subscription_type.in_([
+                SubscriptionType.TEST_PRO,
+                SubscriptionType.PRO,
+                SubscriptionType.ULTRA,
+                SubscriptionType.FREE
+            ])
+        )
+        result = await session.execute(stmt)
+        users_with_limits = result.all()
+        
+        now = datetime.now(timezone.utc)
+        logger.info(f"Checking new period notifications for {len(users_with_limits)} users")
+        
+        for user, limits in users_with_limits:
+            try:
+                # Пропускаем пользователей без current_tariff_started_at
+                if not limits.current_tariff_started_at:
+                    continue
+                
+                # Пропускаем пользователей без доступных лимитов
+                if limits.themes_remaining <= 0:
+                    continue
+                
+                # Получаем кулдаун для пользователя
+                cooldown_days = await get_theme_cooldown_days_for_session(session, user.id)
+                tariff_start_time = limits.current_tariff_started_at
+                
+                # Приводим к timezone-aware
+                if tariff_start_time.tzinfo is None:
+                    tariff_start_time = tariff_start_time.replace(tzinfo=timezone.utc)
+                
+                # Вычисляем время с начала тарифа
+                time_diff = now - tariff_start_time
+                
+                # Определяем текущий период (0, 1, 2, 3...)
+                current_period = int(time_diff.total_seconds() / (cooldown_days * 24 * 3600))
+                
+                # Пропускаем период 0 (первые 7 дней)
+                if current_period <= 0:
+                    continue
+                
+                # Вычисляем начало текущего периода
+                current_period_start = tariff_start_time + timedelta(days=current_period * cooldown_days)
+                time_in_current_period = now - current_period_start
+                
+                # Проверяем, что мы в начале нового периода (первые 6 часов)
+                # Это гарантирует, что уведомление отправится только один раз
+                if time_in_current_period > timedelta(hours=6):
+                    continue
+                
+                # Получаем текст уведомления из лексикона
+                message_text = None
+                try:
+                    lexicon_service = LexiconService()
+                    message_text = await lexicon_service.get_value_async(
+                        'new_themes_period_notification',
+                        'LEXICON_RU',
+                        session
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to get message from LexiconService: {e}")
+                
+                # Fallback to static lexicon
+                if not message_text:
+                    message_text = LEXICON_RU.get('new_themes_period_notification', "")
+                
+                if not message_text:
+                    logger.warning("Message key 'new_themes_period_notification' not found in lexicon")
+                    continue
+                
+                # Отправляем уведомление
+                try:
+                    await bot.send_message(
+                        user.telegram_id,
+                        message_text,
+                        parse_mode="HTML"
+                    )
+                    sent += 1
+                    
+                    logger.info(
+                        f"Sent new period notification to user {user.id} "
+                        f"(telegram_id={user.telegram_id}, "
+                        f"current_period={current_period}, "
+                        f"period_start={current_period_start.strftime('%Y-%m-%d %H:%M:%S UTC')})"
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to send notification to user {user.id}: {e}")
+                    
+            except Exception as e:
+                logger.error(f"Error processing user {user.id} for new period notification: {e}")
+                continue
+        
+        logger.info(f"Sent {sent} new period theme notifications")
+        return sent
+        
+    except Exception as e:
+        logger.error(f"Error in notify_new_period_themes: {e}")
+        return 0
+
+
 async def notify_weekly_themes(bot: Bot, session: AsyncSession) -> int:
     """Send notifications to users who can request new themes after 7-day cooldown."""
     sent = 0
@@ -31,7 +146,7 @@ async def notify_weekly_themes(bot: Bot, session: AsyncSession) -> int:
                 # Get the most recent theme request
                 stmt = select(ThemeRequest).filter(
                     ThemeRequest.user_id == user.id
-                ).order_by(desc(ThemeRequest.requested_at)).limit(1)
+                ).order_by(desc(ThemeRequest.created_at)).limit(1)
                 result = await session.execute(stmt)
                 last_request = result.scalar_one_or_none()
                 
@@ -40,10 +155,10 @@ async def notify_weekly_themes(bot: Bot, session: AsyncSession) -> int:
                     continue
                 
                 # Ensure timezone-aware datetime
-                if last_request.requested_at.tzinfo is None:
-                    last_request_time = last_request.requested_at.replace(tzinfo=timezone.utc)
+                if last_request.created_at.tzinfo is None:
+                    last_request_time = last_request.created_at.replace(tzinfo=timezone.utc)
                 else:
-                    last_request_time = last_request.requested_at
+                    last_request_time = last_request.created_at
                 
                 # Calculate time difference
                 time_diff = now - last_request_time

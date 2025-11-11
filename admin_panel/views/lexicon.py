@@ -219,7 +219,7 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
                                 'limits_analytics_exhausted']):
                         categories['analytics']['items'][key] = value
                     # Themes category
-                    elif key.startswith('themes') or key == 'limits_themes_exhausted':
+                    elif key.startswith('themes') or key == 'limits_themes_exhausted' or key == 'new_themes_period_notification':
                         categories['themes']['items'][key] = value
                     # TG Channel category
                     elif key == 'tg_channel_info':

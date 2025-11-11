@@ -7,7 +7,7 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from core.notifications.notification_manager import get_notification_manager
-from core.notifications.themes_notifications import notify_weekly_themes, send_theme_limit_burn_reminders
+from core.notifications.themes_notifications import notify_new_period_themes, notify_weekly_themes, send_theme_limit_burn_reminders
 from core.admin.calendar_manager import CalendarManager
 from core.theme_settings import check_and_burn_unused_theme_limits
 from database.models import CalendarEntry, User, Limits, SubscriptionType
@@ -152,14 +152,14 @@ class TaskScheduler:
                 print(f"Error sending TEST_PRO expiration notifications: {e}")
     
     async def send_daily_weekly_themes_notify(self):
-        """Send daily reminder about weekly themes availability."""
-        print("Sending daily weekly themes availability notifications...")
+        """Send daily reminder about new themes period availability."""
+        print("Sending daily new themes period notifications...")
         async with AsyncSessionLocal() as session:
             try:
-                sent_count = await notify_weekly_themes(self.bot, session)
-                print(f"Sent {sent_count} weekly themes availability notifications")
+                sent_count = await notify_new_period_themes(self.bot, session)
+                print(f"Sent {sent_count} new themes period notifications")
             except Exception as e:
-                print(f"Error sending daily weekly themes notifications: {e}")
+                print(f"Error sending daily new themes period notifications: {e}")
     
     async def create_monthly_calendar(self):
         """Create calendar for next month automatically."""
