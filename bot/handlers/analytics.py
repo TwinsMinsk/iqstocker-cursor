@@ -1042,78 +1042,78 @@ async def process_csv_analysis(
                 except Exception as e:
                     print(f"⚠️ Ошибка удаления предыдущих сообщений: {e}")
 
-            # Отправляем последовательность сообщений с отчетом
-            # 1. Итоговый отчет
-            msg1 = await message.answer(
-                text=LEXICON_RU['final_analytics_report'].format(
-                    month=report_data['month'],
-                    year=report_data['year'],
-                    sales_count=report_data['sales_count'],
-                    revenue=report_data['revenue'],
-                    avg_revenue_per_sale=report_data['avg_revenue_per_sale'],
-                    sold_portfolio_percentage=report_data['sold_portfolio_percentage'],
-                    new_works_percentage=report_data['new_works_percentage']
+                # Отправляем последовательность сообщений с отчетом
+                # 1. Итоговый отчет
+                msg1 = await message.answer(
+                    text=LEXICON_RU['final_analytics_report'].format(
+                        month=report_data['month'],
+                        year=report_data['year'],
+                        sales_count=report_data['sales_count'],
+                        revenue=report_data['revenue'],
+                        avg_revenue_per_sale=report_data['avg_revenue_per_sale'],
+                        sold_portfolio_percentage=report_data['sold_portfolio_percentage'],
+                        new_works_percentage=report_data['new_works_percentage']
+                    )
                 )
-            )
-            
-            # 2. Заголовок объяснений
-            msg2 = await message.answer(LEXICON_RU['analytics_explanation_title'])
-            
-            # 3. Объяснение % портфеля, который продался
-            await asyncio.sleep(3)
-            msg3 = await message.answer(
-                text=LEXICON_RU['sold_portfolio_report'].format(
-                    sold_portfolio_percentage=report_data['sold_portfolio_percentage'],
-                    sold_portfolio_text=report_data['sold_portfolio_text']
+                
+                # 2. Заголовок объяснений
+                msg2 = await message.answer(LEXICON_RU['analytics_explanation_title'])
+                
+                # 3. Объяснение % портфеля, который продался
+                await asyncio.sleep(3)
+                msg3 = await message.answer(
+                    text=LEXICON_RU['sold_portfolio_report'].format(
+                        sold_portfolio_percentage=report_data['sold_portfolio_percentage'],
+                        sold_portfolio_text=report_data['sold_portfolio_text']
+                    )
                 )
-            )
-            
-            # 4. Объяснение доли продаж нового контента
-            await asyncio.sleep(3)
-            msg4 = await message.answer(
-                text=LEXICON_RU['new_works_report'].format(
-                    new_works_percentage=report_data['new_works_percentage'],
-                    new_works_text=report_data['new_works_text']
+                
+                # 4. Объяснение доли продаж нового контента
+                await asyncio.sleep(3)
+                msg4 = await message.answer(
+                    text=LEXICON_RU['new_works_report'].format(
+                        new_works_percentage=report_data['new_works_percentage'],
+                        new_works_text=report_data['new_works_text']
+                    )
                 )
-            )
-            
-            # 5. Объяснение % лимита
-            await asyncio.sleep(3)
-            msg5 = await message.answer(
-                text=LEXICON_RU['upload_limit_report'].format(
-                    upload_limit_usage=report_data['upload_limit_usage'],
-                    upload_limit_text=report_data['upload_limit_text']
+                
+                # 5. Объяснение % лимита
+                await asyncio.sleep(3)
+                msg5 = await message.answer(
+                    text=LEXICON_RU['upload_limit_report'].format(
+                        upload_limit_usage=report_data['upload_limit_usage'],
+                        upload_limit_text=report_data['upload_limit_text']
+                    )
                 )
-            )
-            
-            # 6. Финальное сообщение с кнопкой "Назад в меню"
-            back_to_menu_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text=LEXICON_COMMANDS_RU['back_to_main_menu'], callback_data=f"analytics_report_back_{csv_analysis_id}")]
-            ])
-            
-            final_message = await message.answer(
-                text=LEXICON_RU['analytics_closing_message'],
-                reply_markup=back_to_menu_keyboard
-            )
-            
-            # Сохраняем ID всех сообщений аналитики в базе данных для последующего удаления
-            analytics_message_ids = [
-                msg1.message_id,
-                msg2.message_id, 
-                msg3.message_id,
-                msg4.message_id,
-                msg5.message_id,
-                final_message.message_id
-            ]
-            
-            # Сохраняем ID сообщений в CSV analysis для последующего удаления
-            csv_analysis.analytics_message_ids = ','.join(map(str, analytics_message_ids))
-            db.commit()
-            
-            print(f"✅ Отчет отправлен пользователю")
-            
-        finally:
-            db.close()
+                
+                # 6. Финальное сообщение с кнопкой "Назад в меню"
+                back_to_menu_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text=LEXICON_COMMANDS_RU['back_to_main_menu'], callback_data=f"analytics_report_back_{csv_analysis_id}")]
+                ])
+                
+                final_message = await message.answer(
+                    text=LEXICON_RU['analytics_closing_message'],
+                    reply_markup=back_to_menu_keyboard
+                )
+                
+                # Сохраняем ID всех сообщений аналитики в базе данных для последующего удаления
+                analytics_message_ids = [
+                    msg1.message_id,
+                    msg2.message_id, 
+                    msg3.message_id,
+                    msg4.message_id,
+                    msg5.message_id,
+                    final_message.message_id
+                ]
+                
+                # Сохраняем ID сообщений в CSV analysis для последующего удаления
+                csv_analysis.analytics_message_ids = ','.join(map(str, analytics_message_ids))
+                db.commit()
+                
+                print(f"✅ Отчет отправлен пользователю")
+                
+            finally:
+                db.close()
             
     except Exception as e:
         print(f"❌ Ошибка обработки CSV анализа {csv_analysis_id}: {e}")
