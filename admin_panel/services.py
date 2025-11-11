@@ -182,7 +182,8 @@ async def get_dashboard_stats(session: AsyncSession, month: Optional[str] = None
         
         current_date += timedelta(days=1)
     
-    return {
+    # Создаем словарь stats (БЕЗ раннего return)
+    stats = {
         'subscription_counts': {
             'FREE': free_count,
             'PRO': pro_count,
