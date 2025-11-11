@@ -78,21 +78,36 @@ class TributeWebhookHandler:
         Определяет тип подписки (PRO/ULTRA) по данным из вебхука.
         Ищет "PRO" или "ULTRA" в названии подписки или продукта.
         """
-        sub_name = payload.get('subscription_name', '').upper()
-        prod_name = payload.get('product_name', '').upper()
+        # Получаем все возможные поля, где может быть название
+        sub_name = str(payload.get('subscription_name', '')).upper()
+        prod_name = str(payload.get('product_name', '')).upper()
+        name = str(payload.get('name', '')).upper()
+        title = str(payload.get('title', '')).upper()
         
-        # Убираем префикс "TEST " для тестовых данных
-        if "TEST" in sub_name:
-            sub_name = sub_name.replace("TEST", "").strip()
-        if "TEST" in prod_name:
-            prod_name = prod_name.replace("TEST", "").strip()
+        # Объединяем все названия для поиска
+        all_names = f"{sub_name} {prod_name} {name} {title}"
         
-        if "ULTRA" in sub_name or "ULTRA" in prod_name:
+        # Убираем префиксы "TEST" и "ТЕСТ" (латиница и кириллица) для тестовых данных
+        all_names = all_names.replace("TEST", "").replace("ТЕСТ", "").strip()
+        
+        # Убираем лишние пробелы и слэши
+        all_names = ' '.join(all_names.split())
+        
+        # Ищем ULTRA или PRO в объединенной строке
+        if "ULTRA" in all_names:
             return "ULTRA"
-        if "PRO" in sub_name or "PRO" in prod_name:
+        if "PRO" in all_names:
             return "PRO"
+        
+        # Если не нашли, пробуем поискать в исходных полях (до очистки)
+        for field_name in [sub_name, prod_name, name, title]:
+            if "ULTRA" in field_name:
+                return "ULTRA"
+            if "PRO" in field_name:
+                return "PRO"
             
-        print(f"ВНИМАНИЕ: Не удалось определить тип подписки по имени: {sub_name} / {prod_name}")
+        print(f"ВНИМАНИЕ: Не удалось определить тип подписки по имени. sub_name={sub_name}, prod_name={prod_name}, name={name}, title={title}")
+        print(f"Полный payload: {payload}")
         return None
 
     async def _handle_payment_success(self, data: Dict[str, Any], is_subscription: bool):
@@ -108,11 +123,17 @@ class TributeWebhookHandler:
         else:
             payment_id = payload.get('order_id') or payload.get('product_id') or data.get('id') or data.get('order_id')
         
-        subscription_type_str = self._get_subscription_type_from_payload(payload if payload else data)
+        # Преобразуем payment_id в строку, если он не None (может быть int или str)
+        if payment_id is not None:
+            payment_id = str(payment_id).strip()
+        
+        # Объединяем payload и data для поиска типа подписки (информация может быть в любом из них)
+        search_data = {**(payload if payload else {}), **(data if data else {})}
+        subscription_type_str = self._get_subscription_type_from_payload(search_data)
         
         # Проверяем, что все обязательные поля заполнены (не None и не пустые строки)
         # payment_id может быть пустым в тестах, поэтому генерируем его если нужно
-        if not payment_id or payment_id.strip() == "":
+        if not payment_id or payment_id == "":
             import uuid
             payment_id = f"test_{uuid.uuid4().hex[:16]}"
             print(f"ВНИМАНИЕ: payment_id был пустым, сгенерирован новый: {payment_id}")
