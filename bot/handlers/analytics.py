@@ -44,13 +44,25 @@ REPORT_MESSAGE_DELAY = 3  # секунды между сообщениями о�
 # ============================================================================
 
 def get_completed_analyses(user_id: int) -> List[CSVAnalysis]:
-    """Получить все завершенные анализы пользователя."""
+    """Получить все завершенные анализы пользователя с предзагрузкой отчетов."""
     db = SessionLocal()
     try:
-        return db.query(CSVAnalysis).filter(
+        # Используем joinedload для предзагрузки analytics_report
+        from sqlalchemy.orm import joinedload
+        analyses = db.query(CSVAnalysis).options(
+            joinedload(CSVAnalysis.analytics_report)
+        ).filter(
             CSVAnalysis.user_id == user_id,
             CSVAnalysis.status == AnalysisStatus.COMPLETED
         ).order_by(desc(CSVAnalysis.created_at)).all()
+        
+        # Принудительно загружаем все связанные данные перед закрытием сессии
+        for analysis in analyses:
+            if analysis.analytics_report:
+                # Обращаемся к атрибутам, чтобы они загрузились
+                _ = analysis.analytics_report.id
+        
+        return analyses
     finally:
         db.close()
 
@@ -814,11 +826,19 @@ async def view_report_callback(callback: CallbackQuery, user: User) -> None:
             CSVAnalysis.status == AnalysisStatus.COMPLETED
         ).order_by(desc(AnalyticsReport.created_at)).all()
         
+        # Принудительно загружаем данные перед закрытием сессии
+        report_text = report.report_text_html
+        report_id_copy = report.id
+        
+        # Загружаем ID всех отчетов
+        for r in all_reports:
+            _ = r.id
+        
         # Показываем отчет с навигацией
         await safe_edit_message(
             callback=callback,
-            text=report.report_text_html,
-            reply_markup=get_analytics_report_view_keyboard(all_reports, report.id, user.subscription_type)
+            text=report_text,
+            reply_markup=get_analytics_report_view_keyboard(all_reports, report_id_copy, user.subscription_type)
         )
     finally:
         db.close()
