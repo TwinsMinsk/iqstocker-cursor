@@ -219,7 +219,7 @@ _async_session_semaphore = asyncio.Semaphore(SUPABASE_SESSION_LIMIT)
 
 # Семафор для синхронных сессий (если останутся в воркерах)
 import threading
-_sync_session_semaphore = threading.Semaphore(2)
+_sync_session_semaphore = threading.Semaphore(4)
 
 class ManagedSessionLocal:
     """Context manager для SessionLocal с ограничением."""

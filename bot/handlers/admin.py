@@ -574,7 +574,7 @@ async def admin_set_tariff(callback: CallbackQuery, callback_data: ActionCallbac
         
         # Invalidate cache after updating user and limits
         cache_service = get_user_cache_service()
-        cache_service.invalidate_user_and_limits(user.telegram_id, user.id)
+        await cache_service.invalidate_user_and_limits(user.telegram_id, user.id)
         
         # Refresh to get updated data
         db.refresh(user)

@@ -77,6 +77,40 @@ class StorageService:
             # Пробрасываем более информативную ошибку
             raise RuntimeError(f"Не удалось загрузить файл в хранилище: {str(e)}") from e
     
+    async def upload_csv_from_file(self, file_path: str, user_id: int, filename: str) -> str:
+        """
+        Upload CSV file to Supabase Storage from a file path.
+        This method streams the file instead of loading it into memory.
+        
+        Args:
+            file_path: Path to the file on disk
+            user_id: User ID for organizing files
+            filename: Original filename
+            
+        Returns:
+            Storage file key (path)
+        """
+        import asyncio
+        
+        file_key = f"{user_id}/{uuid.uuid4()}_{filename}"
+        
+        try:
+            # Read file in chunks to avoid loading entire file into memory
+            def _upload():
+                with open(file_path, 'rb') as f:
+                    file_bytes = f.read()
+                return self.supabase.storage.from_(self.bucket).upload(file_key, file_bytes)
+            
+            await asyncio.to_thread(_upload)
+            file_size = os.path.getsize(file_path)
+            logger.info(f"Uploaded CSV to Storage: {file_key} (size: {file_size} bytes)")
+            return file_key
+        except Exception as e:
+            error_msg = f"Failed to upload CSV to Storage (bucket: {self.bucket}, key: {file_key}): {e}"
+            logger.error(error_msg, exc_info=True)
+            # Пробрасываем более информативную ошибку
+            raise RuntimeError(f"Не удалось загрузить файл в хранилище: {str(e)}") from e
+    
     def download_csv_to_temp(self, file_key: str) -> str:
         """
         Download CSV from Storage to temporary file.

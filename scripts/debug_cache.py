@@ -108,7 +108,7 @@ async def test_cache_miss(session: AsyncSession, cache_service, telegram_id: int
     print("=" * 60)
     
     # Clear cache first to ensure cache miss
-    cache_service.invalidate_user_and_limits(telegram_id)
+    await cache_service.invalidate_user_and_limits(telegram_id)
     print(f"🧹 Cleared cache for user {telegram_id}")
     
     start_time = time.perf_counter()
@@ -174,7 +174,7 @@ async def test_cache_invalidation(session: AsyncSession, cache_service, telegram
         print(f"⚠️  Cache doesn't exist (might have expired)")
     
     # Invalidate
-    cache_service.invalidate_user_and_limits(telegram_id, user_id)
+    await cache_service.invalidate_user_and_limits(telegram_id, user_id)
     print(f"🧹 Invalidated cache")
     
     # Verify cache is gone

@@ -51,7 +51,7 @@ async def themes_callback(
         # Invalidate cache after updating limits
         from core.cache.user_cache import get_user_cache_service
         cache_service = get_user_cache_service()
-        cache_service.invalidate_limits(user.id)
+        await cache_service.invalidate_limits(user.id)
         
         await session.refresh(limits)  # Обновляем объект после возможного изменения
     
@@ -213,7 +213,7 @@ async def generate_themes_callback(
         # Invalidate cache after updating limits
         from core.cache.user_cache import get_user_cache_service
         cache_service = get_user_cache_service()
-        cache_service.invalidate_limits(user.id)
+        await cache_service.invalidate_limits(user.id)
         
         logger.info(
             f"Successfully generated themes for user {user.id}, "

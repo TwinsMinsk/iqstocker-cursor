@@ -251,7 +251,7 @@ class TaskScheduler:
                     from core.cache.user_cache import get_user_cache_service
                     cache_service = get_user_cache_service()
                     for user, limits in users_with_burned_limits:
-                        cache_service.invalidate_limits(user.id)
+                        await cache_service.invalidate_limits(user.id)
                 
                 logger.info(f"Burned unused theme limits for {burned_count} users")
                 print(f"Burned unused theme limits for {burned_count} users")

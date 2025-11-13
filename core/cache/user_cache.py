@@ -1,5 +1,6 @@
 """User and Limits cache service for Redis-based caching."""
 
+import asyncio
 import json
 import logging
 from typing import Optional, Dict, Any
@@ -160,14 +161,14 @@ class UserCacheService:
             user_cache_key = self._get_user_cache_key(telegram_id)
             
             try:
-                cached_user_data = self.redis_client.get(user_cache_key)
+                cached_user_data = await asyncio.to_thread(self.redis_client.get, user_cache_key)
                 if cached_user_data:
                     user_data = json.loads(cached_user_data)
                     user_id = user_data["id"]
                     
                     # Try to get limits from cache
                     limits_cache_key = self._get_limits_cache_key(user_id)
-                    cached_limits_data = self.redis_client.get(limits_cache_key)
+                    cached_limits_data = await asyncio.to_thread(self.redis_client.get, limits_cache_key)
                     
                     if cached_limits_data:
                         limits_data = json.loads(cached_limits_data)
@@ -203,9 +204,9 @@ class UserCacheService:
             if user:
                 limits = user.limits
                 # Cache both user and limits
-                self._cache_user(user)
+                await self._cache_user(user)
                 if limits:
-                    self._cache_limits(limits)
+                    await self._cache_limits(limits)
                 logger.debug(f"Loaded user {telegram_id} from DB and cached")
                 return user, limits
         
@@ -214,7 +215,7 @@ class UserCacheService:
         
         return None, None
     
-    def _cache_user(self, user: User) -> None:
+    async def _cache_user(self, user: User) -> None:
         """Cache user data."""
         if self.redis_client is None:
             return  # Skip caching if Redis unavailable
@@ -223,14 +224,14 @@ class UserCacheService:
             cache_key = self._get_user_cache_key(user.telegram_id)
             user_data = self._user_to_dict(user)
             cache_data = json.dumps(user_data, default=str)
-            self.redis_client.setex(cache_key, self.user_cache_ttl, cache_data)
+            await asyncio.to_thread(self.redis_client.setex, cache_key, self.user_cache_ttl, cache_data)
         except Exception as e:
             # Use rate limiting for cache errors to reduce log spam
             from core.utils.log_rate_limiter import should_log_redis_warning
             if should_log_redis_warning("cache_user"):
                 logger.warning(f"Failed to cache user {user.telegram_id}: {e}")
     
-    def _cache_limits(self, limits: Limits) -> None:
+    async def _cache_limits(self, limits: Limits) -> None:
         """Cache limits data."""
         if self.redis_client is None:
             return  # Skip caching if Redis unavailable
@@ -239,15 +240,27 @@ class UserCacheService:
             cache_key = self._get_limits_cache_key(limits.user_id)
             limits_data = self._limits_to_dict(limits)
             cache_data = json.dumps(limits_data, default=str)
-            self.redis_client.setex(cache_key, self.limits_cache_ttl, cache_data)
+            await asyncio.to_thread(self.redis_client.setex, cache_key, self.limits_cache_ttl, cache_data)
         except Exception as e:
             # Use rate limiting for cache errors to reduce log spam
             from core.utils.log_rate_limiter import should_log_redis_warning
             if should_log_redis_warning("cache_limits"):
                 logger.warning(f"Failed to cache limits for user {limits.user_id}: {e}")
     
-    def invalidate_user(self, telegram_id: int) -> None:
-        """Invalidate user cache."""
+    async def invalidate_user(self, telegram_id: int) -> None:
+        """Invalidate user cache (async version for bot handlers)."""
+        if self.redis_client is None:
+            return  # Skip invalidation if Redis unavailable
+        
+        try:
+            cache_key = self._get_user_cache_key(telegram_id)
+            await asyncio.to_thread(self.redis_client.delete, cache_key)
+            logger.debug(f"Invalidated cache for user {telegram_id}")
+        except Exception as e:
+            logger.warning(f"Failed to invalidate user cache: {e}")
+    
+    def invalidate_user_sync(self, telegram_id: int) -> None:
+        """Invalidate user cache (sync version for workers)."""
         if self.redis_client is None:
             return  # Skip invalidation if Redis unavailable
         
@@ -258,8 +271,20 @@ class UserCacheService:
         except Exception as e:
             logger.warning(f"Failed to invalidate user cache: {e}")
     
-    def invalidate_limits(self, user_id: int) -> None:
-        """Invalidate limits cache."""
+    async def invalidate_limits(self, user_id: int) -> None:
+        """Invalidate limits cache (async version for bot handlers)."""
+        if self.redis_client is None:
+            return  # Skip invalidation if Redis unavailable
+        
+        try:
+            cache_key = self._get_limits_cache_key(user_id)
+            await asyncio.to_thread(self.redis_client.delete, cache_key)
+            logger.debug(f"Invalidated cache for limits {user_id}")
+        except Exception as e:
+            logger.warning(f"Failed to invalidate limits cache: {e}")
+    
+    def invalidate_limits_sync(self, user_id: int) -> None:
+        """Invalidate limits cache (sync version for workers)."""
         if self.redis_client is None:
             return  # Skip invalidation if Redis unavailable
         
@@ -270,11 +295,28 @@ class UserCacheService:
         except Exception as e:
             logger.warning(f"Failed to invalidate limits cache: {e}")
     
-    def invalidate_user_and_limits(self, telegram_id: int, user_id: Optional[int] = None) -> None:
-        """Invalidate both user and limits cache."""
-        self.invalidate_user(telegram_id)
+    async def invalidate_user_and_limits(self, telegram_id: int, user_id: Optional[int] = None) -> None:
+        """Invalidate both user and limits cache (async version for bot handlers)."""
+        await self.invalidate_user(telegram_id)
         if user_id:
-            self.invalidate_limits(user_id)
+            await self.invalidate_limits(user_id)
+        else:
+            # If user_id not provided, try to get it from cache first
+            if self.redis_client is not None:
+                try:
+                    cache_key = self._get_user_cache_key(telegram_id)
+                    cached_data = await asyncio.to_thread(self.redis_client.get, cache_key)
+                    if cached_data:
+                        user_data = json.loads(cached_data)
+                        await self.invalidate_limits(user_data["id"])
+                except Exception:
+                    pass
+    
+    def invalidate_user_and_limits_sync(self, telegram_id: int, user_id: Optional[int] = None) -> None:
+        """Invalidate both user and limits cache (sync version for workers)."""
+        self.invalidate_user_sync(telegram_id)
+        if user_id:
+            self.invalidate_limits_sync(user_id)
         else:
             # If user_id not provided, try to get it from cache first
             if self.redis_client is not None:
@@ -283,7 +325,7 @@ class UserCacheService:
                     cached_data = self.redis_client.get(cache_key)
                     if cached_data:
                         user_data = json.loads(cached_data)
-                        self.invalidate_limits(user_data["id"])
+                        self.invalidate_limits_sync(user_data["id"])
                 except Exception:
                     pass
 

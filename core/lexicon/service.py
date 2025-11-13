@@ -247,7 +247,8 @@ class LexiconService:
         if self.redis_client is not None:
             cache_key = self._get_cache_key(category, key)
             try:
-                cached_value = self.redis_client.get(cache_key)
+                import asyncio
+                cached_value = await asyncio.to_thread(self.redis_client.get, cache_key)
                 if cached_value:
                     return cached_value
             except Exception as e:

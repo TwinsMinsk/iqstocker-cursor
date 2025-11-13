@@ -465,6 +465,7 @@ async def handle_csv_upload(
         await message.answer(LEXICON_RU.get('csv_wrong_format', 'Пожалуйста, загрузи CSV-файл.'))
         return
     
+    # Проверка размера файла перед скачиванием
     max_size_mb = settings.max_file_size // 1024 // 1024
     if document.file_size > settings.max_file_size:
         await message.answer(
@@ -472,30 +473,44 @@ async def handle_csv_upload(
         )
         return
     
+    import tempfile
+    
+    temp_file_path = None
     try:
         # Загрузка в Supabase Storage
         from services.storage_service import StorageService
         storage = StorageService()
         
-        # Скачиваем файл в память
+        # Скачиваем файл во временный файл вместо загрузки в память
         # В aiogram 3.x bot.download() принимает File объект или file_id
         file_info = await message.bot.get_file(document.file_id)
         
-        # Используем file_info (File объект) для скачивания
-        # bot.download может вернуть IO или bytes, читаем в bytes
+        # Создаем временный файл для безопасного хранения
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.csv')
+        temp_file_path = temp_file.name
+        temp_file.close()
+        
+        # Скачиваем файл напрямую во временный файл
         file_data = await message.bot.download(file_info)
         
+        # Записываем данные во временный файл
         if hasattr(file_data, 'read'):
-            # Если это IO объект, читаем его
-            file_bytes = file_data.read()
+            # Если это IO объект, читаем по частям и записываем
+            with open(temp_file_path, 'wb') as f:
+                while True:
+                    chunk = file_data.read(8192)  # Читаем по 8KB
+                    if not chunk:
+                        break
+                    f.write(chunk)
             if hasattr(file_data, 'close'):
                 file_data.close()
         else:
-            # Если уже bytes
-            file_bytes = file_data
+            # Если уже bytes, записываем напрямую
+            with open(temp_file_path, 'wb') as f:
+                f.write(file_data)
         
-        # Загружаем в Supabase Storage
-        file_key = await storage.upload_csv(file_bytes, user.telegram_id, document.file_name)
+        # Загружаем в Supabase Storage из файла (стриминг)
+        file_key = await storage.upload_csv_from_file(temp_file_path, user.telegram_id, document.file_name)
         
         # Показываем статус получения файла
         file_size_kb = document.file_size / 1024
@@ -549,6 +564,17 @@ async def handle_csv_upload(
         if '{error}' in error_msg:
             error_msg = error_msg.format(error=str(e))
         await message.answer(error_msg)
+    
+    finally:
+        # Гарантированная очистка временного файла
+        if temp_file_path:
+            try:
+                import os
+                if os.path.exists(temp_file_path):
+                    os.remove(temp_file_path)
+                    logger.debug(f"Deleted temp file: {temp_file_path}")
+            except Exception as cleanup_error:
+                logger.warning(f"Failed to delete temp file {temp_file_path}: {cleanup_error}")
 
 
 @router.message(AnalyticsStates.waiting_for_portfolio_size)

@@ -408,7 +408,7 @@ async def edit_user_submit(
             # Invalidate cache after updating user and limits
             from core.cache.user_cache import get_user_cache_service
             cache_service = get_user_cache_service()
-            cache_service.invalidate_user_and_limits(user.telegram_id, user.id)
+            await cache_service.invalidate_user_and_limits(user.telegram_id, user.id)
             
             # Refresh to get updated data
             await session.refresh(user)

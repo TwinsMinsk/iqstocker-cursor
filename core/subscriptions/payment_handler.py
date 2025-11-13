@@ -95,7 +95,7 @@ class PaymentHandler:
                 
                 # Invalidate cache after updating user and limits
                 cache_service = get_user_cache_service()
-                cache_service.invalidate_user_and_limits(user.telegram_id, user.id)
+                await cache_service.invalidate_user_and_limits(user.telegram_id, user.id)
                 
                 # Refresh user and limits to get latest data
                 await session.refresh(user)
@@ -242,7 +242,7 @@ class PaymentHandler:
                 # Invalidate cache for all expired users
                 cache_service = get_user_cache_service()
                 for user in expired_users:
-                    cache_service.invalidate_user_and_limits(user.telegram_id, user.id)
+                    await cache_service.invalidate_user_and_limits(user.telegram_id, user.id)
                 
                 print(f"Updated {expired_count} expired subscriptions")
                 
@@ -285,7 +285,7 @@ class PaymentHandler:
             
             # Invalidate cache for referrer (balance changed)
             cache_service = get_user_cache_service()
-            cache_service.invalidate_user(referrer.telegram_id)
+            await cache_service.invalidate_user(referrer.telegram_id)
             
             # Отправляем уведомление рефереру
             try:
