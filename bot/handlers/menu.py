@@ -15,22 +15,24 @@ router = Router()
 @router.callback_query(F.data == "main_menu")
 async def main_menu_callback(callback: CallbackQuery, user: User):
     """Handle main menu callback."""
+    # ✅ Отвечаем СРАЗУ - убираем индикатор загрузки
+    await callback.answer()
     
     await safe_edit_message(
         callback=callback,
         text=LEXICON_RU['main_menu_message'],
         reply_markup=get_main_menu_keyboard(user.subscription_type)
     )
-    await callback.answer()
 
 
 @router.callback_query(CommonCallbackData.filter(F.action == "main_menu"))
 async def common_main_menu_callback(callback: CallbackQuery, user: User):
     """Handle main menu callback from CommonCallbackData."""
+    # ✅ Отвечаем СРАЗУ - убираем индикатор загрузки
+    await callback.answer()
     
     await safe_edit_message(
         callback=callback,
         text=LEXICON_RU['main_menu_message'],
         reply_markup=get_main_menu_keyboard(user.subscription_type)
     )
-    await callback.answer()

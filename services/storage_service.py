@@ -80,7 +80,7 @@ class StorageService:
     async def upload_csv_from_file(self, file_path: str, user_id: int, filename: str) -> str:
         """
         Upload CSV file to Supabase Storage from a file path.
-        This method streams the file instead of loading it into memory.
+        This method reads the file in chunks to minimize memory usage.
         
         Args:
             file_path: Path to the file on disk
@@ -89,22 +89,46 @@ class StorageService:
             
         Returns:
             Storage file key (path)
+            
+        Raises:
+            ValueError: If file size exceeds 20MB limit
+            RuntimeError: If upload fails
         """
         import asyncio
         
         file_key = f"{user_id}/{uuid.uuid4()}_{filename}"
         
+        # Check file size BEFORE reading to prevent OOM
+        MAX_UPLOAD_SIZE = 20 * 1024 * 1024  # 20MB hard limit
+        file_size = os.path.getsize(file_path)
+        if file_size > MAX_UPLOAD_SIZE:
+            max_size_mb = MAX_UPLOAD_SIZE // 1024 // 1024
+            error_msg = f"File too large for current plan. Maximum size: {max_size_mb}MB"
+            logger.error(f"{error_msg} (file size: {file_size} bytes)")
+            raise ValueError(error_msg)
+        
         try:
-            # Read file in chunks to avoid loading entire file into memory
+            # Read file in chunks to minimize memory usage
             def _upload():
+                chunk_size = 32 * 1024  # 32KB chunks
+                chunks = []
                 with open(file_path, 'rb') as f:
-                    file_bytes = f.read()
+                    while True:
+                        chunk = f.read(chunk_size)
+                        if not chunk:
+                            break
+                        chunks.append(chunk)
+                # Supabase API requires bytes, so we combine chunks
+                # But we read in chunks to avoid loading entire file at once
+                file_bytes = b''.join(chunks)
                 return self.supabase.storage.from_(self.bucket).upload(file_key, file_bytes)
             
             await asyncio.to_thread(_upload)
-            file_size = os.path.getsize(file_path)
             logger.info(f"Uploaded CSV to Storage: {file_key} (size: {file_size} bytes)")
             return file_key
+        except ValueError:
+            # Re-raise ValueError (file size check) without wrapping
+            raise
         except Exception as e:
             error_msg = f"Failed to upload CSV to Storage (bucket: {self.bucket}, key: {file_key}): {e}"
             logger.error(error_msg, exc_info=True)

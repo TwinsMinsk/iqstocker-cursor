@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
-from config.database import AsyncSessionLocal, SessionLocal, redis_client
+from config.database import AsyncSessionLocal, ManagedSessionLocal, SessionLocal, redis_client
 from database.models.lexicon_entry import LexiconCategory, LexiconEntry
 
 logger = logging.getLogger(__name__)
@@ -188,7 +188,7 @@ class LexiconService:
         # Load from database if cache miss or force_refresh
         try:
             if session is None:
-                with SessionLocal() as db_session:
+                with ManagedSessionLocal() as db_session:
                     return self._load_from_db_sync(db_session, cache_key)
             else:
                 return self._load_from_db_sync(session, cache_key)
@@ -316,7 +316,7 @@ class LexiconService:
         # Load from database
         try:
             if session is None:
-                with SessionLocal() as db_session:
+                with ManagedSessionLocal() as db_session:
                     return self._get_from_db_sync(db_session, key, category, cache_key)
             else:
                 return self._get_from_db_sync(session, key, category, cache_key)
@@ -450,7 +450,7 @@ class LexiconService:
         
         try:
             if session is None:
-                with SessionLocal() as db_session:
+                with ManagedSessionLocal() as db_session:
                     return self._save_to_db_sync(db_session, key, value, category_enum)
             else:
                 return self._save_to_db_sync(session, key, value, category_enum)

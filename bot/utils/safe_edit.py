@@ -26,15 +26,14 @@ async def safe_edit_message(callback: CallbackQuery = None, message: Message = N
             parse_mode=parse_mode
         )
         
-        # Answer callback if provided
-        if callback:
-            await callback.answer()
+        # ✅ ОПТИМИЗАЦИЯ: Не вызываем callback.answer() здесь, так как он уже вызывается 
+        # в начале обработчиков для быстрого ответа. Если callback.answer() еще не был вызван,
+        # это безопасно - обработчик должен вызвать его сам.
             
     except TelegramBadRequest as e:
         if "message is not modified" in str(e).lower():
             logger.debug("Message was not modified")
-            if callback:
-                await callback.answer()
+            # Не вызываем callback.answer() - должен быть вызван в обработчике
         elif "message to edit not found" in str(e).lower():
             logger.warning("Message to edit not found, sending new message")
             await target_message.answer(
@@ -44,8 +43,7 @@ async def safe_edit_message(callback: CallbackQuery = None, message: Message = N
             )
         elif "query is too old" in str(e).lower() or "query id is invalid" in str(e).lower():
             logger.warning("Callback query expired before edit could be applied")
-            if callback:
-                await callback.answer()
+            # Не вызываем callback.answer() - должен быть вызван в обработчике
         else:
             logger.error(f"Failed to edit message: {e}")
             raise

@@ -309,6 +309,9 @@ async def cancel_handler(message: Message, state: FSMContext, user: User) -> Non
 @router.callback_query(F.data == "analytics_start")
 async def analytics_start_callback(callback: CallbackQuery, user: User) -> None:
     """Обработчик кнопки начала аналитики из приветственной последовательности."""
+    # ✅ Отвечаем СРАЗУ - убираем индикатор загрузки
+    await callback.answer()
+    
     back_keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=LEXICON_COMMANDS_RU['back_to_main_menu'], callback_data="main_menu")]
     ])
@@ -318,7 +321,6 @@ async def analytics_start_callback(callback: CallbackQuery, user: User) -> None:
         text=LEXICON_RU['csv_upload_prompt'],
         reply_markup=back_keyboard
     )
-    await callback.answer()
 
 
 @router.callback_query(F.data == "analytics")
@@ -330,6 +332,9 @@ async def analytics_callback(
     state: FSMContext
 ) -> None:
     """Обработчик аналитики из главного меню."""
+    # ✅ Отвечаем СРАЗУ - убираем индикатор загрузки
+    await callback.answer()
+    
     # Проверка доступа для FREE пользователей
     if user.subscription_type == SubscriptionType.FREE:
         await safe_edit_message(
@@ -337,7 +342,6 @@ async def analytics_callback(
             text=LEXICON_RU['analytics_unavailable_free'],
             reply_markup=get_analytics_unavailable_keyboard(user.subscription_type)
         )
-        await callback.answer()
         return
     
     # Получаем завершенные анализы
@@ -361,20 +365,20 @@ async def analytics_callback(
             text=LEXICON_RU['analytics_list_title'],
             reply_markup=get_analytics_list_keyboard(reports, can_create_new, user.subscription_type)
         )
-    
-    await callback.answer()
 
 
 @router.callback_query(F.data == "analytics_show_csv_guide")
 async def show_csv_guide_callback(callback: CallbackQuery) -> None:
     """Обработчик кнопки показа инструкции CSV."""
+    # ✅ Отвечаем СРАЗУ - убираем индикатор загрузки
+    await callback.answer()
+    
     await safe_edit_message(
         callback=callback,
         text=LEXICON_RU['analytics_csv_instruction'],
         reply_markup=get_csv_instruction_keyboard(),
         parse_mode=None
     )
-    await callback.answer()
 
 
 @router.callback_query(F.data == "analytics_show_intro")
@@ -385,6 +389,9 @@ async def show_intro_callback(
     state: FSMContext
 ) -> None:
     """Обработчик возврата к intro аналитики."""
+    # ✅ Отвечаем СРАЗУ - убираем индикатор загрузки
+    await callback.answer()
+    
     # Проверяем наличие отчетов у пользователя
     query = (
         select(AnalyticsReport.id)
@@ -401,12 +408,14 @@ async def show_intro_callback(
         reply_markup=get_analytics_intro_keyboard(has_reports=has_reports)
     )
     await state.update_data(analytics_intro_message_id=callback.message.message_id)
-    await callback.answer()
 
 
 @router.callback_query(F.data == "analytics_show_reports")
 async def show_reports_callback(callback: CallbackQuery, user: User, limits: Limits, session: AsyncSession) -> None:
     """Обработчик кнопки показа отчетов."""
+    # ✅ Отвечаем СРАЗУ - убираем индикатор загрузки
+    await callback.answer()
+    
     completed_analyses = await get_completed_analyses(user.id, session)
     
     if not completed_analyses:
@@ -424,8 +433,6 @@ async def show_reports_callback(callback: CallbackQuery, user: User, limits: Lim
             text=LEXICON_RU['analytics_list_title'],
             reply_markup=get_analytics_list_keyboard(reports, can_create_new, user.subscription_type)
         )
-    
-    await callback.answer()
 
 
 @router.message(F.document)
@@ -683,44 +690,57 @@ async def handle_content_type_callback(
 ):
     """Handle content type selection via callback."""
     
-    # Extract content type from callback data
-    content_type = callback.data.replace("content_type_", "")
-    # Map to DB enum values (legacy enum in DB: PHOTOS/VIDEOS/MIXED)
-    db_enum_mapping = {
-        "AI": "MIXED",             # нет прямого соответствия
-        "PHOTO": "PHOTOS",
-        "ILLUSTRATION": "PHOTOS",
-        "VIDEO": "VIDEOS",
-        "VECTOR": "PHOTOS",
-    }
-    db_content_type = db_enum_mapping.get(content_type, "PHOTOS")
+    # ✅ Отвечаем СРАЗУ - убираем индикатор загрузки
+    await callback.answer()
     
-    # Get all data from state
-    data = await state.get_data()
-    question_msg_id = data.get('question_msg_id')
-    fsm_prompt_msg_id = data.get('fsm_prompt_msg_id')
-    
-    # Delete FSM prompt message and last question
-    if fsm_prompt_msg_id:
-        try:
-            await callback.bot.delete_message(chat_id=callback.message.chat.id, message_id=fsm_prompt_msg_id)
-        except TelegramBadRequest:
-            pass
-    
-    if question_msg_id:
-        try:
-            await callback.bot.delete_message(chat_id=callback.message.chat.id, message_id=question_msg_id)
-        except TelegramBadRequest:
-            pass
-    
-    # Update CSV analysis with user data (используем AsyncSession)
-    from sqlalchemy import select
-    
-    stmt = select(CSVAnalysis).where(CSVAnalysis.id == data["csv_analysis_id"])
-    result = await session.execute(stmt)
-    csv_analysis = result.scalar_one_or_none()
-    
-    if csv_analysis:
+    try:
+        # Extract content type from callback data
+        content_type = callback.data.replace("content_type_", "")
+        # Map to DB enum values (legacy enum in DB: PHOTOS/VIDEOS/MIXED)
+        db_enum_mapping = {
+            "AI": "MIXED",             # нет прямого соответствия
+            "PHOTO": "PHOTOS",
+            "ILLUSTRATION": "PHOTOS",
+            "VIDEO": "VIDEOS",
+            "VECTOR": "PHOTOS",
+        }
+        db_content_type = db_enum_mapping.get(content_type, "PHOTOS")
+        
+        # Get all data from state
+        data = await state.get_data()
+        question_msg_id = data.get('question_msg_id')
+        fsm_prompt_msg_id = data.get('fsm_prompt_msg_id')
+        csv_analysis_id = data.get("csv_analysis_id")
+        
+        if not csv_analysis_id:
+            await callback.message.answer("Ошибка: не найден ID анализа. Попробуйте загрузить файл заново.")
+            return
+        
+        # Delete FSM prompt message and last question
+        if fsm_prompt_msg_id:
+            try:
+                await callback.bot.delete_message(chat_id=callback.message.chat.id, message_id=fsm_prompt_msg_id)
+            except TelegramBadRequest:
+                pass
+        
+        if question_msg_id:
+            try:
+                await callback.bot.delete_message(chat_id=callback.message.chat.id, message_id=question_msg_id)
+            except TelegramBadRequest:
+                pass
+        
+        # ✅ ОПТИМИЗАЦИЯ: Один запрос вместо двух - загружаем объект один раз
+        from sqlalchemy import select
+        
+        stmt = select(CSVAnalysis).where(CSVAnalysis.id == csv_analysis_id)
+        result = await session.execute(stmt)
+        csv_analysis = result.scalar_one_or_none()
+        
+        if not csv_analysis:
+            await callback.message.answer("Ошибка: анализ не найден в базе данных.")
+            return
+        
+        # Обновляем данные анализа
         csv_analysis.portfolio_size = data["portfolio_size"]
         csv_analysis.upload_limit = data["upload_limit"]
         csv_analysis.monthly_uploads = data["monthly_uploads"]
@@ -729,43 +749,40 @@ async def handle_content_type_callback(
         csv_analysis.content_type = db_content_type
         csv_analysis.status = AnalysisStatus.PROCESSING
         
-        await session.commit()
-    
-    # NOTE: Лимит будет списан ПОСЛЕ успешной обработки CSV в Dramatiq воркере
-    
-    # Get intro_message_id before clearing state
-    intro_message_id = data.get('analytics_intro_message_id')
-    
-    # Clear state
-    await state.clear()
-    
-    # Send processing message
-    processing_msg = await callback.message.answer(LEXICON_RU['processing_csv'])
-    
-    # Сохраняем ID сообщения обработки для последующего удаления
-    from sqlalchemy import select
-    stmt = select(CSVAnalysis).where(CSVAnalysis.id == data["csv_analysis_id"])
-    result = await session.execute(stmt)
-    csv_analysis = result.scalar_one_or_none()
-    if csv_analysis:
+        # NOTE: Лимит будет списан ПОСЛЕ успешной обработки CSV в Dramatiq воркере
+        
+        # Get intro_message_id before clearing state
+        intro_message_id = data.get('analytics_intro_message_id')
+        
+        # Clear state
+        await state.clear()
+        
+        # Send processing message
+        processing_msg = await callback.message.answer(LEXICON_RU['processing_csv'])
+        
+        # ✅ ОПТИМИЗАЦИЯ: Используем тот же объект csv_analysis вместо повторного запроса
         # Добавляем ID сообщения обработки к существующим ID (если есть)
         existing_ids = csv_analysis.analytics_message_ids or ""
         if existing_ids:
             csv_analysis.analytics_message_ids = f"{existing_ids},{processing_msg.message_id}"
         else:
             csv_analysis.analytics_message_ids = str(processing_msg.message_id)
+        
+        # Коммитим все изменения одним запросом
         await session.commit()
-    
-    # Answer callback
-    await callback.answer()
-    
-    # Отправляем задачу в Dramatiq воркер
-    from workers.actors import process_csv_analysis_task
-    
-    process_csv_analysis_task.send(
-        csv_analysis_id=data["csv_analysis_id"],
-        user_telegram_id=user.telegram_id
-    )
+        
+        # Отправляем задачу в Dramatiq воркер
+        from workers.actors import process_csv_analysis_task
+        
+        process_csv_analysis_task.send(
+            csv_analysis_id=csv_analysis_id,
+            user_telegram_id=user.telegram_id
+        )
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error in handle_content_type_callback: {e}", exc_info=True)
+        await callback.message.answer("Произошла ошибка при обработке. Попробуйте загрузить файл заново.")
 
 
 @router.message(AnalyticsStates.waiting_for_content_type)
@@ -778,56 +795,66 @@ async def handle_content_type_text(
 ):
     """Handle content type text input (fallback for manual typing)."""
     
-    # Get data from state
-    data = await state.get_data()
-    question_msg_id = data.get('question_msg_id')
-    fsm_prompt_msg_id = data.get('fsm_prompt_msg_id')
-    
-    # Delete user's answer message
     try:
-        await message.delete()
-    except TelegramBadRequest:
-        pass
-    
-    # Delete FSM prompt message and last question
-    if fsm_prompt_msg_id:
+        # Get data from state
+        data = await state.get_data()
+        question_msg_id = data.get('question_msg_id')
+        fsm_prompt_msg_id = data.get('fsm_prompt_msg_id')
+        csv_analysis_id = data.get("csv_analysis_id")
+        
+        if not csv_analysis_id:
+            await message.answer("Ошибка: не найден ID анализа. Попробуйте загрузить файл заново.")
+            return
+        
+        # Delete user's answer message
         try:
-            await message.bot.delete_message(chat_id=message.chat.id, message_id=fsm_prompt_msg_id)
+            await message.delete()
         except TelegramBadRequest:
             pass
-    
-    if question_msg_id:
-        try:
-            await message.bot.delete_message(chat_id=message.chat.id, message_id=question_msg_id)
-        except TelegramBadRequest:
-            pass
-    
-    content_type = message.text.strip().upper()
-    
-    # Маппинг типов контента -> к ЛЕГАСИ enum БД (PHOTOS / VIDEOS / MIXED)
-    # Сопоставляем наши варианты к значениям, существующим в текущем типе contenttype
-    to_db_enum_mapping = {
-        'AI': 'MIXED',
-        'ФОТО': 'PHOTOS',
-        'PHOTO': 'PHOTOS',
-        'ИЛЛЮСТРАЦИИ': 'PHOTOS',
-        'ILLUSTRATION': 'PHOTOS',
-        'ВИДЕО': 'VIDEOS',
-        'VIDEO': 'VIDEOS',
-        'ВЕКТОР': 'PHOTOS',
-        'VECTOR': 'PHOTOS'
-    }
-    
-    content_type_enum = to_db_enum_mapping.get(content_type, 'PHOTOS')
-    
-    # Update CSV analysis with user data (используем AsyncSession)
-    from sqlalchemy import select
-    
-    stmt = select(CSVAnalysis).where(CSVAnalysis.id == data["csv_analysis_id"])
-    result = await session.execute(stmt)
-    csv_analysis = result.scalar_one_or_none()
-    
-    if csv_analysis:
+        
+        # Delete FSM prompt message and last question
+        if fsm_prompt_msg_id:
+            try:
+                await message.bot.delete_message(chat_id=message.chat.id, message_id=fsm_prompt_msg_id)
+            except TelegramBadRequest:
+                pass
+        
+        if question_msg_id:
+            try:
+                await message.bot.delete_message(chat_id=message.chat.id, message_id=question_msg_id)
+            except TelegramBadRequest:
+                pass
+        
+        content_type = message.text.strip().upper()
+        
+        # Маппинг типов контента -> к ЛЕГАСИ enum БД (PHOTOS / VIDEOS / MIXED)
+        # Сопоставляем наши варианты к значениям, существующим в текущем типе contenttype
+        to_db_enum_mapping = {
+            'AI': 'MIXED',
+            'ФОТО': 'PHOTOS',
+            'PHOTO': 'PHOTOS',
+            'ИЛЛЮСТРАЦИИ': 'PHOTOS',
+            'ILLUSTRATION': 'PHOTOS',
+            'ВИДЕО': 'VIDEOS',
+            'VIDEO': 'VIDEOS',
+            'ВЕКТОР': 'PHOTOS',
+            'VECTOR': 'PHOTOS'
+        }
+        
+        content_type_enum = to_db_enum_mapping.get(content_type, 'PHOTOS')
+        
+        # ✅ ОПТИМИЗАЦИЯ: Один запрос вместо двух - загружаем объект один раз
+        from sqlalchemy import select
+        
+        stmt = select(CSVAnalysis).where(CSVAnalysis.id == csv_analysis_id)
+        result = await session.execute(stmt)
+        csv_analysis = result.scalar_one_or_none()
+        
+        if not csv_analysis:
+            await message.answer("Ошибка: анализ не найден в базе данных.")
+            return
+        
+        # Update CSV analysis with user data
         csv_analysis.portfolio_size = data["portfolio_size"]
         csv_analysis.upload_limit = data["upload_limit"]
         csv_analysis.monthly_uploads = data["monthly_uploads"]
@@ -836,97 +863,97 @@ async def handle_content_type_text(
         csv_analysis.content_type = content_type_enum
         csv_analysis.status = AnalysisStatus.PROCESSING
         
-        await session.commit()
-    
-    # NOTE: Лимит будет списан ПОСЛЕ успешной обработки CSV в Dramatiq воркере
-    
-    # Get intro_message_id before clearing state
-    intro_message_id = data.get('analytics_intro_message_id')
-    
-    # Clear state
-    await state.clear()
-    
-    # Send processing message
-    processing_msg = await message.answer(LEXICON_RU['processing_csv'])
-    
-    # Сохраняем ID сообщения обработки для последующего удаления
-    from sqlalchemy import select
-    stmt = select(CSVAnalysis).where(CSVAnalysis.id == data["csv_analysis_id"])
-    result = await session.execute(stmt)
-    csv_analysis = result.scalar_one_or_none()
-    if csv_analysis:
+        # NOTE: Лимит будет списан ПОСЛЕ успешной обработки CSV в Dramatiq воркере
+        
+        # Get intro_message_id before clearing state
+        intro_message_id = data.get('analytics_intro_message_id')
+        
+        # Clear state
+        await state.clear()
+        
+        # Send processing message
+        processing_msg = await message.answer(LEXICON_RU['processing_csv'])
+        
+        # ✅ ОПТИМИЗАЦИЯ: Используем тот же объект csv_analysis вместо повторного запроса
         # Добавляем ID сообщения обработки к существующим ID (если есть)
         existing_ids = csv_analysis.analytics_message_ids or ""
         if existing_ids:
             csv_analysis.analytics_message_ids = f"{existing_ids},{processing_msg.message_id}"
         else:
             csv_analysis.analytics_message_ids = str(processing_msg.message_id)
+        
+        # Коммитим все изменения одним запросом
         await session.commit()
-    
-    # Отправляем задачу в Dramatiq воркер
-    from workers.actors import process_csv_analysis_task
-    
-    process_csv_analysis_task.send(
-        csv_analysis_id=data["csv_analysis_id"],
-        user_telegram_id=user.telegram_id
-    )
+        
+        # Отправляем задачу в Dramatiq воркер
+        from workers.actors import process_csv_analysis_task
+        
+        process_csv_analysis_task.send(
+            csv_analysis_id=csv_analysis_id,
+            user_telegram_id=user.telegram_id
+        )
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error in handle_content_type_text: {e}", exc_info=True)
+        await message.answer("Произошла ошибка при обработке. Попробуйте загрузить файл заново.")
 
 
 @router.callback_query(F.data.startswith("view_report_"))
 async def view_report_callback(callback: CallbackQuery, user: User, session: AsyncSession) -> None:
     """Обработчик просмотра конкретного отчета."""
-    report_id = int(callback.data.replace("view_report_", ""))
-    
-    from sqlalchemy import select
-    
-    # Получаем отчет
-    stmt = select(AnalyticsReport).where(AnalyticsReport.id == report_id)
-    result = await session.execute(stmt)
-    report = result.scalar_one_or_none()
-    
-    if not report:
-        await callback.answer(
-            LEXICON_RU.get('report_not_found', 'Отчет не найден'),
-            show_alert=True
-        )
-        return
-    
-    # Проверяем владельца через csv_analysis
-    stmt = select(CSVAnalysis).where(
-        CSVAnalysis.id == report.csv_analysis_id,
-        CSVAnalysis.user_id == user.id
-    )
-    result = await session.execute(stmt)
-    analysis = result.scalar_one_or_none()
-    
-    if not analysis:
-        await callback.answer(
-            LEXICON_RU.get('report_not_found', 'Отчет не найден'),
-            show_alert=True
-        )
-        return
-    
-    # Получаем все отчеты пользователя для навигации
-    stmt = (
-        select(AnalyticsReport)
-        .join(CSVAnalysis)
-        .where(
-            CSVAnalysis.user_id == user.id,
-            CSVAnalysis.status == AnalysisStatus.COMPLETED
-        )
-        .order_by(desc(AnalyticsReport.created_at))
-    )
-    result = await session.execute(stmt)
-    all_reports = result.scalars().all()
-    
-    # Показываем отчет с навигацией
-    await safe_edit_message(
-        callback=callback,
-        text=report.report_text_html,
-        reply_markup=get_analytics_report_view_keyboard(all_reports, report.id, user.subscription_type)
-    )
-    
+    # ✅ Отвечаем СРАЗУ - убираем индикатор загрузки
     await callback.answer()
+    
+    try:
+        report_id = int(callback.data.replace("view_report_", ""))
+        
+        from sqlalchemy import select
+        
+        # ✅ ОПТИМИЗАЦИЯ: Объединяем запросы - получаем отчет с проверкой владельца одним запросом
+        stmt = (
+            select(AnalyticsReport)
+            .join(CSVAnalysis, AnalyticsReport.csv_analysis_id == CSVAnalysis.id)
+            .where(
+                AnalyticsReport.id == report_id,
+                CSVAnalysis.user_id == user.id
+            )
+        )
+        result = await session.execute(stmt)
+        report = result.scalar_one_or_none()
+        
+        if not report:
+            await callback.message.answer(
+                LEXICON_RU.get('report_not_found', 'Отчет не найден')
+            )
+            return
+        
+        # Получаем все отчеты пользователя для навигации
+        stmt = (
+            select(AnalyticsReport)
+            .join(CSVAnalysis)
+            .where(
+                CSVAnalysis.user_id == user.id,
+                CSVAnalysis.status == AnalysisStatus.COMPLETED
+            )
+            .order_by(desc(AnalyticsReport.created_at))
+        )
+        result = await session.execute(stmt)
+        all_reports = result.scalars().all()
+        
+        # Показываем отчет с навигацией
+        await safe_edit_message(
+            callback=callback,
+            text=report.report_text_html,
+            reply_markup=get_analytics_report_view_keyboard(all_reports, report.id, user.subscription_type)
+        )
+    except ValueError:
+        await callback.message.answer("Ошибка: неверный ID отчета.")
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error in view_report_callback: {e}", exc_info=True)
+        await callback.message.answer("Произошла ошибка при загрузке отчета.")
 
 
 @router.callback_query(F.data == "new_analysis")
@@ -937,9 +964,13 @@ async def new_analysis_callback(
     state: FSMContext
 ) -> None:
     """Обработчик запроса нового анализа - показывает intro экран для загрузки CSV."""
+    # Проверяем лимиты перед ответом
     if limits.analytics_remaining <= 0:
         await callback.answer(LEXICON_RU['limits_analytics_exhausted'], show_alert=True)
         return
+    
+    # ✅ Отвечаем СРАЗУ - убираем индикатор загрузки
+    await callback.answer()
     
     await safe_edit_message(
         callback=callback,
@@ -947,43 +978,51 @@ async def new_analysis_callback(
         reply_markup=get_analytics_intro_keyboard(has_reports=True)
     )
     await state.update_data(analytics_intro_message_id=callback.message.message_id)
-    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("analytics_report_back_"))
 async def analytics_report_back_callback(callback: CallbackQuery, user: User, session: AsyncSession) -> None:
     """Обработчик кнопки возврата в меню после отчета аналитики."""
-    csv_analysis_id = int(callback.data.replace("analytics_report_back_", ""))
-    
-    from sqlalchemy import select
-    
-    stmt = select(CSVAnalysis).where(CSVAnalysis.id == csv_analysis_id)
-    result = await session.execute(stmt)
-    analysis = result.scalar_one_or_none()
-    
-    # Удаляем все сообщения из analytics_message_ids
-    if analysis and analysis.analytics_message_ids:
-        message_ids_str = analysis.analytics_message_ids
-        try:
-            # Парсим ID сообщений (могут быть через запятую)
-            message_ids = [int(msg_id.strip()) for msg_id in message_ids_str.split(',') if msg_id.strip().isdigit()]
-            
-            # Удаляем все сообщения
-            for msg_id in message_ids:
-                await delete_message_safe(callback.bot, callback.message.chat.id, msg_id)
-        except Exception as e:
-            logger = logging.getLogger(__name__)
-            logger.warning(f"Failed to delete analytics messages: {e}")
-        
-        # Очищаем analytics_message_ids в БД
-        analysis.analytics_message_ids = None
-        await session.commit()
-    
-    # Редактируем текущее сообщение (отчет) на главное меню (горизонтальная цепочка)
-    await safe_edit_message(
-        callback=callback,
-        text=LEXICON_RU['main_menu_message'],
-        reply_markup=get_main_menu_keyboard(user.subscription_type)
-    )
-    
+    # ✅ Отвечаем СРАЗУ - убираем индикатор загрузки
     await callback.answer()
+    
+    try:
+        csv_analysis_id = int(callback.data.replace("analytics_report_back_", ""))
+        
+        from sqlalchemy import select
+        
+        stmt = select(CSVAnalysis).where(CSVAnalysis.id == csv_analysis_id)
+        result = await session.execute(stmt)
+        analysis = result.scalar_one_or_none()
+        
+        # Удаляем все сообщения из analytics_message_ids
+        if analysis and analysis.analytics_message_ids:
+            message_ids_str = analysis.analytics_message_ids
+            try:
+                # Парсим ID сообщений (могут быть через запятую)
+                message_ids = [int(msg_id.strip()) for msg_id in message_ids_str.split(',') if msg_id.strip().isdigit()]
+                
+                # Удаляем все сообщения
+                for msg_id in message_ids:
+                    await delete_message_safe(callback.bot, callback.message.chat.id, msg_id)
+            except Exception as e:
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Failed to delete analytics messages: {e}")
+            
+            # Очищаем analytics_message_ids в БД
+            analysis.analytics_message_ids = None
+            await session.commit()
+        
+        # Редактируем текущее сообщение (отчет) на главное меню (горизонтальная цепочка)
+        await safe_edit_message(
+            callback=callback,
+            text=LEXICON_RU['main_menu_message'],
+            reply_markup=get_main_menu_keyboard(user.subscription_type)
+        )
+    except ValueError:
+        await callback.message.answer("Ошибка: неверный ID анализа.")
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error in analytics_report_back_callback: {e}", exc_info=True)
+        await callback.message.answer("Произошла ошибка при возврате в меню.")
