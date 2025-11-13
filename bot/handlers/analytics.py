@@ -899,18 +899,14 @@ async def analytics_report_back_callback(callback: CallbackQuery, user: User, se
     result = await session.execute(stmt)
     analysis = result.scalar_one_or_none()
     
-    # Удаляем все сообщения отчета
-    if analysis and hasattr(analysis, 'analytics_message_ids') and analysis.analytics_message_ids:
-        message_ids = [int(msg_id) for msg_id in analysis.analytics_message_ids.split(',')]
-        
-        for msg_id in message_ids:
-            await delete_message_safe(callback.bot, callback.message.chat.id, msg_id)
-        
+    # Очищаем analytics_message_ids в БД (сообщение будет отредактировано, а не удалено)
+    if analysis and hasattr(analysis, 'analytics_message_ids'):
         analysis.analytics_message_ids = None
         await session.commit()
     
-    # Показываем главное меню
-    await callback.message.answer(
+    # Редактируем текущее сообщение (отчет) на главное меню (горизонтальная цепочка)
+    await safe_edit_message(
+        callback=callback,
         text=LEXICON_RU['main_menu_message'],
         reply_markup=get_main_menu_keyboard(user.subscription_type)
     )

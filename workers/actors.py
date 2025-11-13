@@ -300,16 +300,10 @@ def notify_analysis_complete(user_telegram_id: int, csv_analysis_id: int):
             db.close()
             return
         
-        # Отправка полного отчета
+        # Отправка полного отчета (без вводного сообщения)
         async def send_report():
             try:
-                # 1. Вводное сообщение
-                await bot.send_message(
-                    chat_id=user_telegram_id,
-                    text=LEXICON_RU['analysis_completed_intro']
-                )
-                
-                # 2. Полный отчет с кнопкой "Назад в меню"
+                # Полный отчет с кнопкой "Назад в меню"
                 back_to_menu_keyboard = InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(
                         text=LEXICON_COMMANDS_RU['back_to_main_menu'],
@@ -317,17 +311,30 @@ def notify_analysis_complete(user_telegram_id: int, csv_analysis_id: int):
                     )]
                 ])
                 
-                await bot.send_message(
+                report_msg = await bot.send_message(
                     chat_id=user_telegram_id,
                     text=report.report_text_html,
                     reply_markup=back_to_menu_keyboard,
                     parse_mode="HTML"
                 )
                 
+                return report_msg.message_id
+                
             finally:
                 await bot.session.close()
         
-        asyncio.run(send_report())
+        report_message_id = asyncio.run(send_report())
+        
+        # Сохраняем message_id в БД для последующего удаления/редактирования
+        if report_message_id:
+            from database.models.csv_analysis import CSVAnalysis
+            csv_analysis = db.query(CSVAnalysis).filter(
+                CSVAnalysis.id == csv_analysis_id
+            ).first()
+            if csv_analysis:
+                csv_analysis.analytics_message_ids = str(report_message_id)
+                db.commit()
+        
         db.close()
         
         logger.info(f"Full report sent to user {user_telegram_id}")
