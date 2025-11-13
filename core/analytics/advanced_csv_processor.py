@@ -87,57 +87,104 @@ class AdvancedCSVProcessor:
         return f"{months[month]} {year}"
     
     def _read_and_normalize(self, path: str) -> pd.DataFrame:
-        """Читает и нормализует CSV файл."""
+        """Читает и нормализует CSV файл с оптимизацией памяти через чанки."""
+        
+        # Оптимизированные dtypes для экономии памяти
+        dtypes = {
+            'asset_id': 'category',
+            'license_plan': 'category', 
+            'media_type': 'category',
+            'size_label': 'category',
+            'contributor_name': 'category',
+        }
+        
+        chunks = []
         try:
-            # Сначала попробуем прочитать как есть
-            df = pd.read_csv(
+            # Чтение по 5000 строк за раз для экономии памяти
+            for chunk in pd.read_csv(
                 path,
                 encoding="utf-8",
                 sep=",",
                 header=None,
                 names=EXPECTED_COLS,
-                engine="python"
-            )
-        except Exception:
-            # Если не получилось, попробуем с заголовком
-            df = pd.read_csv(
-                path,
-                encoding="utf-8",
-                sep=",",
-                engine="python"
-            )
+                engine="c",  # быстрее чем python
+                chunksize=5000,
+                dtype=dtypes,
+                low_memory=True
+            ):
+                # Нормализация в чанке
+                if 'sale_datetime_utc' in chunk.columns:
+                    chunk["sale_datetime_utc"] = pd.to_datetime(
+                        chunk["sale_datetime_utc"], utc=True, errors="coerce"
+                    )
+                
+                if 'royalty_usd' in chunk.columns:
+                    chunk["royalty_usd"] = self._to_amount(chunk["royalty_usd"]).astype('float32')
+                
+                if 'asset_id' in chunk.columns:
+                    chunk["asset_id"] = chunk["asset_id"].astype(str).str.strip()
+                
+                # Нормализация категорий
+                for c in ["license_plan", "media_type", "size_label", "contributor_name"]:
+                    if c in chunk.columns:
+                        chunk[c] = chunk[c].astype(str).str.strip().str.lower()
+                
+                # Нормализация текстов
+                for c in ["asset_title", "filename"]:
+                    if c in chunk.columns:
+                        chunk[c] = chunk[c].astype(str).str.strip()
+                
+                chunks.append(chunk)
             
-            # Проверим, есть ли нужные колонки
-            if not all(col in df.columns for col in EXPECTED_COLS):
-                # Если колонок нет, попробуем стандартный формат Adobe Stock
-                standard_cols = ['Title', 'Asset ID', 'Sales', 'Revenue']
-                if all(col in df.columns for col in standard_cols):
-                    # Конвертируем в наш формат
-                    df = self._convert_standard_format(df)
-                else:
-                    raise ValueError("Не удалось определить формат CSV файла")
-        
-        # Нормализация типов
-        if 'sale_datetime_utc' in df.columns:
-            df["sale_datetime_utc"] = pd.to_datetime(df["sale_datetime_utc"], utc=True, errors="coerce")
-        
-        if 'asset_id' in df.columns:
-            df["asset_id"] = df["asset_id"].astype(str).str.strip()
-        
-        if 'royalty_usd' in df.columns:
-            df["royalty_usd"] = self._to_amount(df["royalty_usd"])
-        
-        # Нормализация категорий
-        for c in ["license_plan", "media_type", "size_label", "contributor_name"]:
-            if c in df.columns:
-                df[c] = df[c].astype(str).str.strip().str.lower()
-        
-        # Нормализация текстов
-        for c in ["asset_title", "filename"]:
-            if c in df.columns:
-                df[c] = df[c].astype(str).str.strip()
-        
-        return df
+            # Объединяем чанки без копирования где возможно
+            if chunks:
+                return pd.concat(chunks, ignore_index=True, copy=False)
+            else:
+                return pd.DataFrame(columns=EXPECTED_COLS)
+                
+        except Exception as e:
+            # Fallback на старый метод для нестандартных форматов
+            try:
+                df = pd.read_csv(
+                    path,
+                    encoding="utf-8",
+                    sep=",",
+                    engine="python"
+                )
+                
+                # Проверим, есть ли нужные колонки
+                if not all(col in df.columns for col in EXPECTED_COLS):
+                    # Если колонок нет, попробуем стандартный формат Adobe Stock
+                    standard_cols = ['Title', 'Asset ID', 'Sales', 'Revenue']
+                    if all(col in df.columns for col in standard_cols):
+                        # Конвертируем в наш формат
+                        df = self._convert_standard_format(df)
+                    else:
+                        raise ValueError("Не удалось определить формат CSV файла")
+                
+                # Нормализация типов
+                if 'sale_datetime_utc' in df.columns:
+                    df["sale_datetime_utc"] = pd.to_datetime(df["sale_datetime_utc"], utc=True, errors="coerce")
+                
+                if 'asset_id' in df.columns:
+                    df["asset_id"] = df["asset_id"].astype(str).str.strip()
+                
+                if 'royalty_usd' in df.columns:
+                    df["royalty_usd"] = self._to_amount(df["royalty_usd"])
+                
+                # Нормализация категорий
+                for c in ["license_plan", "media_type", "size_label", "contributor_name"]:
+                    if c in df.columns:
+                        df[c] = df[c].astype(str).str.strip().str.lower()
+                
+                # Нормализация текстов
+                for c in ["asset_title", "filename"]:
+                    if c in df.columns:
+                        df[c] = df[c].astype(str).str.strip()
+                
+                return df
+            except Exception:
+                raise ValueError(f"Не удалось прочитать CSV файл: {e}")
     
     def _convert_standard_format(self, df: pd.DataFrame) -> pd.DataFrame:
         """Конвертирует стандартный формат Adobe Stock в наш формат."""
@@ -351,6 +398,15 @@ class AdvancedCSVProcessor:
         acceptance_rate: float = 65.0
     ) -> AdvancedProcessResult:
         """Основной метод обработки CSV."""
+        
+        # Проверка размера файла (для Hobby плана Railway ограничение 512MB RAM)
+        if os.path.exists(csv_path):
+            file_size_mb = os.path.getsize(csv_path) / 1024 / 1024
+            if file_size_mb > 10:  # Больше 10 МБ не обрабатываем на Hobby плане
+                raise ValueError(
+                    f"Файл слишком большой ({file_size_mb:.1f}MB). Максимум: 10MB. "
+                    "Пожалуйста, уменьши размер файла или раздели его на части."
+                )
         
         # Чтение и нормализация
         df = self._read_and_normalize(csv_path)

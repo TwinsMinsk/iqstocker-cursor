@@ -26,8 +26,6 @@ from bot.keyboards.analytics import (
     get_csv_instruction_keyboard
 )
 from bot.states.analytics import AnalyticsStates
-from core.analytics.advanced_csv_processor import AdvancedCSVProcessor
-from core.analytics.report_generator_fixed import FixedReportGenerator
 from config.settings import settings
 from bot.utils.safe_edit import safe_edit_message
 
@@ -43,28 +41,20 @@ REPORT_MESSAGE_DELAY = 3  # секунды между сообщениями о�
 # ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 # ============================================================================
 
-def get_completed_analyses(user_id: int) -> List[CSVAnalysis]:
+async def get_completed_analyses(user_id: int, session: AsyncSession) -> List[CSVAnalysis]:
     """Получить все завершенные анализы пользователя с предзагрузкой отчетов."""
-    db = SessionLocal()
-    try:
-        # Используем joinedload для предзагрузки analytics_report
-        from sqlalchemy.orm import joinedload
-        analyses = db.query(CSVAnalysis).options(
-            joinedload(CSVAnalysis.analytics_report)
-        ).filter(
-            CSVAnalysis.user_id == user_id,
-            CSVAnalysis.status == AnalysisStatus.COMPLETED
-        ).order_by(desc(CSVAnalysis.created_at)).all()
-        
-        # Принудительно загружаем все связанные данные перед закрытием сессии
-        for analysis in analyses:
-            if analysis.analytics_report:
-                # Обращаемся к атрибутам, чтобы они загрузились
-                _ = analysis.analytics_report.id
-        
-        return analyses
-    finally:
-        db.close()
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+    
+    stmt = select(CSVAnalysis).options(
+        selectinload(CSVAnalysis.analytics_report)
+    ).where(
+        CSVAnalysis.user_id == user_id,
+        CSVAnalysis.status == AnalysisStatus.COMPLETED
+    ).order_by(desc(CSVAnalysis.created_at))
+    
+    result = await session.execute(stmt)
+    return result.scalars().all()
 
 
 def get_reports_from_analyses(analyses: List[CSVAnalysis]) -> List[AnalyticsReport]:
@@ -140,10 +130,10 @@ def validate_percentage(value: str) -> tuple[Optional[float], Optional[str]]:
         return None, f"⚠️ Пожалуйста, введи число. Попробуй еще раз:"
 
 
-async def show_analytics_menu_after_limit_exhausted(message: Message, user: User) -> None:
+async def show_analytics_menu_after_limit_exhausted(message: Message, user: User, session: AsyncSession) -> None:
     """Показать меню аналитики после исчерпания лимитов."""
     try:
-        completed_analyses = get_completed_analyses(user.id)
+        completed_analyses = await get_completed_analyses(user.id, session)
         
         if not completed_analyses:
             await message.answer(
@@ -350,7 +340,7 @@ async def analytics_callback(
         return
     
     # Получаем завершенные анализы
-    completed_analyses = get_completed_analyses(user.id)
+    completed_analyses = await get_completed_analyses(user.id, session)
     
     if not completed_analyses:
         # Нет отчетов - показываем intro с инструкцией CSV
@@ -414,9 +404,9 @@ async def show_intro_callback(
 
 
 @router.callback_query(F.data == "analytics_show_reports")
-async def show_reports_callback(callback: CallbackQuery, user: User, limits: Limits) -> None:
+async def show_reports_callback(callback: CallbackQuery, user: User, limits: Limits, session: AsyncSession) -> None:
     """Обработчик кнопки показа отчетов."""
-    completed_analyses = get_completed_analyses(user.id)
+    completed_analyses = await get_completed_analyses(user.id, session)
     
     if not completed_analyses:
         await safe_edit_message(
@@ -438,7 +428,13 @@ async def show_reports_callback(callback: CallbackQuery, user: User, limits: Lim
 
 
 @router.message(F.document)
-async def handle_csv_upload(message: Message, state: FSMContext, user: User, limits: Limits) -> None:
+async def handle_csv_upload(
+    message: Message, 
+    state: FSMContext, 
+    user: User, 
+    limits: Limits,
+    session: AsyncSession
+) -> None:
     """Обработчик загрузки CSV файла."""
     # Проверка доступа
     if user.subscription_type == SubscriptionType.FREE:
@@ -454,7 +450,10 @@ async def handle_csv_upload(message: Message, state: FSMContext, user: User, lim
             await asyncio.sleep(MESSAGE_DELETE_DELAY)
             await delete_message_safe(message.bot, message.chat.id, message.message_id)
             await delete_message_safe(message.bot, message.chat.id, limit_msg.message_id)
-            await show_analytics_menu_after_limit_exhausted(message, user)
+            # Используем новую сессию для cleanup
+            from config.database import AsyncSessionLocal
+            async with AsyncSessionLocal() as cleanup_session:
+                await show_analytics_menu_after_limit_exhausted(message, user, cleanup_session)
         
         asyncio.create_task(cleanup_and_return_to_menu())
         return
@@ -474,12 +473,27 @@ async def handle_csv_upload(message: Message, state: FSMContext, user: User, lim
         return
     
     try:
-        # Скачивание файла
+        # Скачивание файла из Telegram
         file_info = await message.bot.get_file(document.file_id)
-        file_path = f"{settings.upload_folder}/{user.telegram_id}_{document.file_name}"
         
-        os.makedirs(settings.upload_folder, exist_ok=True)
-        await message.bot.download_file(file_info.file_path, file_path)
+        # Загрузка в Supabase Storage
+        from services.storage_service import StorageService
+        storage = StorageService()
+        
+        # Скачиваем файл в память
+        # bot.download может вернуть IO или bytes, читаем в bytes
+        file_data = await message.bot.download(file_info.file_path)
+        if hasattr(file_data, 'read'):
+            # Если это IO объект, читаем его
+            file_bytes = file_data.read()
+            if hasattr(file_data, 'close'):
+                file_data.close()
+        else:
+            # Если уже bytes
+            file_bytes = file_data
+        
+        # Загружаем в Supabase Storage
+        file_key = await storage.upload_csv(file_bytes, user.telegram_id, document.file_name)
         
         # Показываем статус получения файла
         file_size_kb = document.file_size / 1024
@@ -496,34 +510,32 @@ async def handle_csv_upload(message: Message, state: FSMContext, user: User, lim
         await delete_message_safe(message.bot, message.chat.id, status_msg.message_id)
         await delete_message_safe(message.bot, message.chat.id, message.message_id)
         
-        # Создаем запись анализа в БД
-        db = SessionLocal()
-        try:
-            csv_analysis = CSVAnalysis(
-                user_id=user.id,
-                file_path=file_path,
-                month=datetime.now().month,
-                year=datetime.now().year,
-                status=AnalysisStatus.PENDING
-            )
-            db.add(csv_analysis)
-            db.commit()
-            db.refresh(csv_analysis)
-            
-            # Сохраняем ID анализа и переходим к сбору данных
-            await state.update_data(csv_analysis_id=csv_analysis.id)
-            await state.set_state(AnalyticsStates.waiting_for_portfolio_size)
+        # Создаем запись анализа в БД (используем AsyncSession)
+        from sqlalchemy import select
+        
+        csv_analysis = CSVAnalysis(
+            user_id=user.id,
+            file_path=file_key,  # теперь это ключ Storage, а не локальный путь
+            month=datetime.now().month,
+            year=datetime.now().year,
+            status=AnalysisStatus.PENDING
+        )
+        session.add(csv_analysis)
+        await session.commit()
+        await session.refresh(csv_analysis)
+        
+        # Сохраняем ID анализа и переходим к сбору данных
+        await state.update_data(csv_analysis_id=csv_analysis.id)
+        await state.set_state(AnalyticsStates.waiting_for_portfolio_size)
 
-            # Отправляем приглашение к FSM и первый вопрос
-            fsm_prompt_msg = await message.answer(LEXICON_RU['start_fsm_prompt'])
-            q_msg = await message.answer(LEXICON_RU['ask_portfolio_size'])
+        # Отправляем приглашение к FSM и первый вопрос
+        fsm_prompt_msg = await message.answer(LEXICON_RU['start_fsm_prompt'])
+        q_msg = await message.answer(LEXICON_RU['ask_portfolio_size'])
 
-            await state.update_data(
-                fsm_prompt_msg_id=fsm_prompt_msg.message_id,
-                question_msg_id=q_msg.message_id
-            )
-        finally:
-            db.close()
+        await state.update_data(
+            fsm_prompt_msg_id=fsm_prompt_msg.message_id,
+            question_msg_id=q_msg.message_id
+        )
             
     except Exception as e:
         await message.answer(
@@ -620,7 +632,13 @@ async def handle_acceptance_rate(message: Message, state: FSMContext) -> None:
 
 
 @router.callback_query(F.data.startswith("content_type_"))
-async def handle_content_type_callback(callback: CallbackQuery, state: FSMContext, user: User, limits: Limits):
+async def handle_content_type_callback(
+    callback: CallbackQuery, 
+    state: FSMContext, 
+    user: User, 
+    limits: Limits,
+    session: AsyncSession
+):
     """Handle content type selection via callback."""
     
     # Extract content type from callback data
@@ -653,28 +671,25 @@ async def handle_content_type_callback(callback: CallbackQuery, state: FSMContex
         except TelegramBadRequest:
             pass
     
-    # Update CSV analysis with user data
-    db = SessionLocal()
-    try:
-        csv_analysis = db.query(CSVAnalysis).filter(
-            CSVAnalysis.id == data["csv_analysis_id"]
-        ).first()
+    # Update CSV analysis with user data (используем AsyncSession)
+    from sqlalchemy import select
+    
+    stmt = select(CSVAnalysis).where(CSVAnalysis.id == data["csv_analysis_id"])
+    result = await session.execute(stmt)
+    csv_analysis = result.scalar_one_or_none()
+    
+    if csv_analysis:
+        csv_analysis.portfolio_size = data["portfolio_size"]
+        csv_analysis.upload_limit = data["upload_limit"]
+        csv_analysis.monthly_uploads = data["monthly_uploads"]
+        csv_analysis.acceptance_rate = data["acceptance_rate"]
+        # write legacy DB enum value to avoid enum mismatch errors
+        csv_analysis.content_type = db_content_type
+        csv_analysis.status = AnalysisStatus.PROCESSING
         
-        if csv_analysis:
-            csv_analysis.portfolio_size = data["portfolio_size"]
-            csv_analysis.upload_limit = data["upload_limit"]
-            csv_analysis.monthly_uploads = data["monthly_uploads"]
-            csv_analysis.acceptance_rate = data["acceptance_rate"]
-            # write legacy DB enum value to avoid enum mismatch errors
-            csv_analysis.content_type = db_content_type
-            csv_analysis.status = AnalysisStatus.PROCESSING
-            
-            db.commit()
-        
-        # NOTE: Лимит будет списан ПОСЛЕ успешной обработки CSV в process_csv_analysis()
-        
-    finally:
-        db.close()
+        await session.commit()
+    
+    # NOTE: Лимит будет списан ПОСЛЕ успешной обработки CSV в Dramatiq воркере
     
     # Get intro_message_id before clearing state
     intro_message_id = data.get('analytics_intro_message_id')
@@ -683,24 +698,28 @@ async def handle_content_type_callback(callback: CallbackQuery, state: FSMContex
     await state.clear()
     
     # Send processing message
-    processing_msg = await callback.message.answer(LEXICON_RU['processing_csv'])
+    await callback.message.answer(LEXICON_RU['csv_processing_started'])
     
     # Answer callback
     await callback.answer()
     
-    # Process CSV in background
-    asyncio.create_task(
-        process_csv_analysis(
-            data["csv_analysis_id"], 
-            callback.message,
-            processing_msg_id=processing_msg.message_id,
-            intro_message_id=intro_message_id
-        )
+    # Отправляем задачу в Dramatiq воркер
+    from workers.actors import process_csv_analysis_task
+    
+    process_csv_analysis_task.send(
+        csv_analysis_id=data["csv_analysis_id"],
+        user_telegram_id=user.telegram_id
     )
 
 
 @router.message(AnalyticsStates.waiting_for_content_type)
-async def handle_content_type_text(message: Message, state: FSMContext, user: User, limits: Limits):
+async def handle_content_type_text(
+    message: Message, 
+    state: FSMContext, 
+    user: User, 
+    limits: Limits,
+    session: AsyncSession
+):
     """Handle content type text input (fallback for manual typing)."""
     
     # Get data from state
@@ -745,28 +764,25 @@ async def handle_content_type_text(message: Message, state: FSMContext, user: Us
     
     content_type_enum = to_db_enum_mapping.get(content_type, 'PHOTOS')
     
-    # Update CSV analysis with user data
-    db = SessionLocal()
-    try:
-        csv_analysis = db.query(CSVAnalysis).filter(
-            CSVAnalysis.id == data["csv_analysis_id"]
-        ).first()
+    # Update CSV analysis with user data (используем AsyncSession)
+    from sqlalchemy import select
+    
+    stmt = select(CSVAnalysis).where(CSVAnalysis.id == data["csv_analysis_id"])
+    result = await session.execute(stmt)
+    csv_analysis = result.scalar_one_or_none()
+    
+    if csv_analysis:
+        csv_analysis.portfolio_size = data["portfolio_size"]
+        csv_analysis.upload_limit = data["upload_limit"]
+        csv_analysis.monthly_uploads = data["monthly_uploads"]
+        csv_analysis.acceptance_rate = data["acceptance_rate"]
+        # write legacy DB enum value to avoid enum mismatch errors
+        csv_analysis.content_type = content_type_enum
+        csv_analysis.status = AnalysisStatus.PROCESSING
         
-        if csv_analysis:
-            csv_analysis.portfolio_size = data["portfolio_size"]
-            csv_analysis.upload_limit = data["upload_limit"]
-            csv_analysis.monthly_uploads = data["monthly_uploads"]
-            csv_analysis.acceptance_rate = data["acceptance_rate"]
-            # write legacy DB enum value to avoid enum mismatch errors
-            csv_analysis.content_type = content_type_enum
-            csv_analysis.status = AnalysisStatus.PROCESSING
-            
-            db.commit()
-        
-        # NOTE: Лимит будет списан ПОСЛЕ успешной обработки CSV в process_csv_analysis()
-        
-    finally:
-        db.close()
+        await session.commit()
+    
+    # NOTE: Лимит будет списан ПОСЛЕ успешной обработки CSV в Dramatiq воркере
     
     # Get intro_message_id before clearing state
     intro_message_id = data.get('analytics_intro_message_id')
@@ -775,73 +791,70 @@ async def handle_content_type_text(message: Message, state: FSMContext, user: Us
     await state.clear()
     
     # Send processing message
-    processing_msg = await message.answer(LEXICON_RU['processing_csv'])
+    await message.answer(LEXICON_RU['csv_processing_started'])
     
-    # Process CSV in background
-    asyncio.create_task(
-        process_csv_analysis(
-            data["csv_analysis_id"], 
-            message,
-            processing_msg_id=processing_msg.message_id,
-            intro_message_id=intro_message_id
-        )
+    # Отправляем задачу в Dramatiq воркер
+    from workers.actors import process_csv_analysis_task
+    
+    process_csv_analysis_task.send(
+        csv_analysis_id=data["csv_analysis_id"],
+        user_telegram_id=user.telegram_id
     )
 
 
 @router.callback_query(F.data.startswith("view_report_"))
-async def view_report_callback(callback: CallbackQuery, user: User) -> None:
+async def view_report_callback(callback: CallbackQuery, user: User, session: AsyncSession) -> None:
     """Обработчик просмотра конкретного отчета."""
     report_id = int(callback.data.replace("view_report_", ""))
     
-    db = SessionLocal()
-    try:
-        # Получаем отчет
-        report = db.query(AnalyticsReport).filter(
-            AnalyticsReport.id == report_id
-        ).first()
-        
-        if not report:
-            await callback.answer(
-                LEXICON_RU.get('report_not_found', 'Отчет не найден'),
-                show_alert=True
-            )
-            return
-        
-        # Проверяем владельца через csv_analysis
-        analysis = db.query(CSVAnalysis).filter(
-            CSVAnalysis.id == report.csv_analysis_id,
-            CSVAnalysis.user_id == user.id
-        ).first()
-        
-        if not analysis:
-            await callback.answer(
-                LEXICON_RU.get('report_not_found', 'Отчет не найден'),
-                show_alert=True
-            )
-            return
-        
-        # Получаем все отчеты пользователя для навигации
-        all_reports = db.query(AnalyticsReport).join(CSVAnalysis).filter(
+    from sqlalchemy import select
+    
+    # Получаем отчет
+    stmt = select(AnalyticsReport).where(AnalyticsReport.id == report_id)
+    result = await session.execute(stmt)
+    report = result.scalar_one_or_none()
+    
+    if not report:
+        await callback.answer(
+            LEXICON_RU.get('report_not_found', 'Отчет не найден'),
+            show_alert=True
+        )
+        return
+    
+    # Проверяем владельца через csv_analysis
+    stmt = select(CSVAnalysis).where(
+        CSVAnalysis.id == report.csv_analysis_id,
+        CSVAnalysis.user_id == user.id
+    )
+    result = await session.execute(stmt)
+    analysis = result.scalar_one_or_none()
+    
+    if not analysis:
+        await callback.answer(
+            LEXICON_RU.get('report_not_found', 'Отчет не найден'),
+            show_alert=True
+        )
+        return
+    
+    # Получаем все отчеты пользователя для навигации
+    stmt = (
+        select(AnalyticsReport)
+        .join(CSVAnalysis)
+        .where(
             CSVAnalysis.user_id == user.id,
             CSVAnalysis.status == AnalysisStatus.COMPLETED
-        ).order_by(desc(AnalyticsReport.created_at)).all()
-        
-        # Принудительно загружаем данные перед закрытием сессии
-        report_text = report.report_text_html
-        report_id_copy = report.id
-        
-        # Загружаем ID всех отчетов
-        for r in all_reports:
-            _ = r.id
-        
-        # Показываем отчет с навигацией
-        await safe_edit_message(
-            callback=callback,
-            text=report_text,
-            reply_markup=get_analytics_report_view_keyboard(all_reports, report_id_copy, user.subscription_type)
         )
-    finally:
-        db.close()
+        .order_by(desc(AnalyticsReport.created_at))
+    )
+    result = await session.execute(stmt)
+    all_reports = result.scalars().all()
+    
+    # Показываем отчет с навигацией
+    await safe_edit_message(
+        callback=callback,
+        text=report.report_text_html,
+        reply_markup=get_analytics_report_view_keyboard(all_reports, report.id, user.subscription_type)
+    )
     
     await callback.answer()
 
@@ -867,186 +880,31 @@ async def new_analysis_callback(
     await callback.answer()
 
 
-async def process_csv_analysis(
-    csv_analysis_id: int, 
-    message: Message,
-    processing_msg_id: int = None,
-    intro_message_id: int = None
-):
-    """Process CSV analysis in background using advanced processor."""
-    
-    print(f"🔄 Начинаем обработку CSV анализа {csv_analysis_id}")
-    
-    try:
-        # Use advanced CSV processor
-        advanced_processor = AdvancedCSVProcessor()
-        db = SessionLocal()
-        
-        try:
-            csv_analysis = db.query(CSVAnalysis).filter(
-                CSVAnalysis.id == csv_analysis_id
-            ).first()
-            
-            if not csv_analysis:
-                print(f"❌ CSV анализ {csv_analysis_id} не найден")
-                return
-            
-            # Get user for main menu
-            user = db.query(User).filter(User.id == csv_analysis.user_id).first()
-            if not user:
-                print(f"❌ Пользователь для CSV анализа {csv_analysis_id} не найден")
-                return
-            
-            print(f"📊 Обрабатываем файл: {csv_analysis.file_path}")
-            
-            # Process CSV with advanced processor
-            result = advanced_processor.process_csv(
-                csv_path=csv_analysis.file_path,
-                portfolio_size=csv_analysis.portfolio_size or 100,
-                upload_limit=csv_analysis.upload_limit or 50,
-                monthly_uploads=csv_analysis.monthly_uploads or 30,
-                acceptance_rate=csv_analysis.acceptance_rate or 65.0
-            )
-            
-            print(f"✅ CSV обработан: {result.rows_used} продаж, ${result.total_revenue_usd}")
-            
-            # Generate bot report data using fixed generator
-            report_generator = FixedReportGenerator()
-            report_data = report_generator.generate_monthly_report(result)
-            
-            # Save results to database
-            
-            # Create analytics report (save combined format for archive)
-            analytics_report = AnalyticsReport(
-                csv_analysis_id=csv_analysis_id,
-                total_sales=result.rows_used,
-                total_revenue=result.total_revenue_usd,
-                avg_revenue_per_sale=result.avg_revenue_per_sale,
-                portfolio_sold_percent=result.portfolio_sold_percent,
-                new_works_sales_percent=result.new_works_sales_percent,
-                acceptance_rate_calc=result.acceptance_rate,
-                upload_limit_usage=result.upload_limit_usage,
-                report_text_html=report_generator.generate_combined_report_for_archive(result),  # Combined report for archive
-                period_human_ru=result.period_human_ru  # Сохраняем период
-            )
-            db.add(analytics_report)
-            db.flush()
-            
-            
-            # Update CSV analysis status
-            csv_analysis.status = AnalysisStatus.COMPLETED
-            csv_analysis.processed_at = datetime.now(timezone.utc)
-            
-            # СПИСЫВАЕМ ЛИМИТ ТОЛЬКО ПОСЛЕ УСПЕШНОЙ ОБРАБОТКИ
-            user_limits = db.query(Limits).filter(Limits.user_id == user.id).first()
-            if user_limits:
-                user_limits.analytics_used += 1
-            
-            db.commit()
-            
-            # Invalidate cache after updating limits
-            from core.cache.user_cache import get_user_cache_service
-            cache_service = get_user_cache_service()
-            cache_service.invalidate_limits(user.id)
-            
-            print(f"✅ Результаты сохранены в базу данных, лимит списан")
-            
-            # Delete processing message and intro message before showing report
-            if processing_msg_id:
-                try:
-                    await message.bot.delete_message(chat_id=message.chat.id, message_id=processing_msg_id)
-                except TelegramBadRequest:
-                    pass  # Message already deleted
-            
-            if intro_message_id:
-                try:
-                    await message.bot.delete_message(chat_id=message.chat.id, message_id=intro_message_id)
-                except TelegramBadRequest:
-                    pass  # Message already deleted
-            
-            # Удаляем предыдущие сообщения аналитики этого пользователя, если они есть
-            try:
-                prev_analyses = db.query(CSVAnalysis).filter(
-                    CSVAnalysis.user_id == user.id,
-                    CSVAnalysis.id != csv_analysis_id,
-                    CSVAnalysis.analytics_message_ids.isnot(None)
-                ).all()
-                
-                for prev_analysis in prev_analyses:
-                    if prev_analysis.analytics_message_ids:
-                        prev_message_ids = [int(msg_id) for msg_id in prev_analysis.analytics_message_ids.split(',')]
-                        for msg_id in prev_message_ids:
-                            try:
-                                await message.bot.delete_message(chat_id=message.chat.id, message_id=msg_id)
-                            except TelegramBadRequest:
-                                pass  # Игнорируем ошибки (сообщение может быть уже удалено)
-                        prev_analysis.analytics_message_ids = None
-                db.commit()
-            except Exception as e:
-                print(f"⚠️ Ошибка удаления предыдущих сообщений: {e}")
-
-            # Отправляем последовательность сообщений с отчетом
-            analytics_message_ids = await send_analytics_report_messages(
-                message=message,
-                report_data=report_data,
-                csv_analysis_id=csv_analysis_id
-            )
-            
-            # Сохраняем ID сообщений в CSV analysis для последующего удаления
-            csv_analysis.analytics_message_ids = ','.join(map(str, analytics_message_ids))
-            db.commit()
-            
-            print(f"✅ Отчет отправлен пользователю")
-            
-        finally:
-            db.close()
-            
-    except Exception as e:
-        print(f"❌ Ошибка обработки CSV анализа {csv_analysis_id}: {e}")
-        import traceback
-        traceback.print_exc()
-        
-        # Обновляем статус на FAILED
-        try:
-            db = SessionLocal()
-            csv_analysis = db.query(CSVAnalysis).filter(CSVAnalysis.id == csv_analysis_id).first()
-            if csv_analysis:
-                csv_analysis.status = AnalysisStatus.FAILED
-                db.commit()
-            db.close()
-        except Exception as db_error:
-            print(f"❌ Ошибка обновления статуса: {db_error}")
-        
-        await message.answer("❌ Произошла ошибка при обработке файла. Попробуй еще раз.")
-
-
 @router.callback_query(F.data.startswith("analytics_report_back_"))
-async def analytics_report_back_callback(callback: CallbackQuery, user: User) -> None:
+async def analytics_report_back_callback(callback: CallbackQuery, user: User, session: AsyncSession) -> None:
     """Обработчик кнопки возврата в меню после отчета аналитики."""
     csv_analysis_id = int(callback.data.replace("analytics_report_back_", ""))
     
-    db = SessionLocal()
-    try:
-        analysis = db.query(CSVAnalysis).filter(
-            CSVAnalysis.id == csv_analysis_id
-        ).first()
+    from sqlalchemy import select
+    
+    stmt = select(CSVAnalysis).where(CSVAnalysis.id == csv_analysis_id)
+    result = await session.execute(stmt)
+    analysis = result.scalar_one_or_none()
+    
+    # Удаляем все сообщения отчета
+    if analysis and hasattr(analysis, 'analytics_message_ids') and analysis.analytics_message_ids:
+        message_ids = [int(msg_id) for msg_id in analysis.analytics_message_ids.split(',')]
         
-        # Удаляем все сообщения отчета
-        if analysis and hasattr(analysis, 'analytics_message_ids') and analysis.analytics_message_ids:
-            message_ids = [int(msg_id) for msg_id in analysis.analytics_message_ids.split(',')]
-            
-            for msg_id in message_ids:
-                await delete_message_safe(callback.bot, callback.message.chat.id, msg_id)
-            
-            analysis.analytics_message_ids = None
-            db.commit()
+        for msg_id in message_ids:
+            await delete_message_safe(callback.bot, callback.message.chat.id, msg_id)
         
-        # Показываем главное меню
-        await callback.message.answer(
-            text=LEXICON_RU['main_menu_message'],
-            reply_markup=get_main_menu_keyboard(user.subscription_type)
-        )
-    finally:
-        db.close()
+        analysis.analytics_message_ids = None
+        await session.commit()
+    
+    # Показываем главное меню
+    await callback.message.answer(
+        text=LEXICON_RU['main_menu_message'],
+        reply_markup=get_main_menu_keyboard(user.subscription_type)
+    )
     
     await callback.answer()

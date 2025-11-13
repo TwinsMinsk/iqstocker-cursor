@@ -63,6 +63,8 @@ pydantic-settings==2.6.1
 structlog==24.4.0
 sentry-sdk[flask]==2.18.0
 httpx==0.28.1
+supabase==2.3.4
+psutil==5.9.8
 
 # Development
 pytest==8.3.4

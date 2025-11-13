@@ -158,6 +158,8 @@ Thumbs.db
 *.temp
 temp/
 tmp/
+/tmp/
+*.csv
 
 # Test files
 test_*.csv

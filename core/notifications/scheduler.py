@@ -10,6 +10,7 @@ from core.notifications.notification_manager import get_notification_manager
 from core.notifications.themes_notifications import notify_new_period_themes, notify_weekly_themes, send_theme_limit_burn_reminders
 from core.admin.calendar_manager import CalendarManager
 from core.theme_settings import check_and_burn_unused_theme_limits
+from core.monitoring.resource_monitor import ResourceMonitor
 from database.models import CalendarEntry, User, Limits, SubscriptionType
 from sqlalchemy import select
 from config.database import AsyncSessionLocal
@@ -26,6 +27,7 @@ class TaskScheduler:
         self.scheduler = AsyncIOScheduler()
         self.bot = bot
         self.notification_manager = get_notification_manager(bot)
+        self.resource_monitor = ResourceMonitor()
     
     def start(self):
         """Start the scheduler."""
@@ -100,6 +102,14 @@ class TaskScheduler:
             CronTrigger(hour=11, minute=0),
             id='theme_limit_burn_reminder_1_day',
             name='Send 1-day theme limit burn reminders'
+        )
+        
+        # Мониторинг ресурсов каждые 5 минут
+        self.scheduler.add_job(
+            self.monitor_resources,
+            IntervalTrigger(minutes=5),
+            id='resource_monitoring',
+            name='Resource monitoring'
         )
         
         # Start the scheduler
@@ -280,6 +290,13 @@ class TaskScheduler:
             except Exception as e:
                 logger.error(f"Error sending 1-day reminders: {e}")
                 print(f"Error sending 1-day reminders: {e}")
+    
+    async def monitor_resources(self):
+        """Мониторинг использования ресурсов."""
+        try:
+            self.resource_monitor.log_current_usage()
+        except Exception as e:
+            logger.error(f"Error monitoring resources: {e}")
     
     def list_jobs(self):
         """List all scheduled jobs."""

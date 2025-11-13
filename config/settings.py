@@ -157,6 +157,8 @@ class Settings:
         self.ultra_analytics_limit = self.app.ultra_analytics_limit
         self.ultra_themes_limit = self.app.ultra_themes_limit
         self.new_works_id_prefix = self.app.new_works_id_prefix
+        self.supabase_url = self.app.supabase_url
+        self.supabase_key = self.app.supabase_key
 
 
 class AppSettings(BaseSettings):
@@ -175,7 +177,11 @@ class AppSettings(BaseSettings):
     
     # File Storage
     upload_folder: str = Field("uploads", env="UPLOAD_FOLDER")
-    max_file_size: int = Field(10485760, env="MAX_FILE_SIZE")  # 10MB
+    max_file_size: int = Field(5242880, env="MAX_FILE_SIZE")  # 5MB (reduced for Hobby plan)
+    
+    # Supabase Storage
+    supabase_url: Optional[str] = Field(None, env="SUPABASE_URL")
+    supabase_key: Optional[str] = Field(None, env="SUPABASE_KEY")
     
     # Rate Limiting
     adobe_stock_rate_limit: int = Field(10, env="ADOBE_STOCK_RATE_LIMIT")

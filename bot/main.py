@@ -14,6 +14,7 @@ from bot.middlewares.database import DatabaseMiddleware
 from bot.middlewares.subscription import SubscriptionMiddleware
 from bot.middlewares.blocked_user import BlockedUserMiddleware
 from bot.middlewares.limits import LimitsMiddleware
+from bot.middlewares.rate_limit import UploadRateLimitMiddleware
 from core.utils.lexicon_validator import validate_or_raise
 
 # Configure logging
@@ -65,6 +66,7 @@ async def main():
     dp.callback_query.middleware(BlockedUserMiddleware())
     dp.message.middleware(LimitsMiddleware())
     dp.callback_query.middleware(LimitsMiddleware())
+    dp.message.middleware(UploadRateLimitMiddleware())
     
     # Register routers
     dp.include_router(start.router)
@@ -101,9 +103,38 @@ async def main():
         logger.error(f"Bot error: {e}", exc_info=True)
         raise
     finally:
-        # Stop scheduler
-        scheduler.stop()
+        logger.info("Shutting down gracefully...")
+        
+        # Закрыть все pending tasks
+        pending = [task for task in asyncio.all_tasks() if not task.done()]
+        logger.info(f"Cancelling {len(pending)} pending tasks...")
+        
+        for task in pending:
+            task.cancel()
+        
+        # Ждем завершения с timeout
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(*pending, return_exceptions=True),
+                timeout=5.0
+            )
+        except asyncio.TimeoutError:
+            logger.warning("Some tasks did not complete in time")
+        
+        # Закрыть DB engine
+        from config.database import async_engine
+        await async_engine.dispose()
+        logger.info("Database engine disposed")
+        
+        # Остановить scheduler
+        scheduler.shutdown(wait=False)
+        logger.info("Scheduler stopped")
+        
+        # Закрыть бота
         await bot.session.close()
+        logger.info("Bot session closed")
+        
+        logger.info("Shutdown complete")
 
 
 if __name__ == "__main__":

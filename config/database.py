@@ -217,6 +217,24 @@ SUPABASE_SESSION_LIMIT = int(os.getenv("SUPABASE_SESSION_LIMIT", "2" if is_supab
 db_logger.info(f"Using SUPABASE_SESSION_LIMIT={SUPABASE_SESSION_LIMIT} for concurrent async sessions")
 _async_session_semaphore = asyncio.Semaphore(SUPABASE_SESSION_LIMIT)
 
+# Семафор для синхронных сессий (если останутся в воркерах)
+import threading
+_sync_session_semaphore = threading.Semaphore(2)
+
+class ManagedSessionLocal:
+    """Context manager для SessionLocal с ограничением."""
+    
+    def __enter__(self):
+        _sync_session_semaphore.acquire()
+        self.session = SessionLocal()
+        return self.session
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        try:
+            self.session.close()
+        finally:
+            _sync_session_semaphore.release()
+
 
 class ManagedAsyncSession(AsyncSession):
     """Async session that throttles concurrent DB connections via semaphore."""

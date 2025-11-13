@@ -137,12 +137,213 @@ def reinitialize_broker_after_fork():
 # Note: При multiprocessing каждый процесс заново импортирует модуль,
 # поэтому ensure_broker_initialized() вызывается при каждом импорте
 
+@dramatiq.actor(max_retries=3, time_limit=120000)  # 2 минуты на обработку
+def process_csv_analysis_task(csv_analysis_id: int, user_telegram_id: int):
+    """Обработка CSV в фоновом воркере."""
+    from config.database import SessionLocal
+    from core.analytics.advanced_csv_processor import AdvancedCSVProcessor
+    from core.analytics.report_generator_fixed import FixedReportGenerator
+    from services.storage_service import StorageService
+    from database.models import CSVAnalysis, AnalyticsReport, User, Limits, AnalysisStatus
+    from datetime import datetime, timezone
+    import os
+    
+    logger.info(f"Starting CSV analysis {csv_analysis_id}")
+    
+    db = SessionLocal()
+    storage = StorageService()
+    temp_path = None
+    
+    try:
+        csv_analysis = db.query(CSVAnalysis).filter(
+            CSVAnalysis.id == csv_analysis_id
+        ).first()
+        
+        if not csv_analysis:
+            logger.error(f"Analysis {csv_analysis_id} not found")
+            return {"status": "error", "message": "Analysis not found"}
+        
+        # Скачиваем файл из Storage во временный файл
+        temp_path = storage.download_csv_to_temp(csv_analysis.file_path)
+        
+        logger.info(f"Processing file from Storage: {csv_analysis.file_path}")
+        
+        # Обработка CSV
+        processor = AdvancedCSVProcessor()
+        result = processor.process_csv(
+            csv_path=temp_path,
+            portfolio_size=csv_analysis.portfolio_size or 100,
+            upload_limit=csv_analysis.upload_limit or 50,
+            monthly_uploads=csv_analysis.monthly_uploads or 30,
+            acceptance_rate=csv_analysis.acceptance_rate or 65.0
+        )
+        
+        logger.info(f"CSV processed: {result.rows_used} sales, ${result.total_revenue_usd}")
+        
+        # Генерация отчета
+        report_generator = FixedReportGenerator()
+        report_data = report_generator.generate_combined_report_for_archive(result)
+        
+        # Сохранение результатов
+        analytics_report = AnalyticsReport(
+            csv_analysis_id=csv_analysis_id,
+            total_sales=result.rows_used,
+            total_revenue=result.total_revenue_usd,
+            avg_revenue_per_sale=result.avg_revenue_per_sale,
+            portfolio_sold_percent=result.portfolio_sold_percent,
+            new_works_sales_percent=result.new_works_sales_percent,
+            acceptance_rate_calc=result.acceptance_rate,
+            upload_limit_usage=result.upload_limit_usage,
+            report_text_html=report_data,
+            period_human_ru=result.period_human_ru
+        )
+        db.add(analytics_report)
+        
+        # Обновление статуса
+        csv_analysis.status = AnalysisStatus.COMPLETED
+        csv_analysis.processed_at = datetime.now(timezone.utc)
+        
+        # Списание лимита
+        user = db.query(User).filter(User.id == csv_analysis.user_id).first()
+        if user:
+            limits = db.query(Limits).filter(Limits.user_id == user.id).first()
+            if limits:
+                limits.analytics_used += 1
+        
+        db.commit()
+        
+        # Инвалидация кэша
+        try:
+            from core.cache.user_cache import get_user_cache_service
+            cache_service = get_user_cache_service()
+            cache_service.invalidate_limits(user.id)
+        except Exception as cache_error:
+            logger.warning(f"Failed to invalidate cache: {cache_error}")
+        
+        logger.info(f"Analysis {csv_analysis_id} completed successfully")
+        
+        # Отправка уведомления пользователю
+        notify_analysis_complete.send(user_telegram_id, csv_analysis_id)
+        
+        return {"status": "success", "analysis_id": csv_analysis_id}
+        
+    except Exception as e:
+        logger.error(f"CSV processing failed: {e}", exc_info=True)
+        
+        # Обновление статуса на FAILED
+        try:
+            csv_analysis = db.query(CSVAnalysis).filter(
+                CSVAnalysis.id == csv_analysis_id
+            ).first()
+            if csv_analysis:
+                csv_analysis.status = AnalysisStatus.FAILED
+                db.commit()
+        except Exception as db_error:
+            logger.error(f"Failed to update status: {db_error}")
+        
+        # Уведомление пользователя об ошибке
+        notify_analysis_failed.send(user_telegram_id, str(e))
+        
+        return {"status": "error", "message": str(e)}
+        
+    finally:
+        # Очистка временного файла
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+                logger.info(f"Deleted temp file: {temp_path}")
+            except Exception as e:
+                logger.error(f"Failed to delete temp file: {e}")
+        
+        db.close()
+
+
 @dramatiq.actor
-def process_csv_file(file_path: str, user_id: int):
-    """Process CSV file in background."""
-    print(f"Processing CSV file: {file_path} for user {user_id}")
-    # Add your CSV processing logic here
-    return {"status": "completed", "file": file_path}
+def notify_analysis_complete(user_telegram_id: int, csv_analysis_id: int):
+    """Отправить пользователю полный отчет после завершения анализа."""
+    from aiogram import Bot
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    from config.settings import settings
+    from bot.lexicon import LEXICON_RU, LEXICON_COMMANDS_RU
+    from config.database import SessionLocal
+    from database.models import AnalyticsReport
+    import asyncio
+    
+    try:
+        bot = Bot(token=settings.bot_token)
+        db = SessionLocal()
+        
+        # Получаем отчет из БД
+        report = db.query(AnalyticsReport).filter(
+            AnalyticsReport.csv_analysis_id == csv_analysis_id
+        ).first()
+        
+        if not report:
+            logger.error(f"Report not found for analysis {csv_analysis_id}")
+            db.close()
+            return
+        
+        # Отправка полного отчета
+        async def send_report():
+            try:
+                # 1. Вводное сообщение
+                await bot.send_message(
+                    chat_id=user_telegram_id,
+                    text=LEXICON_RU['analysis_completed_intro']
+                )
+                
+                # 2. Полный отчет с кнопкой "Назад в меню"
+                back_to_menu_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(
+                        text=LEXICON_COMMANDS_RU['back_to_main_menu'],
+                        callback_data=f"analytics_report_back_{csv_analysis_id}"
+                    )]
+                ])
+                
+                await bot.send_message(
+                    chat_id=user_telegram_id,
+                    text=report.report_text_html,
+                    reply_markup=back_to_menu_keyboard,
+                    parse_mode="HTML"
+                )
+                
+            finally:
+                await bot.session.close()
+        
+        asyncio.run(send_report())
+        db.close()
+        
+        logger.info(f"Full report sent to user {user_telegram_id}")
+        
+    except Exception as e:
+        logger.error(f"Failed to send report to user {user_telegram_id}: {e}", exc_info=True)
+
+
+@dramatiq.actor
+def notify_analysis_failed(user_telegram_id: int, error_message: str):
+    """Уведомить пользователя об ошибке анализа."""
+    from aiogram import Bot
+    from config.settings import settings
+    from bot.lexicon import LEXICON_RU
+    import asyncio
+    
+    try:
+        bot = Bot(token=settings.bot_token)
+        
+        async def send_notification():
+            try:
+                await bot.send_message(
+                    chat_id=user_telegram_id,
+                    text=LEXICON_RU['analysis_failed']
+                )
+            finally:
+                await bot.session.close()
+        
+        asyncio.run(send_notification())
+        
+    except Exception as e:
+        logger.error(f"Failed to notify user {user_telegram_id}: {e}")
+
 
 @dramatiq.actor
 def send_notification(user_id: int, message: str):
