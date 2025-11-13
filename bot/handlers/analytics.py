@@ -473,16 +473,18 @@ async def handle_csv_upload(
         return
     
     try:
-        # Скачивание файла из Telegram
-        file_info = await message.bot.get_file(document.file_id)
-        
         # Загрузка в Supabase Storage
         from services.storage_service import StorageService
         storage = StorageService()
         
         # Скачиваем файл в память
+        # В aiogram 3.x bot.download() принимает File объект или file_id
+        file_info = await message.bot.get_file(document.file_id)
+        
+        # Используем file_info (File объект) для скачивания
         # bot.download может вернуть IO или bytes, читаем в bytes
-        file_data = await message.bot.download(file_info.file_path)
+        file_data = await message.bot.download(file_info)
+        
         if hasattr(file_data, 'read'):
             # Если это IO объект, читаем его
             file_bytes = file_data.read()
