@@ -152,40 +152,47 @@ class UserCacheService:
         
         Returns tuple of (User, Limits). If not in cache, loads from DB and caches.
         """
-        # Try to get from cache first
-        user_cache_key = self._get_user_cache_key(telegram_id)
-        
-        try:
-            cached_user_data = self.redis_client.get(user_cache_key)
-            if cached_user_data:
-                user_data = json.loads(cached_user_data)
-                user_id = user_data["id"]
-                
-                # Try to get limits from cache
-                limits_cache_key = self._get_limits_cache_key(user_id)
-                cached_limits_data = self.redis_client.get(limits_cache_key)
-                
-                if cached_limits_data:
-                    limits_data = json.loads(cached_limits_data)
-                    # Reconstruct objects from cache
-                    user = self._dict_to_user(user_data, session)
-                    limits = self._dict_to_limits(limits_data, session)
+        # Try to get from cache first (only if Redis is available)
+        if self.redis_client is None:
+            # Skip cache, go directly to database
+            pass
+        else:
+            user_cache_key = self._get_user_cache_key(telegram_id)
+            
+            try:
+                cached_user_data = self.redis_client.get(user_cache_key)
+                if cached_user_data:
+                    user_data = json.loads(cached_user_data)
+                    user_id = user_data["id"]
                     
-                    if user and limits:
-                        # IMPORTANT: Use merge() to attach objects to session properly
-                        # This prevents SQLAlchemy from trying to INSERT existing objects
-                        # merge() will either return existing object from session or attach the new one
-                        user = await session.merge(user)
-                        limits = await session.merge(limits)
+                    # Try to get limits from cache
+                    limits_cache_key = self._get_limits_cache_key(user_id)
+                    cached_limits_data = self.redis_client.get(limits_cache_key)
+                    
+                    if cached_limits_data:
+                        limits_data = json.loads(cached_limits_data)
+                        # Reconstruct objects from cache
+                        user = self._dict_to_user(user_data, session)
+                        limits = self._dict_to_limits(limits_data, session)
                         
-                        # Link limits to user for relationship access
-                        user.limits = limits
-                        limits.user = user
-                        logger.debug(f"Cache hit for user {telegram_id} and limits {user_id}")
-                        return user, limits
-        
-        except Exception as e:
-            logger.warning(f"Error reading from cache: {e}")
+                        if user and limits:
+                            # IMPORTANT: Use merge() to attach objects to session properly
+                            # This prevents SQLAlchemy from trying to INSERT existing objects
+                            # merge() will either return existing object from session or attach the new one
+                            user = await session.merge(user)
+                            limits = await session.merge(limits)
+                            
+                            # Link limits to user for relationship access
+                            user.limits = limits
+                            limits.user = user
+                            logger.debug(f"Cache hit for user {telegram_id} and limits {user_id}")
+                            return user, limits
+            
+            except Exception as e:
+                # Use rate limiting for cache errors to reduce log spam
+                from core.utils.log_rate_limiter import should_log_redis_warning
+                if should_log_redis_warning("read_cache"):
+                    logger.warning(f"Error reading from cache: {e}")
         
         # Cache miss - load from database with single query using selectinload
         try:
@@ -209,23 +216,35 @@ class UserCacheService:
     
     def _cache_user(self, user: User) -> None:
         """Cache user data."""
+        if self.redis_client is None:
+            return  # Skip caching if Redis unavailable
+        
         try:
             cache_key = self._get_user_cache_key(user.telegram_id)
             user_data = self._user_to_dict(user)
             cache_data = json.dumps(user_data, default=str)
             self.redis_client.setex(cache_key, self.user_cache_ttl, cache_data)
         except Exception as e:
-            logger.warning(f"Failed to cache user {user.telegram_id}: {e}")
+            # Use rate limiting for cache errors to reduce log spam
+            from core.utils.log_rate_limiter import should_log_redis_warning
+            if should_log_redis_warning("cache_user"):
+                logger.warning(f"Failed to cache user {user.telegram_id}: {e}")
     
     def _cache_limits(self, limits: Limits) -> None:
         """Cache limits data."""
+        if self.redis_client is None:
+            return  # Skip caching if Redis unavailable
+        
         try:
             cache_key = self._get_limits_cache_key(limits.user_id)
             limits_data = self._limits_to_dict(limits)
             cache_data = json.dumps(limits_data, default=str)
             self.redis_client.setex(cache_key, self.limits_cache_ttl, cache_data)
         except Exception as e:
-            logger.warning(f"Failed to cache limits for user {limits.user_id}: {e}")
+            # Use rate limiting for cache errors to reduce log spam
+            from core.utils.log_rate_limiter import should_log_redis_warning
+            if should_log_redis_warning("cache_limits"):
+                logger.warning(f"Failed to cache limits for user {limits.user_id}: {e}")
     
     def invalidate_user(self, telegram_id: int) -> None:
         """Invalidate user cache."""
@@ -258,14 +277,15 @@ class UserCacheService:
             self.invalidate_limits(user_id)
         else:
             # If user_id not provided, try to get it from cache first
-            try:
-                cache_key = self._get_user_cache_key(telegram_id)
-                cached_data = self.redis_client.get(cache_key)
-                if cached_data:
-                    user_data = json.loads(cached_data)
-                    self.invalidate_limits(user_data["id"])
-            except Exception:
-                pass
+            if self.redis_client is not None:
+                try:
+                    cache_key = self._get_user_cache_key(telegram_id)
+                    cached_data = self.redis_client.get(cache_key)
+                    if cached_data:
+                        user_data = json.loads(cached_data)
+                        self.invalidate_limits(user_data["id"])
+                except Exception:
+                    pass
 
 
 # Global instance

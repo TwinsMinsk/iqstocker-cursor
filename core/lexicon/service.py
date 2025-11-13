@@ -68,15 +68,18 @@ class LexiconService:
     
     async def load_lexicon_async(self, session: Optional[AsyncSession] = None) -> Dict[str, Dict[str, str]]:
         """Load all lexicon entries from database with caching (async)."""
-        # Try cache first
-        cache_key = self._get_cache_key()
-        try:
-            cached_data = self.redis_client.get(cache_key)
-            if cached_data:
-                logger.info("Lexicon loaded from Redis cache")
-                return json.loads(cached_data)
-        except Exception as e:
-            logger.warning(f"Failed to load from cache: {e}")
+        # Try cache first (only if Redis is available)
+        if self.redis_client is not None:
+            cache_key = self._get_cache_key()
+            try:
+                cached_data = self.redis_client.get(cache_key)
+                if cached_data:
+                    logger.info("Lexicon loaded from Redis cache")
+                    return json.loads(cached_data)
+            except Exception as e:
+                from core.utils.log_rate_limiter import should_log_redis_warning
+                if should_log_redis_warning("load_lexicon"):
+                    logger.warning(f"Failed to load from cache: {e}")
         
         # Load from database
         try:
@@ -116,15 +119,18 @@ class LexiconService:
 
         result = self._merge_with_static(result)
         
-        # Cache the result
-        try:
-            cache_data = json.dumps(result, ensure_ascii=False)
-            self.redis_client.setex(cache_key, self.cache_ttl, cache_data)
-        except Exception as e:
-            logger.warning(f"Failed to cache lexicon: {e}")
+        # Cache the result (only if Redis is available)
+        if self.redis_client is not None:
+            try:
+                cache_data = json.dumps(result, ensure_ascii=False)
+                self.redis_client.setex(cache_key, self.cache_ttl, cache_data)
+            except Exception as e:
+                from core.utils.log_rate_limiter import should_log_redis_warning
+                if should_log_redis_warning("cache_lexicon"):
+                    logger.warning(f"Failed to cache lexicon: {e}")
         
         return result
-
+    
     def _serialise_entries(self, entries: Iterable[LexiconEntry]) -> Dict[str, Dict[str, str]]:
         """Convert lexicon ORM entries into serialisable structure."""
         data: Dict[str, Dict[str, str]] = {
@@ -157,23 +163,27 @@ class LexiconService:
         """
         cache_key = self._get_cache_key()
         
-        # If force_refresh is True, clear cache first
-        if force_refresh:
+        # If force_refresh is True, clear cache first (only if Redis is available)
+        if force_refresh and self.redis_client is not None:
             try:
                 self.redis_client.delete(cache_key)
                 logger.info("Cache cleared due to force_refresh=True")
             except Exception as e:
-                logger.warning(f"Failed to clear cache for refresh: {e}")
+                from core.utils.log_rate_limiter import should_log_redis_warning
+                if should_log_redis_warning("clear_cache"):
+                    logger.warning(f"Failed to clear cache for refresh: {e}")
         
-        # Try cache first (unless force_refresh)
-        if not force_refresh:
+        # Try cache first (unless force_refresh, only if Redis is available)
+        if not force_refresh and self.redis_client is not None:
             try:
                 cached_data = self.redis_client.get(cache_key)
                 if cached_data:
                     logger.info("Lexicon loaded from Redis cache")
                     return json.loads(cached_data)
             except Exception as e:
-                logger.warning(f"Failed to load from cache: {e}")
+                from core.utils.log_rate_limiter import should_log_redis_warning
+                if should_log_redis_warning("load_lexicon"):
+                    logger.warning(f"Failed to load from cache: {e}")
         
         # Load from database if cache miss or force_refresh
         try:
@@ -210,13 +220,16 @@ class LexiconService:
             logger.info(f"Loaded {len(entries)} lexicon entries from database")
 
         result = self._merge_with_static(result)
-
-        # Cache the result
-        try:
-            cache_data = json.dumps(result, ensure_ascii=False)
-            self.redis_client.setex(cache_key, self.cache_ttl, cache_data)
-        except Exception as e:
-            logger.warning(f"Failed to cache lexicon: {e}")
+        
+        # Cache the result (only if Redis is available)
+        if self.redis_client is not None:
+            try:
+                cache_data = json.dumps(result, ensure_ascii=False)
+                self.redis_client.setex(cache_key, self.cache_ttl, cache_data)
+            except Exception as e:
+                from core.utils.log_rate_limiter import should_log_redis_warning
+                if should_log_redis_warning("cache_lexicon"):
+                    logger.warning(f"Failed to cache lexicon: {e}")
         
         return result
     
@@ -230,14 +243,17 @@ class LexiconService:
     
     async def get_value_async(self, key: str, category: str, session: Optional[AsyncSession] = None) -> Optional[str]:
         """Get a single lexicon value (async)."""
-        # Try cache first
-        cache_key = self._get_cache_key(category, key)
-        try:
-            cached_value = self.redis_client.get(cache_key)
-            if cached_value:
-                return cached_value
-        except Exception as e:
-            logger.warning(f"Failed to get from cache: {e}")
+        # Try cache first (only if Redis is available)
+        if self.redis_client is not None:
+            cache_key = self._get_cache_key(category, key)
+            try:
+                cached_value = self.redis_client.get(cache_key)
+                if cached_value:
+                    return cached_value
+            except Exception as e:
+                from core.utils.log_rate_limiter import should_log_redis_warning
+                if should_log_redis_warning("get_value"):
+                    logger.warning(f"Failed to get from cache: {e}")
         
         # Load from database
         try:
@@ -270,25 +286,31 @@ class LexiconService:
         
         if entry:
             value = entry.value
-            # Cache the value
-            try:
-                self.redis_client.setex(cache_key, self.cache_ttl, value)
-            except Exception as e:
-                logger.warning(f"Failed to cache value: {e}")
+            # Cache the value (only if Redis is available)
+            if self.redis_client is not None:
+                try:
+                    self.redis_client.setex(cache_key, self.cache_ttl, value)
+                except Exception as e:
+                    from core.utils.log_rate_limiter import should_log_redis_warning
+                    if should_log_redis_warning("cache_value"):
+                        logger.warning(f"Failed to cache value: {e}")
             return value
         
         return None
     
     def get_value_sync(self, key: str, category: str, session: Optional[Session] = None) -> Optional[str]:
         """Get a single lexicon value (sync)."""
-        # Try cache first
-        cache_key = self._get_cache_key(category, key)
-        try:
-            cached_value = self.redis_client.get(cache_key)
-            if cached_value:
-                return cached_value
-        except Exception as e:
-            logger.warning(f"Failed to get from cache: {e}")
+        # Try cache first (only if Redis is available)
+        if self.redis_client is not None:
+            cache_key = self._get_cache_key(category, key)
+            try:
+                cached_value = self.redis_client.get(cache_key)
+                if cached_value:
+                    return cached_value
+            except Exception as e:
+                from core.utils.log_rate_limiter import should_log_redis_warning
+                if should_log_redis_warning("get_value"):
+                    logger.warning(f"Failed to get from cache: {e}")
         
         # Load from database
         try:
@@ -319,11 +341,14 @@ class LexiconService:
         
         if entry:
             value = entry.value
-            # Cache the value
-            try:
-                self.redis_client.setex(cache_key, self.cache_ttl, value)
-            except Exception as e:
-                logger.warning(f"Failed to cache value: {e}")
+            # Cache the value (only if Redis is available)
+            if self.redis_client is not None:
+                try:
+                    self.redis_client.setex(cache_key, self.cache_ttl, value)
+                except Exception as e:
+                    from core.utils.log_rate_limiter import should_log_redis_warning
+                    if should_log_redis_warning("cache_value"):
+                        logger.warning(f"Failed to cache value: {e}")
             return value
         
         return None
@@ -464,13 +489,16 @@ class LexiconService:
         # Invalidate caches
         # Инвалидируем как общий кэш, так и кэш конкретного ключа
         self.invalidate_cache()
-        # Также инвалидируем кэш конкретного ключа для этой категории
-        cache_key_single = self._get_cache_key(category_enum.value, key)
-        try:
-            self.redis_client.delete(cache_key_single)
-            logger.info(f"Invalidated cache for key '{key}' in category '{category_enum.value}'")
-        except Exception as e:
-            logger.warning(f"Failed to invalidate single key cache: {e}")
+        # Также инвалидируем кэш конкретного ключа для этой категории (only if Redis is available)
+        if self.redis_client is not None:
+            cache_key_single = self._get_cache_key(category_enum.value, key)
+            try:
+                self.redis_client.delete(cache_key_single)
+                logger.info(f"Invalidated cache for key '{key}' in category '{category_enum.value}'")
+            except Exception as e:
+                from core.utils.log_rate_limiter import should_log_redis_warning
+                if should_log_redis_warning("invalidate_cache"):
+                    logger.warning(f"Failed to invalidate single key cache: {e}")
         
         logger.info(f"Saved lexicon entry: {key} ({category_enum.value})")
         return True
@@ -481,6 +509,9 @@ class LexiconService:
     
     def invalidate_cache(self, category: Optional[str] = None, key: Optional[str] = None) -> int:
         """Invalidate lexicon cache."""
+        if self.redis_client is None:
+            return 0  # Skip invalidation if Redis unavailable
+        
         try:
             if key and category:
                 # Invalidate specific key
@@ -506,7 +537,9 @@ class LexiconService:
                     return self.redis_client.delete(*keys)
             return 0
         except Exception as e:
-            logger.warning(f"Failed to invalidate cache: {e}")
+            from core.utils.log_rate_limiter import should_log_redis_warning
+            if should_log_redis_warning("invalidate_cache"):
+                logger.warning(f"Failed to invalidate cache: {e}")
             return 0
 
     def _merge_with_static(self, data: Dict[str, Dict[str, str]]) -> Dict[str, Dict[str, str]]:

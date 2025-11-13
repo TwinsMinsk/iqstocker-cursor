@@ -43,14 +43,17 @@ def is_admin(user_id: int) -> bool:
     cache_key = "admin_ids:list"
     cache_ttl = 3600  # 1 hour
     
-    # Try Redis cache first
-    try:
-        cached_data = redis_client.get(cache_key)
-        if cached_data:
-            admin_ids = json.loads(cached_data)
-            return user_id in admin_ids
-    except Exception as e:
-        logger.warning(f"Failed to load admin_ids from Redis cache: {e}")
+    # Try Redis cache first (only if Redis is available)
+    if redis_client is not None:
+        try:
+            cached_data = redis_client.get(cache_key)
+            if cached_data:
+                admin_ids = json.loads(cached_data)
+                return user_id in admin_ids
+        except Exception as e:
+            from core.utils.log_rate_limiter import should_log_redis_warning
+            if should_log_redis_warning("admin_ids"):
+                logger.warning(f"Failed to load admin_ids from Redis cache: {e}")
     
     # Load from database
     admin_ids = None
@@ -63,11 +66,14 @@ def is_admin(user_id: int) -> bool:
             
             if setting:
                 admin_ids = json.loads(setting.value)
-                # Cache the result
-                try:
-                    redis_client.setex(cache_key, cache_ttl, setting.value)
-                except Exception as e:
-                    logger.warning(f"Failed to cache admin_ids: {e}")
+                # Cache the result (only if Redis is available)
+                if redis_client is not None:
+                    try:
+                        redis_client.setex(cache_key, cache_ttl, setting.value)
+                    except Exception as e:
+                        from core.utils.log_rate_limiter import should_log_redis_warning
+                        if should_log_redis_warning("admin_ids"):
+                            logger.warning(f"Failed to cache admin_ids: {e}")
         finally:
             db.close()
     except Exception as e:

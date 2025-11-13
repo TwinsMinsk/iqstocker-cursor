@@ -299,14 +299,28 @@ async def get_async_session() -> AsyncSession:
 
 # Redis setup with error handling and Railway-compatible configuration
 # Using ConnectionPool for efficient connection reuse and better performance under load
+redis_client = None
+redis_pool = None
+
 try:
-    # Создаем connection pool для эффективного переиспользования соединений
+    # Парсим URL для Railway Redis Proxy совместимости
+    from urllib.parse import urlparse, parse_qs
+    
+    parsed_url = urlparse(settings.redis_url)
+    
+    # Railway Redis Proxy требует специальных параметров подключения
+    # Используем from_url с базовыми параметрами, затем создаем pool с расширенными настройками
     redis_pool = redis.ConnectionPool.from_url(
         settings.redis_url,
         decode_responses=True,
         max_connections=20,  # Максимум соединений в пуле
-        socket_connect_timeout=10,  # Увеличиваем таймаут для Railway Proxy
-        socket_timeout=10,
+    )
+    
+    # Создаем клиент из пула с дополнительными параметрами для Railway Proxy
+    redis_client = redis.Redis(
+        connection_pool=redis_pool,
+        socket_connect_timeout=15,  # Увеличено для Railway Proxy
+        socket_timeout=15,
         socket_keepalive=True,
         socket_keepalive_options={
             1: 1,  # TCP_KEEPIDLE
@@ -317,15 +331,36 @@ try:
         health_check_interval=30,
     )
     
-    # Создаем клиент из пула
-    redis_client = redis.Redis(connection_pool=redis_pool)
-    
-    # Test connection
-    redis_client.ping()
-    db_logger.info("Redis connected with connection pooling (max_connections=20)")
+    # Test connection с retry логикой
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            redis_client.ping()
+            db_logger.info(f"Redis connected with connection pooling (max_connections=20) [attempt {attempt + 1}/{max_retries}]")
+            break
+        except Exception as ping_error:
+            if attempt < max_retries - 1:
+                db_logger.warning(f"Redis ping failed (attempt {attempt + 1}/{max_retries}): {ping_error}, retrying...")
+                import time
+                time.sleep(1)
+            else:
+                raise ping_error
+                
 except Exception as redis_error:
     db_logger.error(f"Failed to connect to Redis: {redis_error}")
+    db_logger.error(f"Redis URL format: {settings.redis_url[:50]}... (host: {parsed_url.hostname if 'parsed_url' in locals() else 'N/A'})")
     db_logger.warning("Redis caching disabled - bot will work with degraded performance")
+    # Убеждаемся, что переменные установлены в None
+    if redis_client:
+        try:
+            redis_client.close()
+        except:
+            pass
+    if redis_pool:
+        try:
+            redis_pool.disconnect()
+        except:
+            pass
     redis_client = None
     redis_pool = None
 
