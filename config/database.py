@@ -298,10 +298,13 @@ async def get_async_session() -> AsyncSession:
 
 
 # Redis setup with error handling and Railway-compatible configuration
+# Using ConnectionPool for efficient connection reuse and better performance under load
 try:
-    redis_client = redis.from_url(
+    # Создаем connection pool для эффективного переиспользования соединений
+    redis_pool = redis.ConnectionPool.from_url(
         settings.redis_url,
         decode_responses=True,
+        max_connections=20,  # Максимум соединений в пуле
         socket_connect_timeout=10,  # Увеличиваем таймаут для Railway Proxy
         socket_timeout=10,
         socket_keepalive=True,
@@ -313,13 +316,18 @@ try:
         retry_on_timeout=True,
         health_check_interval=30,
     )
+    
+    # Создаем клиент из пула
+    redis_client = redis.Redis(connection_pool=redis_pool)
+    
     # Test connection
     redis_client.ping()
-    db_logger.info("Redis connected successfully with Railway-compatible settings")
+    db_logger.info("Redis connected with connection pooling (max_connections=20)")
 except Exception as redis_error:
     db_logger.error(f"Failed to connect to Redis: {redis_error}")
     db_logger.warning("Redis caching disabled - bot will work with degraded performance")
     redis_client = None
+    redis_pool = None
 
 
 def get_redis() -> redis.Redis:

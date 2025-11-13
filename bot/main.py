@@ -5,7 +5,8 @@ import logging
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.storage.redis import RedisStorage
+from aiogram.fsm.storage.redis import DefaultKeyBuilder
 
 from core.notifications.scheduler import get_scheduler
 from config.settings import settings
@@ -54,8 +55,21 @@ async def main():
         default=DefaultBotProperties(parse_mode=ParseMode.HTML)
     )
     
-    # Create dispatcher
-    dp = Dispatcher(storage=MemoryStorage())
+    # Create dispatcher with Redis storage for FSM states persistence
+    # This allows FSM states to survive restarts and work in multi-instance deployments
+    try:
+        redis_storage = RedisStorage.from_url(
+            settings.redis_url,
+            key_builder=DefaultKeyBuilder(with_destiny=True)
+        )
+        logger.info("Redis FSM storage initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize Redis FSM storage: {e}")
+        logger.warning("Falling back to MemoryStorage - FSM states will not persist")
+        from aiogram.fsm.storage.memory import MemoryStorage
+        redis_storage = MemoryStorage()
+    
+    dp = Dispatcher(storage=redis_storage)
     
     # Register middlewares (order matters: DatabaseMiddleware first to inject session)
     dp.message.middleware(DatabaseMiddleware())
@@ -105,7 +119,15 @@ async def main():
     finally:
         logger.info("Shutting down gracefully...")
         
-        # Закрыть все pending tasks
+        # 1. Остановить scheduler (не принимать новые задачи)
+        logger.info("Stopping scheduler...")
+        try:
+            scheduler.shutdown(wait=True)  # wait=True для завершения активных задач
+            logger.info("Scheduler stopped")
+        except Exception as e:
+            logger.error(f"Error stopping scheduler: {e}")
+        
+        # 2. Закрыть все pending tasks
         pending = [task for task in asyncio.all_tasks() if not task.done()]
         logger.info(f"Cancelling {len(pending)} pending tasks...")
         
@@ -113,26 +135,51 @@ async def main():
             task.cancel()
         
         # Ждем завершения с timeout
+        if pending:
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*pending, return_exceptions=True),
+                    timeout=10.0  # Увеличено до 10 секунд
+                )
+            except asyncio.TimeoutError:
+                logger.warning("Some tasks did not complete in time")
+        
+        # 3. Закрыть FSM storage (сохранить состояния в Redis)
+        logger.info("Closing FSM storage...")
         try:
-            await asyncio.wait_for(
-                asyncio.gather(*pending, return_exceptions=True),
-                timeout=5.0
-            )
-        except asyncio.TimeoutError:
-            logger.warning("Some tasks did not complete in time")
+            await dp.storage.close()
+            logger.info("FSM storage closed")
+        except Exception as e:
+            logger.error(f"Error closing FSM storage: {e}")
         
-        # Закрыть DB engine
-        from config.database import async_engine
-        await async_engine.dispose()
-        logger.info("Database engine disposed")
+        # 4. Закрыть DB engine
+        logger.info("Disposing database engine...")
+        try:
+            from config.database import async_engine
+            await async_engine.dispose()
+            logger.info("Database engine disposed")
+        except Exception as e:
+            logger.error(f"Error disposing database engine: {e}")
         
-        # Остановить scheduler
-        scheduler.shutdown(wait=False)
-        logger.info("Scheduler stopped")
+        # 5. Закрыть Redis (если используется pooling)
+        logger.info("Closing Redis connections...")
+        try:
+            from config.database import redis_client, redis_pool
+            if redis_client:
+                redis_client.close()
+            if redis_pool:
+                redis_pool.disconnect()
+            logger.info("Redis connections closed")
+        except Exception as e:
+            logger.warning(f"Error closing Redis: {e}")
         
-        # Закрыть бота
-        await bot.session.close()
-        logger.info("Bot session closed")
+        # 6. Закрыть бота (последним)
+        logger.info("Closing bot session...")
+        try:
+            await bot.session.close()
+            logger.info("Bot session closed")
+        except Exception as e:
+            logger.error(f"Error closing bot session: {e}")
         
         logger.info("Shutdown complete")
 
