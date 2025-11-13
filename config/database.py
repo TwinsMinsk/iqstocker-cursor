@@ -297,11 +297,35 @@ async def get_async_session() -> AsyncSession:
         yield session
 
 
-# Redis setup
-redis_client = redis.from_url(settings.redis_url, decode_responses=True)
+# Redis setup with error handling and Railway-compatible configuration
+try:
+    redis_client = redis.from_url(
+        settings.redis_url,
+        decode_responses=True,
+        socket_connect_timeout=10,  # Увеличиваем таймаут для Railway Proxy
+        socket_timeout=10,
+        socket_keepalive=True,
+        socket_keepalive_options={
+            1: 1,  # TCP_KEEPIDLE
+            2: 1,  # TCP_KEEPINTVL
+            3: 3,  # TCP_KEEPCNT
+        },
+        retry_on_timeout=True,
+        health_check_interval=30,
+    )
+    # Test connection
+    redis_client.ping()
+    db_logger.info("Redis connected successfully with Railway-compatible settings")
+except Exception as redis_error:
+    db_logger.error(f"Failed to connect to Redis: {redis_error}")
+    db_logger.warning("Redis caching disabled - bot will work with degraded performance")
+    redis_client = None
 
 
 def get_redis() -> redis.Redis:
     """Get Redis client."""
-
+    
+    if redis_client is None:
+        db_logger.warning("Redis client is not available - caching disabled")
+    
     return redis_client

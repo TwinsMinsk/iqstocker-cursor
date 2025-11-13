@@ -229,6 +229,9 @@ class UserCacheService:
     
     def invalidate_user(self, telegram_id: int) -> None:
         """Invalidate user cache."""
+        if self.redis_client is None:
+            return  # Skip invalidation if Redis unavailable
+        
         try:
             cache_key = self._get_user_cache_key(telegram_id)
             self.redis_client.delete(cache_key)
@@ -238,6 +241,9 @@ class UserCacheService:
     
     def invalidate_limits(self, user_id: int) -> None:
         """Invalidate limits cache."""
+        if self.redis_client is None:
+            return  # Skip invalidation if Redis unavailable
+        
         try:
             cache_key = self._get_limits_cache_key(user_id)
             self.redis_client.delete(cache_key)

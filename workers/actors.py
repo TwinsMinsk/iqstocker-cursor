@@ -87,9 +87,26 @@ def ensure_broker_initialized():
     print(f"[INIT] [PID {os.getpid()}] Initializing Dramatiq RedisBroker with URL: {current_redis_url[:50]}...")
     logger.info(f"[PID {os.getpid()}] Initializing Dramatiq RedisBroker with URL: {current_redis_url[:50]}...")
     
+    # Railway Redis Proxy требует специальных параметров подключения
+    redis_client_kwargs = {
+        "socket_connect_timeout": 10,  # Увеличиваем таймаут для Railway Proxy
+        "socket_timeout": 10,
+        "socket_keepalive": True,
+        "socket_keepalive_options": {
+            1: 1,  # TCP_KEEPIDLE
+            2: 1,  # TCP_KEEPINTVL  
+            3: 3,  # TCP_KEEPCNT
+        },
+        "retry_on_timeout": True,
+        "health_check_interval": 30,
+    }
+    
     try:
-        # Создаем новый брокер с правильным URL
-        new_broker = RedisBroker(url=current_redis_url)
+        # Создаем новый брокер с правильным URL и специальными параметрами для Railway
+        new_broker = RedisBroker(
+            url=current_redis_url,
+            **redis_client_kwargs
+        )
         
         # Устанавливаем брокер глобально для Dramatiq
         dramatiq.set_broker(new_broker)
