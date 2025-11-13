@@ -2,6 +2,7 @@
 
 import os
 import asyncio
+import logging
 from datetime import datetime, timezone
 from typing import Optional, List
 from aiogram.exceptions import TelegramBadRequest
@@ -541,6 +542,13 @@ async def handle_csv_upload(
         await session.commit()
         await session.refresh(csv_analysis)
         
+        # Сохраняем ID первого сообщения при входе в раздел (если есть)
+        data = await state.get_data()
+        intro_message_id = data.get('analytics_intro_message_id')
+        if intro_message_id:
+            csv_analysis.analytics_message_ids = str(intro_message_id)
+            await session.commit()
+        
         # Сохраняем ID анализа и переходим к сбору данных
         await state.update_data(csv_analysis_id=csv_analysis.id)
         await state.set_state(AnalyticsStates.waiting_for_portfolio_size)
@@ -732,7 +740,21 @@ async def handle_content_type_callback(
     await state.clear()
     
     # Send processing message
-    await callback.message.answer(LEXICON_RU['csv_processing_started'])
+    processing_msg = await callback.message.answer(LEXICON_RU['processing_csv'])
+    
+    # Сохраняем ID сообщения обработки для последующего удаления
+    from sqlalchemy import select
+    stmt = select(CSVAnalysis).where(CSVAnalysis.id == data["csv_analysis_id"])
+    result = await session.execute(stmt)
+    csv_analysis = result.scalar_one_or_none()
+    if csv_analysis:
+        # Добавляем ID сообщения обработки к существующим ID (если есть)
+        existing_ids = csv_analysis.analytics_message_ids or ""
+        if existing_ids:
+            csv_analysis.analytics_message_ids = f"{existing_ids},{processing_msg.message_id}"
+        else:
+            csv_analysis.analytics_message_ids = str(processing_msg.message_id)
+        await session.commit()
     
     # Answer callback
     await callback.answer()
@@ -825,7 +847,21 @@ async def handle_content_type_text(
     await state.clear()
     
     # Send processing message
-    await message.answer(LEXICON_RU['csv_processing_started'])
+    processing_msg = await message.answer(LEXICON_RU['processing_csv'])
+    
+    # Сохраняем ID сообщения обработки для последующего удаления
+    from sqlalchemy import select
+    stmt = select(CSVAnalysis).where(CSVAnalysis.id == data["csv_analysis_id"])
+    result = await session.execute(stmt)
+    csv_analysis = result.scalar_one_or_none()
+    if csv_analysis:
+        # Добавляем ID сообщения обработки к существующим ID (если есть)
+        existing_ids = csv_analysis.analytics_message_ids or ""
+        if existing_ids:
+            csv_analysis.analytics_message_ids = f"{existing_ids},{processing_msg.message_id}"
+        else:
+            csv_analysis.analytics_message_ids = str(processing_msg.message_id)
+        await session.commit()
     
     # Отправляем задачу в Dramatiq воркер
     from workers.actors import process_csv_analysis_task
@@ -925,8 +961,21 @@ async def analytics_report_back_callback(callback: CallbackQuery, user: User, se
     result = await session.execute(stmt)
     analysis = result.scalar_one_or_none()
     
-    # Очищаем analytics_message_ids в БД (сообщение будет отредактировано, а не удалено)
-    if analysis and hasattr(analysis, 'analytics_message_ids'):
+    # Удаляем все сообщения из analytics_message_ids
+    if analysis and analysis.analytics_message_ids:
+        message_ids_str = analysis.analytics_message_ids
+        try:
+            # Парсим ID сообщений (могут быть через запятую)
+            message_ids = [int(msg_id.strip()) for msg_id in message_ids_str.split(',') if msg_id.strip().isdigit()]
+            
+            # Удаляем все сообщения
+            for msg_id in message_ids:
+                await delete_message_safe(callback.bot, callback.message.chat.id, msg_id)
+        except Exception as e:
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Failed to delete analytics messages: {e}")
+        
+        # Очищаем analytics_message_ids в БД
         analysis.analytics_message_ids = None
         await session.commit()
     

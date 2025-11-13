@@ -282,13 +282,16 @@ def notify_analysis_complete(user_telegram_id: int, csv_analysis_id: int):
     from bot.lexicon import LEXICON_RU, LEXICON_COMMANDS_RU
     from config.database import ManagedSessionLocal
     from database.models import AnalyticsReport
+    from database.models.csv_analysis import CSVAnalysis
+    from core.analytics.report_generator_fixed import FixedReportGenerator
+    from core.analytics.advanced_csv_processor import AdvancedProcessResult
     import asyncio
     
     try:
         bot = Bot(token=settings.bot_token)
         
         with ManagedSessionLocal() as db:
-            # Получаем отчет из БД
+            # Получаем отчет и анализ из БД
             report = db.query(AnalyticsReport).filter(
                 AnalyticsReport.csv_analysis_id == csv_analysis_id
             ).first()
@@ -297,10 +300,141 @@ def notify_analysis_complete(user_telegram_id: int, csv_analysis_id: int):
                 logger.error(f"Report not found for analysis {csv_analysis_id}")
                 return
             
-            # Отправка полного отчета (без вводного сообщения)
+            csv_analysis = db.query(CSVAnalysis).filter(
+                CSVAnalysis.id == csv_analysis_id
+            ).first()
+            
+            if not csv_analysis:
+                logger.error(f"CSV analysis not found: {csv_analysis_id}")
+                return
+            
+            # Получаем ID сообщения обработки и первого сообщения для удаления
+            processing_msg_id = None
+            existing_message_ids = []
+            if csv_analysis.analytics_message_ids:
+                try:
+                    # Парсим все существующие ID (могут быть через запятую)
+                    ids_str = csv_analysis.analytics_message_ids.split(',')
+                    parsed_ids = []
+                    for msg_id_str in ids_str:
+                        msg_id_str = msg_id_str.strip()
+                        if msg_id_str.isdigit():
+                            parsed_ids.append(int(msg_id_str))
+                    
+                    if parsed_ids:
+                        # Последний ID - это сообщение обработки (добавлено последним)
+                        processing_msg_id = parsed_ids[-1]
+                        # Остальные - это ID первого сообщения при входе в раздел
+                        existing_message_ids = parsed_ids[:-1]
+                except (ValueError, AttributeError):
+                    # Если формат неверный, пытаемся получить как одно число
+                    # Если только одно число, это может быть либо intro, либо processing
+                    # В этом случае считаем, что это processing (так как intro добавляется первым)
+                    try:
+                        single_id = int(csv_analysis.analytics_message_ids)
+                        processing_msg_id = single_id
+                    except ValueError:
+                        pass
+            
+            # Создаем объект AdvancedProcessResult из данных отчета для генерации структурированного отчета
+            result = AdvancedProcessResult(
+                rows_used=report.total_sales,
+                total_revenue_usd=float(report.total_revenue),
+                avg_revenue_per_sale=float(report.avg_revenue_per_sale) if report.avg_revenue_per_sale else 0.0,
+                portfolio_sold_percent=float(report.portfolio_sold_percent),
+                new_works_sales_percent=float(report.new_works_sales_percent),
+                upload_limit_usage=float(report.upload_limit_usage) if report.upload_limit_usage else 0.0,
+                acceptance_rate=float(report.acceptance_rate_calc) if report.acceptance_rate_calc else 0.0,
+                period_human_ru=report.period_human_ru or "",
+                unique_assets_sold=0,
+                sales_by_media_type=None,
+                sales_by_license=None,
+                top10_by_revenue=None
+            )
+            
+            # Генерируем структурированные данные отчета
+            report_generator = FixedReportGenerator()
+            report_data = report_generator.generate_monthly_report(result)
+            
+            # Отправка отчета в несколько сообщений
             async def send_report():
                 try:
-                    # Полный отчет с кнопкой "Назад в меню"
+                    message_ids = []
+                    
+                    # Удаляем сообщение обработки, если оно есть
+                    if processing_msg_id:
+                        try:
+                            await bot.delete_message(chat_id=user_telegram_id, message_id=processing_msg_id)
+                        except Exception as e:
+                            logger.warning(f"Failed to delete processing message: {e}")
+                    
+                    # 1. Итоговый отчет
+                    msg1 = await bot.send_message(
+                        chat_id=user_telegram_id,
+                        text=LEXICON_RU['final_analytics_report'].format(
+                            month=report_data['month'],
+                            year=report_data['year'],
+                            sales_count=report_data['sales_count'],
+                            revenue=report_data['revenue'],
+                            avg_revenue_per_sale=report_data['avg_revenue_per_sale'],
+                            sold_portfolio_percentage=report_data['sold_portfolio_percentage'],
+                            new_works_percentage=report_data['new_works_percentage']
+                        ),
+                        parse_mode="HTML"
+                    )
+                    message_ids.append(msg1.message_id)
+                    
+                    # Пауза 2-3 секунды
+                    await asyncio.sleep(2.5)
+                    
+                    # 2. Заголовок объяснений
+                    msg2 = await bot.send_message(
+                        chat_id=user_telegram_id,
+                        text=LEXICON_RU['analytics_explanation_title'],
+                        parse_mode="HTML"
+                    )
+                    message_ids.append(msg2.message_id)
+                    
+                    # Пауза 1 секунда
+                    await asyncio.sleep(1)
+                    
+                    # 3. Объяснение % портфеля, который продался
+                    await asyncio.sleep(2)
+                    msg3 = await bot.send_message(
+                        chat_id=user_telegram_id,
+                        text=LEXICON_RU['sold_portfolio_report'].format(
+                            sold_portfolio_percentage=report_data['sold_portfolio_percentage'],
+                            sold_portfolio_text=report_data['sold_portfolio_text']
+                        ),
+                        parse_mode="HTML"
+                    )
+                    message_ids.append(msg3.message_id)
+                    
+                    # 4. Объяснение доли продаж нового контента
+                    await asyncio.sleep(2)
+                    msg4 = await bot.send_message(
+                        chat_id=user_telegram_id,
+                        text=LEXICON_RU['new_works_report'].format(
+                            new_works_percentage=report_data['new_works_percentage'],
+                            new_works_text=report_data['new_works_text']
+                        ),
+                        parse_mode="HTML"
+                    )
+                    message_ids.append(msg4.message_id)
+                    
+                    # 5. Объяснение % лимита
+                    await asyncio.sleep(2)
+                    msg5 = await bot.send_message(
+                        chat_id=user_telegram_id,
+                        text=LEXICON_RU['upload_limit_report'].format(
+                            upload_limit_usage=report_data['upload_limit_usage'],
+                            upload_limit_text=report_data['upload_limit_text']
+                        ),
+                        parse_mode="HTML"
+                    )
+                    message_ids.append(msg5.message_id)
+                    
+                    # 6. Финальное сообщение с кнопкой "Назад в меню"
                     back_to_menu_keyboard = InlineKeyboardMarkup(inline_keyboard=[
                         [InlineKeyboardButton(
                             text=LEXICON_COMMANDS_RU['back_to_main_menu'],
@@ -308,29 +442,27 @@ def notify_analysis_complete(user_telegram_id: int, csv_analysis_id: int):
                         )]
                     ])
                     
-                    report_msg = await bot.send_message(
+                    final_msg = await bot.send_message(
                         chat_id=user_telegram_id,
-                        text=report.report_text_html,
+                        text=LEXICON_RU['analytics_closing_message'],
                         reply_markup=back_to_menu_keyboard,
                         parse_mode="HTML"
                     )
+                    message_ids.append(final_msg.message_id)
                     
-                    return report_msg.message_id
+                    return message_ids
                     
                 finally:
                     await bot.session.close()
             
-            report_message_id = asyncio.run(send_report())
+            message_ids = asyncio.run(send_report())
             
-            # Сохраняем message_id в БД для последующего удаления/редактирования
-            if report_message_id:
-                from database.models.csv_analysis import CSVAnalysis
-                csv_analysis = db.query(CSVAnalysis).filter(
-                    CSVAnalysis.id == csv_analysis_id
-                ).first()
-                if csv_analysis:
-                    csv_analysis.analytics_message_ids = str(report_message_id)
-                    db.commit()
+            # Сохраняем все message_id в БД для последующего удаления
+            # Включаем ID первого сообщения при входе в раздел (если есть) и ID сообщений отчета
+            all_message_ids = existing_message_ids + message_ids
+            if all_message_ids:
+                csv_analysis.analytics_message_ids = ','.join(map(str, all_message_ids))
+                db.commit()
         
         logger.info(f"Full report sent to user {user_telegram_id}")
         
