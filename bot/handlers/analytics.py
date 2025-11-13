@@ -538,9 +538,15 @@ async def handle_csv_upload(
         )
             
     except Exception as e:
-        await message.answer(
-            LEXICON_RU.get('csv_upload_error', f'Ошибка при загрузке файла: {str(e)}')
-        )
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error uploading CSV file: {str(e)}", exc_info=True)
+        
+        # Форматируем сообщение об ошибке
+        error_msg = LEXICON_RU.get('csv_upload_error', f'Ошибка при загрузке файла: {str(e)}')
+        if '{error}' in error_msg:
+            error_msg = error_msg.format(error=str(e))
+        await message.answer(error_msg)
 
 
 @router.message(AnalyticsStates.waiting_for_portfolio_size)

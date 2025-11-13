@@ -5,6 +5,7 @@ import uuid
 import logging
 from typing import Optional
 from supabase import create_client
+from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -14,16 +15,24 @@ class StorageService:
     
     def __init__(self):
         """Initialize Supabase Storage client."""
-        supabase_url = os.getenv("SUPABASE_URL")
-        supabase_key = os.getenv("SUPABASE_KEY")
+        # Используем settings для получения конфигурации
+        supabase_url = settings.supabase_url
+        # Для Storage операций нужен SERVICE_ROLE_KEY, а не обычный ключ
+        supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or settings.supabase_key
         
         if not supabase_url or not supabase_key:
             raise ValueError(
-                "SUPABASE_URL and SUPABASE_KEY environment variables must be set"
+                "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_KEY) environment variables must be set. "
+                "For Storage operations, SERVICE_ROLE_KEY is recommended."
             )
         
-        self.supabase = create_client(supabase_url, supabase_key)
-        self.bucket = "csv-files"
+        try:
+            self.supabase = create_client(supabase_url, supabase_key)
+            self.bucket = os.getenv("SUPABASE_STORAGE_BUCKET", "csv-files")
+            logger.info(f"StorageService initialized with bucket: {self.bucket}")
+        except Exception as e:
+            logger.error(f"Failed to initialize Supabase Storage client: {e}")
+            raise ValueError(f"Failed to initialize Supabase Storage: {e}") from e
     
     async def upload_csv(self, file_bytes: bytes, user_id: int, filename: str) -> str:
         """
@@ -37,15 +46,23 @@ class StorageService:
         Returns:
             Storage file key (path)
         """
+        import asyncio
+        
         file_key = f"{user_id}/{uuid.uuid4()}_{filename}"
         
         try:
-            self.supabase.storage.from_(self.bucket).upload(file_key, file_bytes)
-            logger.info(f"Uploaded CSV to Storage: {file_key}")
+            # Supabase Storage API синхронный, оборачиваем в executor
+            def _upload():
+                return self.supabase.storage.from_(self.bucket).upload(file_key, file_bytes)
+            
+            await asyncio.to_thread(_upload)
+            logger.info(f"Uploaded CSV to Storage: {file_key} (size: {len(file_bytes)} bytes)")
             return file_key
         except Exception as e:
-            logger.error(f"Failed to upload CSV to Storage: {e}")
-            raise
+            error_msg = f"Failed to upload CSV to Storage (bucket: {self.bucket}, key: {file_key}): {e}"
+            logger.error(error_msg, exc_info=True)
+            # Пробрасываем более информативную ошибку
+            raise RuntimeError(f"Не удалось загрузить файл в хранилище: {str(e)}") from e
     
     def download_csv_to_temp(self, file_key: str) -> str:
         """
