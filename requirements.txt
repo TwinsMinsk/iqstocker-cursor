@@ -62,8 +62,10 @@ pydantic-settings==2.6.1
 # Utilities
 structlog==24.4.0
 sentry-sdk[flask]==2.18.0
-httpx==0.28.1
-supabase==2.3.4
+# httpx version: python-telegram-bot 21.7 requires httpx~=0.27
+# Updated supabase to version compatible with httpx 0.27
+httpx>=0.27,<0.28
+supabase>=2.8.0
 psutil==5.9.8
 
 # Development
