@@ -475,7 +475,9 @@ async def handle_csv_upload(
         return
     
     import tempfile
+    import logging
     
+    logger = logging.getLogger(__name__)
     temp_file_path = None
     try:
         # Загрузка в Supabase Storage
@@ -563,8 +565,6 @@ async def handle_csv_upload(
         )
             
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
         logger.error(f"Error uploading CSV file: {str(e)}", exc_info=True)
         
         # Форматируем сообщение об ошибке

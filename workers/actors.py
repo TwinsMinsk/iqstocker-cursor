@@ -336,20 +336,47 @@ def notify_analysis_complete(user_telegram_id: int, csv_analysis_id: int):
                     except ValueError:
                         pass
             
+            # Парсим период из period_human_ru (например, "август 2025" -> "2025-08-01")
+            period_month = ""
+            if report.period_human_ru:
+                parts = report.period_human_ru.split()
+                if len(parts) >= 2:
+                    # Простой парсинг месяца и года
+                    month_map = {
+                        'январь': '01', 'февраль': '02', 'март': '03', 'апрель': '04',
+                        'май': '05', 'июнь': '06', 'июль': '07', 'август': '08',
+                        'сентябрь': '09', 'октябрь': '10', 'ноябрь': '11', 'декабрь': '12'
+                    }
+                    month_name = parts[0].lower()
+                    year = parts[1]
+                    month_num = month_map.get(month_name, '01')
+                    period_month = f"{year}-{month_num}-01"
+            
+            # Создаем пустые DataFrame для полей, которые не хранятся в отчете
+            import pandas as pd
+            empty_df = pd.DataFrame()
+            
             # Создаем объект AdvancedProcessResult из данных отчета для генерации структурированного отчета
             result = AdvancedProcessResult(
+                period_month=period_month,
+                period_human_ru=report.period_human_ru or "",
+                rows_total=report.total_sales,  # Используем total_sales как приближение
+                broken_rows=0,  # Не хранится в отчете
+                broken_pct=0.0,  # Не хранится в отчете
                 rows_used=report.total_sales,
                 total_revenue_usd=float(report.total_revenue),
+                unique_assets_sold=report.total_sales,  # Используем total_sales как приближение
                 avg_revenue_per_sale=float(report.avg_revenue_per_sale) if report.avg_revenue_per_sale else 0.0,
+                date_min_utc=None,  # Не хранится в отчете
+                date_max_utc=None,  # Не хранится в отчете
+                sales_by_license=empty_df,
+                sales_by_media_type=empty_df,
+                top10_by_revenue=empty_df,
+                top10_by_sales=empty_df,
                 portfolio_sold_percent=float(report.portfolio_sold_percent),
                 new_works_sales_percent=float(report.new_works_sales_percent),
-                upload_limit_usage=float(report.upload_limit_usage) if report.upload_limit_usage else 0.0,
                 acceptance_rate=float(report.acceptance_rate_calc) if report.acceptance_rate_calc else 0.0,
-                period_human_ru=report.period_human_ru or "",
-                unique_assets_sold=0,
-                sales_by_media_type=None,
-                sales_by_license=None,
-                top10_by_revenue=None
+                upload_limit_usage=float(report.upload_limit_usage) if report.upload_limit_usage else 0.0
             )
             
             # Генерируем структурированные данные отчета
