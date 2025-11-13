@@ -7,7 +7,8 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from core.notifications.notification_manager import get_notification_manager
-from core.notifications.themes_notifications import notify_new_period_themes, notify_weekly_themes, send_theme_limit_burn_reminders
+from core.notifications.themes_notifications import notify_new_period_themes, send_theme_limit_burn_reminders
+# notify_weekly_themes - удалено, функция не используется
 from core.admin.calendar_manager import CalendarManager
 from core.theme_settings import check_and_burn_unused_theme_limits
 from core.monitoring.resource_monitor import ResourceMonitor
@@ -40,13 +41,13 @@ class TaskScheduler:
             name='Check expired TEST_PRO subscriptions'
         )
         
-        # Weekly themes notifications (every Monday at 09:00 UTC)
-        self.scheduler.add_job(
-            self.send_weekly_themes_notifications,
-            CronTrigger(day_of_week=0, hour=9, minute=0),
-            id='weekly_themes_notifications',
-            name='Send weekly themes notifications'
-        )
+        # Weekly themes notifications (every Monday at 09:00 UTC) - УДАЛЕНО, функция не используется
+        # self.scheduler.add_job(
+        #     self.send_weekly_themes_notifications,
+        #     CronTrigger(day_of_week=0, hour=9, minute=0),
+        #     id='weekly_themes_notifications',
+        #     name='Send weekly themes notifications'
+        # )
         
         # Monthly marketing notifications (1st day of month at 10:00 UTC)
         self.scheduler.add_job(
@@ -131,15 +132,16 @@ class TaskScheduler:
             except Exception as e:
                 print(f"Error checking expired subscriptions: {e}")
     
-    async def send_weekly_themes_notifications(self):
-        """Send weekly themes notifications."""
-        print("Sending weekly themes notifications...")
-        async with AsyncSessionLocal() as session:
-            try:
-                sent_count = await self.notification_manager.send_weekly_themes_notifications(session)
-                print(f"Sent {sent_count} weekly themes notifications")
-            except Exception as e:
-                print(f"Error sending weekly themes notifications: {e}")
+    # УДАЛЕНО: Старая функция, не используется
+    # async def send_weekly_themes_notifications(self):
+    #     """Send weekly themes notifications."""
+    #     print("Sending weekly themes notifications...")
+    #     async with AsyncSessionLocal() as session:
+    #         try:
+    #             sent_count = await self.notification_manager.send_weekly_themes_notifications(session)
+    #             print(f"Sent {sent_count} weekly themes notifications")
+    #         except Exception as e:
+    #             print(f"Error sending weekly themes notifications: {e}")
     
     async def send_marketing_notifications(self):
         """Send monthly marketing notifications."""

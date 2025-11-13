@@ -140,7 +140,13 @@ class BoostyPaymentHandler:
         payment_id: str,
         discount_percent: int = 0
     ) -> bool:
-        """Activate user subscription."""
+        """Activate user subscription.
+        
+        ВАЖНО: Этот метод использует синхронную сессию для совместимости.
+        Для новой разработки используйте PaymentHandler из core/subscriptions/payment_handler.py
+        """
+        
+        from core.tariffs.tariff_service import TariffService
         
         db = SessionLocal()
         try:
@@ -149,6 +155,9 @@ class BoostyPaymentHandler:
             if not user:
                 print(f"User {user_id} not found")
                 return False
+            
+            # Store old subscription type BEFORE changing it
+            old_subscription_type = user.subscription_type
             
             # Calculate subscription duration
             duration_days = self._get_subscription_duration(subscription_type)
@@ -172,20 +181,74 @@ class BoostyPaymentHandler:
             user.subscription_type = subscription_type
             user.subscription_expires_at = expires_at
             
-            # Update limits based on subscription
-            if user.limits:
-                limits_data = self._get_subscription_limits(subscription_type)
-                user.limits.analytics_total += limits_data["analytics"]
-                user.limits.themes_total += limits_data["themes"]
-                user.limits.top_themes_total += limits_data["top_themes"]
+            # Update limits based on subscription using TariffService
+            if not user.limits:
+                # Create limits if they don't exist
+                tariff_service = TariffService()
+                tariff_limits = tariff_service.get_tariff_limits(subscription_type)
+                user.limits = Limits(
+                    user_id=user.id,
+                    analytics_total=tariff_limits['analytics_limit'],
+                    themes_total=tariff_limits['themes_limit'],
+                    theme_cooldown_days=tariff_limits['theme_cooldown_days'],
+                    current_tariff_started_at=now
+                )
+                db.add(user.limits)
+            else:
+                # Check if subscription type is changing
+                if old_subscription_type != subscription_type:
+                    # СМЕНА тарифа - лимиты сгорают, начинается новый отсчет
+                    tariff_service = TariffService()
+                    new_tariff_limits = tariff_service.get_tariff_limits(subscription_type)
+                    
+                    # ВАЖНО: НЕ добавляем, а УСТАНАВЛИВАЕМ новые лимиты
+                    user.limits.analytics_total = new_tariff_limits['analytics_limit']
+                    user.limits.themes_total = new_tariff_limits['themes_limit']
+                    
+                    # Сбрасываем использованные лимиты (они сгорают)
+                    user.limits.analytics_used = 0
+                    user.limits.themes_used = 0
+                    
+                    # Устанавливаем новую дату начала тарифа (для отсчета 7 дней)
+                    user.limits.current_tariff_started_at = now
+                    user.limits.theme_cooldown_days = new_tariff_limits['theme_cooldown_days']
+                    
+                    # Сбрасываем дату последнего запроса тем
+                    user.limits.last_theme_request_at = None
+                else:
+                    # ПРОДЛЕНИЕ того же тарифа - лимиты накапливаются
+                    tariff_service = TariffService()
+                    tariff_limits = tariff_service.get_tariff_limits(subscription_type)
+                    
+                    user.limits.analytics_total += tariff_limits['analytics_limit']
+                    user.limits.themes_total += tariff_limits['themes_limit']
+            
+            # Начисляем баллы рефереру, если это первая оплата PRO/ULTRA
+            if subscription_type in [SubscriptionType.PRO, SubscriptionType.ULTRA]:
+                if user.referrer_id and not user.referral_bonus_paid:
+                    referrer = db.query(User).filter(User.id == user.referrer_id).first()
+                    if referrer:
+                        referrer.referral_balance = (referrer.referral_balance or 0) + 1
+                        user.referral_bonus_paid = True
+                        print(f"✅ Начислен 1 IQ Балл пользователю {referrer.id} за реферала {user.id}")
             
             db.commit()
+            
+            # Invalidate cache after updating user and limits (sync version)
+            try:
+                from core.cache.user_cache import get_user_cache_service
+                cache_service = get_user_cache_service()
+                cache_service.invalidate_user_and_limits_sync(user.telegram_id, user.id)
+            except Exception as cache_error:
+                print(f"Warning: Failed to invalidate cache: {cache_error}")
             
             print(f"Activated {subscription_type.value} subscription for user {user_id}")
             return True
             
         except Exception as e:
             print(f"Error activating subscription: {e}")
+            import traceback
+            traceback.print_exc()
             db.rollback()
             return False
         finally:
@@ -227,22 +290,21 @@ class BoostyPaymentHandler:
         return durations.get(subscription_type, 30)
     
     def _get_subscription_limits(self, subscription_type: SubscriptionType) -> Dict[str, int]:
-        """Get subscription limits."""
+        """Get subscription limits.
         
-        limits = {
-            SubscriptionType.PRO: {
-                "analytics": 2,  # 2 аналитики в месяц
-                "themes": 20,  # 5 тем в неделю * 4 недели
-                "top_themes": 2  # 2 топ-темы в месяц
-            },
-            SubscriptionType.ULTRA: {
-                "analytics": 4,  # 4 аналитики в месяц
-                "themes": 40,  # 10 тем в неделю * 4 недели
-                "top_themes": 4  # 4 топ-темы в месяц
-            }
+        ВАЖНО: Устаревший метод. Используйте TariffService.get_tariff_limits() вместо этого.
+        Оставлен для обратной совместимости.
+        """
+        from core.tariffs.tariff_service import TariffService
+        
+        tariff_service = TariffService()
+        tariff_limits = tariff_service.get_tariff_limits(subscription_type)
+        
+        return {
+            "analytics": tariff_limits['analytics_limit'],
+            "themes": tariff_limits['themes_limit'],
+            "top_themes": 0  # Не используется в текущей системе
         }
-        
-        return limits.get(subscription_type, {"analytics": 0, "themes": 0, "top_themes": 0})
     
     async def get_payment_status(self, payment_id: str) -> Optional[Dict[str, Any]]:
         """Get payment status from Boosty."""

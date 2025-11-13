@@ -21,9 +21,14 @@
                 <form id="broadcastForm" method="post" action="/broadcast/send">
                     <div class="mb-3">
                         <label for="message" class="form-label">Текст сообщения</label>
-                        <textarea class="form-control" id="message" name="message" rows="8" 
-                                  placeholder="Введите текст сообщения для рассылки..." required></textarea>
-                        <small class="form-text text-muted">Поддерживается HTML форматирование</small>
+                        <!-- Скрытый textarea для отправки HTML -->
+                        <textarea id="message" name="message" style="display: none;" required></textarea>
+                        <!-- Quill Editor -->
+                        <div id="editor" style="min-height: 300px; background: white; border: 1px solid #ced4da; border-radius: 0.375rem;"></div>
+                        <small class="form-text text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Используйте кнопки форматирования для создания HTML-разметки, совместимой с Telegram
+                        </small>
                     </div>
                     
                     <div class="mb-3">
@@ -113,29 +118,127 @@
 {% endblock %}
 
 {% block scripts %}
+<!-- Quill.js CSS -->
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+<!-- Quill.js JS -->
+<script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Инициализация Quill редактора
+    // Используем только форматирование, совместимое с Telegram HTML
+    const quill = new Quill('#editor', {
+        theme: 'snow',
+        modules: {
+            toolbar: [
+                ['bold', 'italic', 'underline', 'strike'],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                [{ 'color': [] }], // Только цвет текста (Telegram поддерживает)
+                ['link'],
+                ['clean']
+            ]
+        },
+        placeholder: 'Введите текст сообщения для рассылки...'
+    });
+    
     const sendToAll = document.getElementById('sendToAll');
     const sendToType = document.getElementById('sendToType');
     const subscriptionType = document.getElementById('subscriptionType');
+    const messageTextarea = document.getElementById('message');
+    const form = document.getElementById('broadcastForm');
+    
+    // Функция для очистки HTML и приведения к формату, совместимому с Telegram
+    function cleanHtmlForTelegram(html) {
+        if (!html) return '';
+        
+        // Заменяем теги на совместимые с Telegram
+        let cleaned = html
+            .replace(/<strong\b[^>]*>/gi, '<b>')
+            .replace(/<\/strong>/gi, '</b>')
+            .replace(/<em\b[^>]*>/gi, '<i>')
+            .replace(/<\/em>/gi, '</i>')
+            .replace(/<strike\b[^>]*>/gi, '<s>')
+            .replace(/<\/strike>/gi, '</s>');
+        
+        // Удаляем неразрешенные атрибуты из разрешенных тегов
+        // Для <span> оставляем только style с color
+        cleaned = cleaned.replace(/<span\s+([^>]*)>/gi, function(match, attrs) {
+            const colorMatch = attrs.match(/style\s*=\s*["']([^"']*color[^"']*)["']/i);
+            if (colorMatch) {
+                const colorValue = colorMatch[1].match(/color\s*:\s*([^;]+)/i);
+                if (colorValue) {
+                    return `<span style="color: ${colorValue[1].trim()}">`;
+                }
+            }
+            return '<span>';
+        });
+        
+        // Для <a> оставляем только href
+        cleaned = cleaned.replace(/<a\s+([^>]*)>/gi, function(match, attrs) {
+            const hrefMatch = attrs.match(/href\s*=\s*["']([^"']+)["']/i);
+            if (hrefMatch) {
+                return `<a href="${hrefMatch[1]}">`;
+            }
+            return '<a>';
+        });
+        
+        // Удаляем все атрибуты из других тегов (b, i, u, s, p, br, code, pre)
+        cleaned = cleaned.replace(/<(b|i|u|s|p|br|code|pre)\b[^>]*>/gi, '<$1>');
+        
+        // Удаляем неразрешенные теги (h1, h2, h3, h4, h5, h6, div и т.д.), оставляя только содержимое
+        cleaned = cleaned.replace(/<(h[1-6]|div|section|article|header|footer|nav|aside|main)\b[^>]*>/gi, '');
+        cleaned = cleaned.replace(/<\/(h[1-6]|div|section|article|header|footer|nav|aside|main)>/gi, '');
+        
+        // Удаляем пустые параграфы
+        cleaned = cleaned.replace(/<p><br><\/p>/gi, '').replace(/<p>\s*<\/p>/gi, '').trim();
+        
+        return cleaned;
+    }
+    
+    // Обновление скрытого textarea при изменении редактора
+    quill.on('text-change', function() {
+        const html = quill.root.innerHTML;
+        const cleanHtml = cleanHtmlForTelegram(html);
+        messageTextarea.value = cleanHtml || '';
+    });
     
     sendToAll.addEventListener('change', function() {
         if (this.checked) {
             subscriptionType.disabled = true;
             subscriptionType.value = '';
+            subscriptionType.removeAttribute('required');
         }
     });
     
     sendToType.addEventListener('change', function() {
         if (this.checked) {
             subscriptionType.disabled = false;
-            subscriptionType.required = true;
+            subscriptionType.setAttribute('required', 'required');
         }
     });
     
-    const form = document.getElementById('broadcastForm');
     form.addEventListener('submit', async function(e) {
         e.preventDefault();
+        
+        // Валидация: проверка выбора тарифа
+        if (!sendToAll.checked && (!subscriptionType.value || subscriptionType.value.trim() === '')) {
+            alert('При выборе "По тарифу" необходимо указать тип подписки');
+            subscriptionType.focus();
+            return;
+        }
+        
+        // Валидация: проверка наличия текста
+        const messageContent = quill.getText().trim();
+        if (!messageContent) {
+            alert('Текст сообщения не может быть пустым');
+            quill.focus();
+            return;
+        }
+        
+        // Обновляем скрытое поле перед отправкой с очисткой HTML
+        const html = quill.root.innerHTML;
+        const cleanHtml = cleanHtmlForTelegram(html);
+        messageTextarea.value = cleanHtml || messageContent;
         
         const sendBtn = document.getElementById('sendBtn');
         const originalText = sendBtn.innerHTML;
@@ -164,9 +267,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         <p class="mb-0"><strong>Всего получателей:</strong> ${result.total_users}</p>
                     </div>
                 `;
+                // Очистка редактора
+                quill.setContents([]);
                 form.reset();
                 sendToAll.checked = true;
                 subscriptionType.disabled = true;
+                subscriptionType.removeAttribute('required');
             } else {
                 modalContent = `
                     <div class="alert alert-danger">
@@ -196,5 +302,29 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
+
+<style>
+/* Стили для Quill редактора */
+#editor {
+    border-radius: 0.375rem;
+}
+
+.ql-editor {
+    min-height: 250px;
+    font-size: 14px;
+}
+
+.ql-toolbar {
+    border-top-left-radius: 0.375rem;
+    border-top-right-radius: 0.375rem;
+    border-bottom: 1px solid #ced4da;
+}
+
+.ql-container {
+    border-bottom-left-radius: 0.375rem;
+    border-bottom-right-radius: 0.375rem;
+    font-family: inherit;
+}
+</style>
 {% endblock %}
 

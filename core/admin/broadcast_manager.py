@@ -70,14 +70,10 @@ class BroadcastManager:
                 # Small delay to avoid rate limiting
                 await asyncio.sleep(0.1)
             
-            # Save broadcast record
+            # Save broadcast record (используем только существующие поля модели)
             broadcast_record = BroadcastMessage(
-                message=message,
-                subscription_type=subscription_type.value if subscription_type else None,
+                text=message,  # Используем 'text' вместо 'message'
                 recipients_count=total_users,
-                sent_count=sent_count,
-                failed_count=failed_count,
-                admin_user_id=admin_user_id,
                 sent_at=datetime.now(timezone.utc)
             )
             self.db.add(broadcast_record)
@@ -113,13 +109,10 @@ class BroadcastManager:
             return [
                 {
                     "id": broadcast.id,
-                    "message": broadcast.message[:100] + "..." if len(broadcast.message) > 100 else broadcast.message,
-                    "subscription_type": broadcast.subscription_type,
+                    "message": broadcast.text[:100] + "..." if len(broadcast.text) > 100 else broadcast.text,
                     "recipients_count": broadcast.recipients_count,
-                    "sent_count": broadcast.sent_count,
-                    "failed_count": broadcast.failed_count,
-                    "sent_at": broadcast.sent_at.strftime("%d.%m.%Y %H:%M"),
-                    "success_rate": round((broadcast.sent_count / broadcast.recipients_count * 100), 1) if broadcast.recipients_count > 0 else 0
+                    "sent_at": broadcast.sent_at.strftime("%d.%m.%Y %H:%M") if broadcast.sent_at else None,
+                    "created_at": broadcast.created_at.strftime("%d.%m.%Y %H:%M") if broadcast.created_at else None
                 }
                 for broadcast in broadcasts
             ]

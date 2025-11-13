@@ -167,54 +167,55 @@ class NotificationManager:
         
         return sent_count
     
-    async def send_weekly_themes_notifications(self, session: AsyncSession) -> int:
-        """Send notifications to users who can request new themes."""
-        
-        try:
-            from database.models import ThemeRequest
-            from sqlalchemy import desc
-            from bot.lexicon import LEXICON_RU
-            
-            sent_count = 0
-            
-            # Получаем всех активных пользователей
-            stmt = select(User)
-            result = await session.execute(stmt)
-            users = result.scalars().all()
-            
-            for user in users:
-                try:
-                    # Проверяем, прошла ли неделя с последнего запроса
-                    stmt = select(ThemeRequest).filter(
-                        ThemeRequest.user_id == user.id
-                    ).order_by(desc(ThemeRequest.created_at)).limit(1)
-                    result = await session.execute(stmt)
-                    last_request = result.scalar_one_or_none()
-                    
-                    if last_request:
-                        week_ago = datetime.now(timezone.utc) - timedelta(days=7)
-                        
-                        # Приводим к timezone-aware
-                        if last_request.created_at.tzinfo is None:
-                            last_request_time = last_request.created_at.replace(tzinfo=timezone.utc)
-                        else:
-                            last_request_time = last_request.created_at
-                        
-                        # Проверяем, что прошла неделя И уведомление еще не отправлялось
-                        time_diff = datetime.now(timezone.utc) - last_request_time
-                        if timedelta(days=7) <= time_diff < timedelta(days=7, hours=1):
-                            # Отправляем уведомление
-                            if await self.send_notification(user.telegram_id, LEXICON_RU['themes_cooldown_notification']):
-                                sent_count += 1
-                
-                except Exception as e:
-                    print(f"Error sending theme notification to user {user.id}: {e}")
-            
-            return sent_count
-            
-        except Exception as e:
-            print(f"Error in send_weekly_themes_notifications: {e}")
-            return 0
+    # УДАЛЕНО: Старая функция, не используется. Вместо неё используется notify_new_period_themes
+    # async def send_weekly_themes_notifications(self, session: AsyncSession) -> int:
+    #     """Send notifications to users who can request new themes."""
+    #     
+    #     try:
+    #         from database.models import ThemeRequest
+    #         from sqlalchemy import desc
+    #         from bot.lexicon import LEXICON_RU
+    #         
+    #         sent_count = 0
+    #         
+    #         # Получаем всех активных пользователей
+    #         stmt = select(User)
+    #         result = await session.execute(stmt)
+    #         users = result.scalars().all()
+    #         
+    #         for user in users:
+    #             try:
+    #                 # Проверяем, прошла ли неделя с последнего запроса
+    #                 stmt = select(ThemeRequest).filter(
+    #                     ThemeRequest.user_id == user.id
+    #                 ).order_by(desc(ThemeRequest.created_at)).limit(1)
+    #                 result = await session.execute(stmt)
+    #                 last_request = result.scalar_one_or_none()
+    #                 
+    #                 if last_request:
+    #                     week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+    #                     
+    #                     # Приводим к timezone-aware
+    #                     if last_request.created_at.tzinfo is None:
+    #                         last_request_time = last_request.created_at.replace(tzinfo=timezone.utc)
+    #                     else:
+    #                         last_request_time = last_request.created_at
+    #                     
+    #                     # Проверяем, что прошла неделя И уведомление еще не отправлялось
+    #                     time_diff = datetime.now(timezone.utc) - last_request_time
+    #                     if timedelta(days=7) <= time_diff < timedelta(days=7, hours=1):
+    #                         # Отправляем уведомление
+    #                         if await self.send_notification(user.telegram_id, LEXICON_RU['themes_cooldown_notification']):
+    #                             sent_count += 1
+    #             
+    #             except Exception as e:
+    #                 print(f"Error sending theme notification to user {user.id}: {e}")
+    #         
+    #         return sent_count
+    #         
+    #     except Exception as e:
+    #         print(f"Error in send_weekly_themes_notifications: {e}")
+    #         return 0
     
     async def send_broadcast(self, session: AsyncSession, message: str, subscription_type: Optional[SubscriptionType] = None) -> int:
         """Send broadcast message to users."""
@@ -237,6 +238,8 @@ class NotificationManager:
     async def check_and_convert_expired_test_pro(self, session: AsyncSession) -> int:
         """Check and convert expired TEST_PRO subscriptions to FREE."""
         
+        from core.tariffs.tariff_service import TariffService
+        
         # Use naive datetime for comparison with database (TIMESTAMP WITHOUT TIME ZONE)
         now = datetime.utcnow()
         stmt = select(User).filter(
@@ -246,16 +249,23 @@ class NotificationManager:
         result = await session.execute(stmt)
         expired_users = result.scalars().all()
         
+        # Get FREE limits from TariffService
+        tariff_service = TariffService()
+        free_limits = tariff_service.get_tariff_limits(SubscriptionType.FREE)
+        
         converted_count = 0
         for user in expired_users:
             user.subscription_type = SubscriptionType.FREE
             user.subscription_expires_at = None
             
-            # Update limits to FREE level
+            # Update limits to FREE level using TariffService
             if user.limits:
-                user.limits.analytics_total = 0
-                user.limits.themes_total = 1
+                user.limits.analytics_total = free_limits['analytics_limit']  # 0
+                user.limits.themes_total = free_limits['themes_limit']  # 4 (стандартный лимит для FREE)
                 user.limits.top_themes_total = 0
+                user.limits.theme_cooldown_days = free_limits['theme_cooldown_days']  # 7 дней
+                # Устанавливаем новую дату начала тарифа (для отсчета 7 дней)
+                user.limits.current_tariff_started_at = now
             
             converted_count += 1
         

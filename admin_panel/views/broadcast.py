@@ -93,6 +93,14 @@ async def send_broadcast(
     # Parse send_to_all (comes as string "true" or "false" from form)
     send_to_all_bool = send_to_all.lower() in ("true", "1", "yes", "on")
     
+    # Валидация: если выбрано "По тарифу", то subscription_type обязателен
+    if not send_to_all_bool:
+        if not subscription_type or not subscription_type.strip():
+            return JSONResponse(
+                {"success": False, "message": "При выборе 'По тарифу' необходимо указать тип подписки"},
+                status_code=400
+            )
+    
     bot = await get_bot_instance()
     if not bot:
         return JSONResponse(
@@ -164,7 +172,12 @@ async def send_broadcast(
                 status_code=500
             )
         finally:
-            await bot.session.close()
+            # Безопасное закрытие сессии бота
+            try:
+                if bot and hasattr(bot, 'session'):
+                    await bot.session.close()
+            except Exception as e:
+                print(f"Error closing bot session: {e}")
 
 
 @router.get("/broadcast/{broadcast_id}", response_class=JSONResponse)
