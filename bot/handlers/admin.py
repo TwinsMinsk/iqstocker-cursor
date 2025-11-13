@@ -761,6 +761,11 @@ async def resetme_command(message: Message, state: FSMContext):
         
         db.commit()
         
+        # Invalidate cache after resetting limits
+        from core.cache.user_cache import get_user_cache_service
+        cache_service = get_user_cache_service()
+        await cache_service.invalidate_user_and_limits(user.telegram_id, user.id)
+        
         # Success message
         await message.answer("✅ Профиль успешно сброшен. Перезапускаю онбординг...")
         
