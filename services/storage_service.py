@@ -15,16 +15,29 @@ class StorageService:
     
     def __init__(self):
         """Initialize Supabase Storage client."""
-        # Используем settings для получения конфигурации
-        supabase_url = settings.supabase_url
+        # Приоритет: переменные окружения > settings
+        supabase_url = os.getenv("SUPABASE_URL") or settings.supabase_url
         # Для Storage операций нужен SERVICE_ROLE_KEY, а не обычный ключ
-        supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or settings.supabase_key
+        supabase_key = (
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY") or 
+            os.getenv("SUPABASE_KEY") or 
+            settings.supabase_key
+        )
         
         if not supabase_url or not supabase_key:
-            raise ValueError(
-                "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_KEY) environment variables must be set. "
-                "For Storage operations, SERVICE_ROLE_KEY is recommended."
+            missing_vars = []
+            if not supabase_url:
+                missing_vars.append("SUPABASE_URL")
+            if not supabase_key:
+                missing_vars.append("SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_KEY)")
+            
+            error_msg = (
+                f"Missing required environment variables: {', '.join(missing_vars)}. "
+                f"Please set them in Railway Dashboard → Shared Variables. "
+                f"For Storage operations, SUPABASE_SERVICE_ROLE_KEY is recommended."
             )
+            logger.error(error_msg)
+            raise ValueError(error_msg)
         
         try:
             self.supabase = create_client(supabase_url, supabase_key)
