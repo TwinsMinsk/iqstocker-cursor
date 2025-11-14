@@ -49,7 +49,7 @@ class StorageService:
     
     async def upload_csv(self, file_bytes: bytes, user_id: int, filename: str) -> str:
         """
-        Upload CSV file to Supabase Storage.
+        Upload CSV file to Supabase Storage with timeout.
         
         Args:
             file_bytes: File content as bytes
@@ -68,9 +68,19 @@ class StorageService:
             def _upload():
                 return self.supabase.storage.from_(self.bucket).upload(file_key, file_bytes)
             
-            await asyncio.to_thread(_upload)
+            # ✅ Добавляем таймаут 15 секунд
+            await asyncio.wait_for(
+                asyncio.to_thread(_upload),
+                timeout=15.0
+            )
+            
             logger.info(f"Uploaded CSV to Storage: {file_key} (size: {len(file_bytes)} bytes)")
             return file_key
+            
+        except asyncio.TimeoutError:
+            error_msg = f"Storage upload timeout (>15s) for {file_key}"
+            logger.error(error_msg)
+            raise RuntimeError(f"Загрузка файла заняла слишком много времени. Попробуйте позже.") from None
         except Exception as e:
             error_msg = f"Failed to upload CSV to Storage (bucket: {self.bucket}, key: {file_key}): {e}"
             logger.error(error_msg, exc_info=True)
@@ -79,7 +89,7 @@ class StorageService:
     
     async def upload_csv_from_file(self, file_path: str, user_id: int, filename: str) -> str:
         """
-        Upload CSV file to Supabase Storage from a file path.
+        Upload CSV file to Supabase Storage from a file path with timeout.
         This method reads the file in chunks to minimize memory usage.
         
         Args:
@@ -92,7 +102,7 @@ class StorageService:
             
         Raises:
             ValueError: If file size exceeds 20MB limit
-            RuntimeError: If upload fails
+            RuntimeError: If upload fails or times out
         """
         import asyncio
         
@@ -123,9 +133,19 @@ class StorageService:
                 file_bytes = b''.join(chunks)
                 return self.supabase.storage.from_(self.bucket).upload(file_key, file_bytes)
             
-            await asyncio.to_thread(_upload)
+            # ✅ Добавляем таймаут 15 секунд
+            await asyncio.wait_for(
+                asyncio.to_thread(_upload),
+                timeout=15.0
+            )
+            
             logger.info(f"Uploaded CSV to Storage: {file_key} (size: {file_size} bytes)")
             return file_key
+            
+        except asyncio.TimeoutError:
+            error_msg = f"Storage upload timeout (>15s) for {file_key}"
+            logger.error(error_msg)
+            raise RuntimeError(f"Загрузка файла заняла слишком много времени. Попробуйте позже.") from None
         except ValueError:
             # Re-raise ValueError (file size check) without wrapping
             raise
@@ -145,8 +165,17 @@ class StorageService:
         Returns:
             Path to temporary file
         """
+        import time
+        
         try:
+            start_time = time.time()
+            
             response = self.supabase.storage.from_(self.bucket).download(file_key)
+            
+            elapsed = time.time() - start_time
+            if elapsed > 10.0:
+                logger.warning(f"Storage download took {elapsed:.1f}s (>10s threshold)")
+            
             temp_path = f"/tmp/{uuid.uuid4()}.csv"
             
             # Ensure /tmp directory exists
@@ -155,7 +184,7 @@ class StorageService:
             with open(temp_path, 'wb') as f:
                 f.write(response)
             
-            logger.info(f"Downloaded CSV from Storage to temp: {temp_path}")
+            logger.info(f"Downloaded CSV from Storage to temp: {temp_path} ({elapsed:.2f}s)")
             return temp_path
         except Exception as e:
             logger.error(f"Failed to download CSV from Storage: {e}")

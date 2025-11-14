@@ -16,9 +16,12 @@ import logging
 import os
 
 # Настройка логирования ДО использования
+# Используем только StreamHandler для воркеров (Railway собирает автоматически)
+# Это предотвращает блокировку при записи в файл
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - [PID %(process)d] - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler()],  # Только stderr, без блокировок
     force=True  # Принудительно переустанавливаем конфигурацию для форкнутых процессов
 )
 logger = logging.getLogger(__name__)

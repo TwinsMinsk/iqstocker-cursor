@@ -2,6 +2,8 @@
 
 import asyncio
 import logging
+from logging.handlers import QueueHandler, QueueListener
+import queue
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
@@ -18,15 +20,34 @@ from bot.middlewares.limits import LimitsMiddleware
 from bot.middlewares.rate_limit import UploadRateLimitMiddleware
 from core.utils.lexicon_validator import validate_or_raise
 
-# Configure logging
+# Configure async logging with QueueHandler to prevent Event Loop blocking
+log_queue = queue.Queue(-1)  # Unbounded queue
+
+# Handlers для фоновой записи
+file_handler = logging.FileHandler('logs/bot.log')
+stream_handler = logging.StreamHandler()
+
+# Форматтер
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(formatter)
+stream_handler.setFormatter(formatter)
+
+# QueueListener записывает в фоновом потоке (не блокирует Event Loop)
+queue_listener = QueueListener(
+    log_queue,
+    file_handler,
+    stream_handler,
+    respect_handler_level=True
+)
+
+# QueueHandler для основного логгера
 logging.basicConfig(
     level=getattr(logging, settings.log_level),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('logs/bot.log'),
-        logging.StreamHandler()
-    ]
+    handlers=[QueueHandler(log_queue)]
 )
+
+# Запускаем listener
+queue_listener.start()
 
 logger = logging.getLogger(__name__)
 
@@ -173,7 +194,15 @@ async def main():
         except Exception as e:
             logger.warning(f"Error closing Redis: {e}")
         
-        # 6. Закрыть бота (последним)
+        # 6. Остановить QueueListener для логирования
+        logger.info("Stopping log queue listener...")
+        try:
+            queue_listener.stop()
+            logger.info("Log queue listener stopped")
+        except Exception as e:
+            logger.error(f"Error stopping log queue listener: {e}")
+        
+        # 7. Закрыть бота (последним)
         logger.info("Closing bot session...")
         try:
             await bot.session.close()
