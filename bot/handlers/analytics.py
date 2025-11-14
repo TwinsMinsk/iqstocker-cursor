@@ -772,14 +772,28 @@ async def handle_content_type_callback(
         await session.commit()
         
         # Отправляем задачу в Dramatiq воркер
-        from workers.actors import process_csv_analysis_task
+        from workers.actors import process_csv_analysis_task, ensure_broker_initialized
         
-        process_csv_analysis_task.send(
-            csv_analysis_id=csv_analysis_id,
-            user_telegram_id=user.telegram_id
-        )
+        logger = logging.getLogger(__name__)
+        
+        try:
+            # Убеждаемся, что broker инициализирован
+            ensure_broker_initialized()
+            
+            logger.info(f"Enqueuing CSV analysis task: analysis_id={csv_analysis_id}, user_id={user.telegram_id}")
+            message = process_csv_analysis_task.send(
+                csv_analysis_id=csv_analysis_id,
+                user_telegram_id=user.telegram_id
+            )
+            logger.info(f"CSV analysis task enqueued successfully: message_id={getattr(message, 'message_id', 'N/A')}")
+        except Exception as e:
+            logger.error(f"Failed to enqueue CSV analysis task: {e}", exc_info=True)
+            await callback.message.answer(
+                "Произошла ошибка при постановке задачи в очередь обработки. "
+                "Попробуйте загрузить файл заново или обратитесь в поддержку."
+            )
+            raise
     except Exception as e:
-        import logging
         logger = logging.getLogger(__name__)
         logger.error(f"Error in handle_content_type_callback: {e}", exc_info=True)
         await callback.message.answer("Произошла ошибка при обработке. Попробуйте загрузить файл заново.")
@@ -886,14 +900,28 @@ async def handle_content_type_text(
         await session.commit()
         
         # Отправляем задачу в Dramatiq воркер
-        from workers.actors import process_csv_analysis_task
+        from workers.actors import process_csv_analysis_task, ensure_broker_initialized
         
-        process_csv_analysis_task.send(
-            csv_analysis_id=csv_analysis_id,
-            user_telegram_id=user.telegram_id
-        )
+        logger = logging.getLogger(__name__)
+        
+        try:
+            # Убеждаемся, что broker инициализирован
+            ensure_broker_initialized()
+            
+            logger.info(f"Enqueuing CSV analysis task: analysis_id={csv_analysis_id}, user_id={user.telegram_id}")
+            message = process_csv_analysis_task.send(
+                csv_analysis_id=csv_analysis_id,
+                user_telegram_id=user.telegram_id
+            )
+            logger.info(f"CSV analysis task enqueued successfully: message_id={getattr(message, 'message_id', 'N/A')}")
+        except Exception as e:
+            logger.error(f"Failed to enqueue CSV analysis task: {e}", exc_info=True)
+            await message.answer(
+                "Произошла ошибка при постановке задачи в очередь обработки. "
+                "Попробуйте загрузить файл заново или обратитесь в поддержку."
+            )
+            raise
     except Exception as e:
-        import logging
         logger = logging.getLogger(__name__)
         logger.error(f"Error in handle_content_type_text: {e}", exc_info=True)
         await message.answer("Произошла ошибка при обработке. Попробуйте загрузить файл заново.")
