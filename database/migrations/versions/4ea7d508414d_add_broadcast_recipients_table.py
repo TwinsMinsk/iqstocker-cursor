@@ -1,7 +1,7 @@
 """add_broadcast_recipients_table
 
 Revision ID: 4ea7d508414d
-Revises: 
+Revises: vip_group_members_001
 Create Date: 2025-11-17 15:45:00.000000
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '4ea7d508414d'
-down_revision: Union[str, None] = None
+down_revision: Union[str, None] = 'vip_group_members_001'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
