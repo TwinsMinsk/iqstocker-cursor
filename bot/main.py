@@ -95,13 +95,22 @@ async def main():
     # Register middlewares (order matters: DatabaseMiddleware first to inject session)
     dp.message.middleware(DatabaseMiddleware())
     dp.callback_query.middleware(DatabaseMiddleware())
+    dp.chat_member.middleware(DatabaseMiddleware())  # For VIP group tracking
+    
     dp.message.middleware(SubscriptionMiddleware())
     dp.callback_query.middleware(SubscriptionMiddleware())
+    # SubscriptionMiddleware not needed for chat_member events
+    
     dp.message.middleware(BlockedUserMiddleware())
     dp.callback_query.middleware(BlockedUserMiddleware())
+    # BlockedUserMiddleware not needed for chat_member events
+    
     dp.message.middleware(LimitsMiddleware())
     dp.callback_query.middleware(LimitsMiddleware())
+    # LimitsMiddleware not needed for chat_member events
+    
     dp.message.middleware(UploadRateLimitMiddleware())
+    # UploadRateLimitMiddleware only for messages
     
     # Register routers
     dp.include_router(start.router)
