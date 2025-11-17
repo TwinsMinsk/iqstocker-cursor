@@ -13,6 +13,8 @@ from datetime import datetime
 
 from config.database import AsyncSessionLocal
 from database.models.vip_group_whitelist import VIPGroupWhitelist
+from database.models.vip_group_member import VIPGroupMember, VIPGroupMemberStatus
+from database.models import User
 
 logger = logging.getLogger(__name__)
 
@@ -24,16 +26,17 @@ templates = Jinja2Templates(directory="admin_panel/templates")
 async def vip_group_page(
     request: Request,
     page: int = Query(1, ge=1),
-    per_page: int = Query(50, ge=1, le=100)
+    per_page: int = Query(50, ge=1, le=100),
+    members_page: int = Query(1, ge=1)
 ):
     """VIP Group whitelist management page."""
     async with AsyncSessionLocal() as session:
-        # Get total count
+        # Get whitelist total count
         count_query = select(func.count(VIPGroupWhitelist.id))
         count_result = await session.execute(count_query)
         total_count = count_result.scalar() or 0
         
-        # Pagination
+        # Pagination for whitelist
         offset = (page - 1) * per_page
         query = select(VIPGroupWhitelist).order_by(desc(VIPGroupWhitelist.added_at)).offset(offset).limit(per_page)
         
@@ -41,6 +44,31 @@ async def vip_group_page(
         whitelist_entries = result.scalars().all()
         
         total_pages = (total_count + per_page - 1) // per_page if total_count > 0 else 1
+        
+        # Get members history with pagination
+        members_count_query = select(func.count(VIPGroupMember.id))
+        members_count_result = await session.execute(members_count_query)
+        members_total_count = members_count_result.scalar() or 0
+        
+        members_offset = (members_page - 1) * per_page
+        members_query = (
+            select(VIPGroupMember)
+            .order_by(desc(VIPGroupMember.created_at))
+            .offset(members_offset)
+            .limit(per_page)
+        )
+        
+        members_result = await session.execute(members_query)
+        member_entries = members_result.scalars().all()
+        
+        members_total_pages = (members_total_count + per_page - 1) // per_page if members_total_count > 0 else 1
+        
+        # Get statistics
+        joined_count_query = select(func.count(VIPGroupMember.id)).where(
+            VIPGroupMember.status == VIPGroupMemberStatus.JOINED
+        )
+        joined_count_result = await session.execute(joined_count_query)
+        joined_count = joined_count_result.scalar() or 0
         
         return templates.TemplateResponse(
             "vip_group.html",
@@ -50,7 +78,13 @@ async def vip_group_page(
                 "current_page": page,
                 "total_pages": total_pages,
                 "total_count": total_count,
-                "per_page": per_page
+                "per_page": per_page,
+                # Members data
+                "member_entries": member_entries,
+                "members_current_page": members_page,
+                "members_total_pages": members_total_pages,
+                "members_total_count": members_total_count,
+                "joined_count": joined_count,
             }
         )
 
@@ -298,6 +332,57 @@ async def get_stats(request: Request):
             
         except Exception as e:
             logger.error(f"Error getting stats: {e}", exc_info=True)
+            return JSONResponse(
+                status_code=500,
+                content={"error": str(e)}
+            )
+
+
+@router.get("/api/vip-group/member/{telegram_id}", response_class=JSONResponse)
+async def get_member_history(
+    request: Request,
+    telegram_id: int = Path(...)
+):
+    """Get member history for a specific user."""
+    async with AsyncSessionLocal() as session:
+        try:
+            # Get member history
+            stmt = (
+                select(VIPGroupMember)
+                .where(VIPGroupMember.telegram_id == telegram_id)
+                .order_by(desc(VIPGroupMember.created_at))
+            )
+            result = await session.execute(stmt)
+            history = result.scalars().all()
+            
+            # Get user info if exists
+            user_stmt = select(User).where(User.telegram_id == telegram_id)
+            user_result = await session.execute(user_stmt)
+            user = user_result.scalar_one_or_none()
+            
+            # Format history
+            history_data = []
+            for entry in history:
+                history_data.append({
+                    "id": entry.id,
+                    "status": entry.status.value,
+                    "subscription_type": entry.subscription_type,
+                    "joined_at": entry.joined_at.strftime('%Y-%m-%d %H:%M:%S') if entry.joined_at else None,
+                    "left_at": entry.left_at.strftime('%Y-%m-%d %H:%M:%S') if entry.left_at else None,
+                    "created_at": entry.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                    "note": entry.note
+                })
+            
+            return JSONResponse(content={
+                "telegram_id": telegram_id,
+                "username": user.username if user else None,
+                "first_name": user.first_name if user else None,
+                "current_subscription": user.subscription_type.value if user else None,
+                "history": history_data
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting member history: {e}", exc_info=True)
             return JSONResponse(
                 status_code=500,
                 content={"error": str(e)}

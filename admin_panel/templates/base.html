@@ -13,58 +13,60 @@
     <div class="sidebar">
         <div class="sidebar-header">
             <h4><i class="fas fa-chart-line me-2"></i>IQStocker</h4>
-            <p class="text-white-50 mb-0" style="font-size: 0.875rem;">Admin Panel</p>
+            <p class="text-white-50 mb-0">Admin Panel</p>
         </div>
         <nav class="sidebar-nav">
-            <a class="nav-link {% if request.url.path == '/dashboard' %}active{% endif %}" href="/dashboard">
-                <i class="fas fa-tachometer-alt"></i>
-                <span>Дашборд</span>
-            </a>
-            <a class="nav-link {% if request.url.path == '/users' or '/users' in request.url.path %}active{% endif %}" href="/users">
-                <i class="fas fa-user-friends"></i>
-                <span>Управление пользователями</span>
-            </a>
-            <a class="nav-link {% if request.url.path == '/lexicon' or '/lexicon' in request.url.path %}active{% endif %}" href="/lexicon">
-                <i class="fas fa-comments"></i>
-                <span>Сообщения</span>
-            </a>
-            <a class="nav-link {% if request.url.path == '/analytics' or '/analytics' in request.url.path %}active{% endif %}" href="/analytics">
-                <i class="fas fa-chart-bar"></i>
-                <span>Аналитика портфеля</span>
-            </a>
-            <a class="nav-link {% if request.url.path == '/broadcast' or '/broadcast' in request.url.path %}active{% endif %}" href="/broadcast">
-                <i class="fas fa-bullhorn"></i>
-                <span>Рассылка сообщений</span>
-            </a>
-            <a class="nav-link {% if request.url.path == '/themes' or '/themes' in request.url.path %}active{% endif %}" href="/themes">
-                <i class="fas fa-palette"></i>
-                <span>Управление темами</span>
-            </a>
-            <a class="nav-link {% if request.url.path == '/broadcast-history' or '/broadcast-history' in request.url.path %}active{% endif %}" href="/broadcast-history">
-                <i class="fas fa-history"></i>
-                <span>История рассылок</span>
-            </a>
-            <a class="nav-link {% if request.url.path == '/payments' or '/payments' in request.url.path %}active{% endif %}" href="/payments">
-                <i class="fas fa-credit-card"></i>
-                <span>Платежи и подписки</span>
-            </a>
-            <a class="nav-link {% if request.url.path == '/tariff-limits' or '/tariff-limits' in request.url.path %}active{% endif %}" href="/tariff-limits">
-                <i class="fas fa-cog"></i>
-                <span>Управление тарифами</span>
-            </a>
-            <a class="nav-link {% if request.url.path == '/referral' or '/referral' in request.url.path %}active{% endif %}" href="/referral">
-                <i class="fas fa-gift"></i>
-                <span>Реферальная программа</span>
-            </a>
-            <a class="nav-link {% if request.url.path == '/vip-group' or '/vip-group' in request.url.path %}active{% endif %}" href="/vip-group">
-                <i class="fas fa-crown"></i>
-                <span>VIP Group</span>
-            </a>
-            <a class="nav-link {% if request.url.path == '/payment-test' or '/payment-test' in request.url.path %}active{% endif %}" href="/payment-test">
-                <i class="fas fa-vial"></i>
-                <span>Тест платежей</span>
-            </a>
-            <div class="mt-auto px-3 py-2">
+            <div class="nav-links-container">
+                <a class="nav-link {% if request.url.path == '/dashboard' %}active{% endif %}" href="/dashboard">
+                    <i class="fas fa-tachometer-alt"></i>
+                    <span>Дашборд</span>
+                </a>
+                <a class="nav-link {% if request.url.path == '/users' or '/users' in request.url.path %}active{% endif %}" href="/users">
+                    <i class="fas fa-user-friends"></i>
+                    <span>Управление пользователями</span>
+                </a>
+                <a class="nav-link {% if request.url.path == '/lexicon' or '/lexicon' in request.url.path %}active{% endif %}" href="/lexicon">
+                    <i class="fas fa-comments"></i>
+                    <span>Сообщения</span>
+                </a>
+                <a class="nav-link {% if request.url.path == '/analytics' or '/analytics' in request.url.path %}active{% endif %}" href="/analytics">
+                    <i class="fas fa-chart-bar"></i>
+                    <span>Аналитика портфеля</span>
+                </a>
+                <a class="nav-link {% if request.url.path == '/broadcast' or '/broadcast' in request.url.path %}active{% endif %}" href="/broadcast">
+                    <i class="fas fa-bullhorn"></i>
+                    <span>Рассылка сообщений</span>
+                </a>
+                <a class="nav-link {% if request.url.path == '/themes' or '/themes' in request.url.path %}active{% endif %}" href="/themes">
+                    <i class="fas fa-palette"></i>
+                    <span>Управление темами</span>
+                </a>
+                <a class="nav-link {% if request.url.path == '/broadcast-history' or '/broadcast-history' in request.url.path %}active{% endif %}" href="/broadcast-history">
+                    <i class="fas fa-history"></i>
+                    <span>История рассылок</span>
+                </a>
+                <a class="nav-link {% if request.url.path == '/payments' or '/payments' in request.url.path %}active{% endif %}" href="/payments">
+                    <i class="fas fa-credit-card"></i>
+                    <span>Платежи и подписки</span>
+                </a>
+                <a class="nav-link {% if request.url.path == '/tariff-limits' or '/tariff-limits' in request.url.path %}active{% endif %}" href="/tariff-limits">
+                    <i class="fas fa-cog"></i>
+                    <span>Управление тарифами</span>
+                </a>
+                <a class="nav-link {% if request.url.path == '/referral' or '/referral' in request.url.path %}active{% endif %}" href="/referral">
+                    <i class="fas fa-gift"></i>
+                    <span>Реферальная программа</span>
+                </a>
+                <a class="nav-link {% if request.url.path == '/vip-group' or '/vip-group' in request.url.path %}active{% endif %}" href="/vip-group">
+                    <i class="fas fa-crown"></i>
+                    <span>VIP Group</span>
+                </a>
+                <a class="nav-link {% if request.url.path == '/payment-test' or '/payment-test' in request.url.path %}active{% endif %}" href="/payment-test">
+                    <i class="fas fa-vial"></i>
+                    <span>Тест платежей</span>
+                </a>
+            </div>
+            <div class="sidebar-footer">
                 <a href="/admin/logout" class="btn btn-outline-light btn-sm w-100">
                     <i class="fas fa-sign-out-alt me-1"></i>Выход
                 </a>

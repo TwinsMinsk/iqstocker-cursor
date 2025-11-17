@@ -11,6 +11,7 @@ from aiogram.exceptions import TelegramAPIError
 from config.settings import settings
 from database.models import User, SubscriptionType
 from database.models.vip_group_whitelist import VIPGroupWhitelist
+from database.models.vip_group_member import VIPGroupMember, VIPGroupMemberStatus
 
 logger = logging.getLogger(__name__)
 
@@ -247,4 +248,142 @@ class VIPGroupService:
         )
         
         return stats
+    
+    async def record_member_join(
+        self,
+        telegram_id: int,
+        session: AsyncSession,
+        username: Optional[str] = None,
+        first_name: Optional[str] = None
+    ) -> Optional[VIPGroupMember]:
+        """
+        Record user joining VIP group.
+        
+        Returns the created VIPGroupMember entry.
+        """
+        try:
+            # Get user info from database
+            stmt = select(User).where(User.telegram_id == telegram_id)
+            result = await session.execute(stmt)
+            user = result.scalar_one_or_none()
+            
+            # Get subscription type if user exists
+            subscription_type = None
+            user_id = None
+            if user:
+                subscription_type = user.subscription_type.value if user.subscription_type else None
+                user_id = user.id
+                # Update username/first_name from user if not provided
+                if not username:
+                    username = user.username
+                if not first_name:
+                    first_name = user.first_name
+            
+            # Create member record
+            member_entry = VIPGroupMember(
+                telegram_id=telegram_id,
+                username=username,
+                first_name=first_name,
+                subscription_type=subscription_type,
+                status=VIPGroupMemberStatus.JOINED,
+                joined_at=datetime.utcnow(),
+                user_id=user_id
+            )
+            session.add(member_entry)
+            await session.commit()
+            await session.refresh(member_entry)
+            
+            logger.info(
+                f"Recorded VIP group join for user {telegram_id} "
+                f"(subscription: {subscription_type})"
+            )
+            return member_entry
+            
+        except Exception as e:
+            logger.error(f"Error recording member join for {telegram_id}: {e}")
+            await session.rollback()
+            return None
+    
+    async def record_member_leave(
+        self,
+        telegram_id: int,
+        session: AsyncSession,
+        status: VIPGroupMemberStatus = VIPGroupMemberStatus.LEFT,
+        note: Optional[str] = None
+    ) -> Optional[VIPGroupMember]:
+        """
+        Record user leaving/being removed from VIP group.
+        
+        Args:
+            telegram_id: User's Telegram ID
+            session: Database session
+            status: Status (LEFT or REMOVED)
+            note: Optional note about the leave event
+        
+        Returns the created VIPGroupMember entry.
+        """
+        try:
+            # Get user info from database
+            stmt = select(User).where(User.telegram_id == telegram_id)
+            result = await session.execute(stmt)
+            user = result.scalar_one_or_none()
+            
+            # Get subscription type if user exists
+            subscription_type = None
+            user_id = None
+            username = None
+            first_name = None
+            if user:
+                subscription_type = user.subscription_type.value if user.subscription_type else None
+                user_id = user.id
+                username = user.username
+                first_name = user.first_name
+            
+            # Create member record
+            member_entry = VIPGroupMember(
+                telegram_id=telegram_id,
+                username=username,
+                first_name=first_name,
+                subscription_type=subscription_type,
+                status=status,
+                left_at=datetime.utcnow(),
+                user_id=user_id,
+                note=note
+            )
+            session.add(member_entry)
+            await session.commit()
+            await session.refresh(member_entry)
+            
+            logger.info(
+                f"Recorded VIP group {status.value.lower()} for user {telegram_id} "
+                f"(subscription: {subscription_type})"
+            )
+            return member_entry
+            
+        except Exception as e:
+            logger.error(f"Error recording member leave for {telegram_id}: {e}")
+            await session.rollback()
+            return None
+    
+    async def get_member_history(
+        self,
+        telegram_id: int,
+        session: AsyncSession
+    ) -> list[VIPGroupMember]:
+        """
+        Get member history for a specific user.
+        
+        Returns list of all VIPGroupMember entries for the user, ordered by created_at.
+        """
+        try:
+            stmt = (
+                select(VIPGroupMember)
+                .where(VIPGroupMember.telegram_id == telegram_id)
+                .order_by(VIPGroupMember.created_at.desc())
+            )
+            result = await session.execute(stmt)
+            return list(result.scalars().all())
+        except Exception as e:
+            logger.error(f"Error getting member history for {telegram_id}: {e}")
+            return []
 

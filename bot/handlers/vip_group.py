@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.settings import settings
 from core.vip_group.vip_group_service import VIPGroupService
+from database.models.vip_group_member import VIPGroupMemberStatus
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,8 @@ async def handle_vip_group_member_update(
             if not was_member_before:
                 # User just joined - check access
                 telegram_id = new_member.user.id
+                username = new_member.user.username
+                first_name = new_member.user.first_name
                 
                 logger.info(
                     f"User {telegram_id} joined VIP group, checking access..."
@@ -59,16 +62,51 @@ async def handle_vip_group_member_update(
                     
                     if removed:
                         logger.info(f"Successfully removed user {telegram_id} from VIP group")
+                        # Record removal
+                        await vip_service.record_member_leave(
+                            telegram_id=telegram_id,
+                            session=session,
+                            status=VIPGroupMemberStatus.REMOVED,
+                            note="Removed by bot: no access"
+                        )
                     else:
                         logger.warning(f"Failed to remove user {telegram_id} from VIP group")
                 else:
                     logger.info(f"User {telegram_id} has access, allowing to stay in VIP group")
+                    # Record successful join
+                    await vip_service.record_member_join(
+                        telegram_id=telegram_id,
+                        session=session,
+                        username=username,
+                        first_name=first_name
+                    )
         
         # Also handle when user is removed (status becomes left/kicked/banned)
-        # This is for logging purposes
         elif new_member.status in ['left', 'kicked']:
             telegram_id = new_member.user.id
-            logger.debug(f"User {telegram_id} left or was removed from VIP group")
+            # Determine if it was a voluntary leave or removal
+            was_member_before = old_member.status in ['member', 'administrator', 'creator']
+            
+            if was_member_before:
+                logger.info(f"User {telegram_id} left or was removed from VIP group")
+                
+                # Record the leave event
+                vip_service = VIPGroupService()
+                status = (
+                    VIPGroupMemberStatus.LEFT if new_member.status == 'left' 
+                    else VIPGroupMemberStatus.REMOVED
+                )
+                note = (
+                    "User left voluntarily" if new_member.status == 'left'
+                    else "User was kicked/removed"
+                )
+                
+                await vip_service.record_member_leave(
+                    telegram_id=telegram_id,
+                    session=session,
+                    status=status,
+                    note=note
+                )
             
     except Exception as e:
         logger.error(f"Error handling VIP group member update: {e}", exc_info=True)

@@ -168,6 +168,132 @@
     </div>
 </div>
 
+<!-- VIP Group Members History -->
+<div class="card mt-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            <i class="fas fa-history me-2"></i>История участников VIP-группы
+            <span class="badge bg-success ms-2">{{ members_total_count }}</span>
+            <small class="text-muted ms-2">(Вступили: {{ joined_count }})</small>
+        </h5>
+    </div>
+    <div class="card-body">
+        {% if member_entries %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Telegram ID</th>
+                        <th>Username</th>
+                        <th>Имя</th>
+                        <th>Тариф</th>
+                        <th>Статус</th>
+                        <th>Дата вступления</th>
+                        <th>Дата выхода</th>
+                        <th>Примечание</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for member in member_entries %}
+                    <tr>
+                        <td>{{ member.id }}</td>
+                        <td><code>{{ member.telegram_id }}</code></td>
+                        <td>{{ member.username or '-' }}</td>
+                        <td>{{ member.first_name or '-' }}</td>
+                        <td>
+                            {% if member.subscription_type %}
+                            <span class="badge 
+                                {% if member.subscription_type == 'ULTRA' %}bg-warning
+                                {% elif member.subscription_type == 'PRO' %}bg-info
+                                {% elif member.subscription_type == 'TEST_PRO' %}bg-secondary
+                                {% else %}bg-light text-dark{% endif %}">
+                                {{ member.subscription_type }}
+                            </span>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if member.status.value == 'JOINED' %}
+                            <span class="badge bg-success">
+                                <i class="fas fa-check-circle me-1"></i>Вступил
+                            </span>
+                            {% elif member.status.value == 'LEFT' %}
+                            <span class="badge bg-secondary">
+                                <i class="fas fa-sign-out-alt me-1"></i>Вышел
+                            </span>
+                            {% elif member.status.value == 'REMOVED' %}
+                            <span class="badge bg-danger">
+                                <i class="fas fa-ban me-1"></i>Удален
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if member.joined_at %}
+                            {{ member.joined_at.strftime('%d.%m.%Y %H:%M') }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if member.left_at %}
+                            {{ member.left_at.strftime('%d.%m.%Y %H:%M') }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>
+                            <small>{{ member.note or '-' }}</small>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination for members -->
+        {% if members_total_pages > 1 %}
+        <nav aria-label="Members pagination">
+            <ul class="pagination justify-content-center">
+                {% if members_current_page > 1 %}
+                <li class="page-item">
+                    <a class="page-link" href="?members_page={{ members_current_page - 1 }}&page={{ current_page }}">Предыдущая</a>
+                </li>
+                {% endif %}
+                
+                {% for page_num in range(1, members_total_pages + 1) %}
+                    {% if page_num == members_current_page %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ page_num }}</span>
+                    </li>
+                    {% elif page_num <= 3 or page_num > members_total_pages - 3 or (page_num >= members_current_page - 1 and page_num <= members_current_page + 1) %}
+                    <li class="page-item">
+                        <a class="page-link" href="?members_page={{ page_num }}&page={{ current_page }}">{{ page_num }}</a>
+                    </li>
+                    {% elif page_num == 4 or page_num == members_total_pages - 3 %}
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if members_current_page < members_total_pages %}
+                <li class="page-item">
+                    <a class="page-link" href="?members_page={{ members_current_page + 1 }}&page={{ current_page }}">Следующая</a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+        {% else %}
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>История пуста. Когда пользователи начнут вступать в VIP-группу, здесь появятся записи.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
 <script>
 // CSV Import
 document.getElementById('csvImportForm').addEventListener('submit', async function(e) {
