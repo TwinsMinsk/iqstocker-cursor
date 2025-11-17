@@ -7,47 +7,72 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import Optional
 import asyncio
+import logging
 
 from config.database import AsyncSessionLocal
 from database.models import User, SubscriptionType, BroadcastMessage
 from config.settings import settings
 from aiogram import Bot
-from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramAPIError
 
 router = APIRouter()
 templates = Jinja2Templates(directory="admin_panel/templates")
+logger = logging.getLogger(__name__)
 
 
 async def get_bot_instance() -> Optional[Bot]:
     """Get bot instance for sending messages."""
     try:
-        from aiogram import Bot
-        if settings.bot_token:
-            return Bot(token=settings.bot_token)
-        return None
+        if not settings.bot_token:
+            logger.error("❌ Bot token not configured")
+            return None
+        
+        logger.info(f"📱 Creating bot instance for broadcast (token length: {len(settings.bot_token)})")
+        bot = Bot(
+            token=settings.bot_token,
+            default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+        )
+        
+        # Test bot connection
+        me = await bot.get_me()
+        logger.info(f"✅ Bot instance created: @{me.username} (id: {me.id})")
+        return bot
     except Exception as e:
-        print(f"Error creating bot instance: {e}")
+        logger.error(f"❌ Error creating bot instance: {e}", exc_info=True)
         return None
 
 
-async def send_message_to_user(bot: Bot, telegram_id: int, message: str) -> bool:
-    """Send message to a single user."""
+async def send_message_to_user(bot: Bot, telegram_id: int, message: str) -> tuple[bool, str]:
+    """
+    Send message to a single user.
+    
+    Returns:
+        tuple[bool, str]: (success, error_message)
+    """
     try:
         await bot.send_message(
             chat_id=telegram_id,
             text=message,
             parse_mode="HTML"
         )
-        return True
-    except TelegramForbiddenError:
+        logger.debug(f"✅ Message sent to {telegram_id}")
+        return True, ""
+    except TelegramForbiddenError as e:
         # User blocked the bot
-        return False
-    except TelegramBadRequest:
+        logger.warning(f"🚫 User {telegram_id} blocked the bot: {e}")
+        return False, "User blocked bot"
+    except TelegramBadRequest as e:
         # Invalid request
-        return False
+        logger.warning(f"⚠️ Bad request for user {telegram_id}: {e}")
+        return False, f"Bad request: {e}"
+    except TelegramAPIError as e:
+        logger.error(f"❌ Telegram API error for user {telegram_id}: {e}")
+        return False, f"API error: {e}"
     except Exception as e:
-        print(f"Error sending to {telegram_id}: {e}")
-        return False
+        logger.error(f"❌ Unexpected error sending to {telegram_id}: {e}", exc_info=True)
+        return False, f"Error: {e}"
 
 
 @router.get("/broadcast", response_class=HTMLResponse)
@@ -84,7 +109,13 @@ async def send_broadcast(
     send_to_all: str = Form("true")
 ):
     """Send broadcast message to users."""
+    logger.info(
+        f"📤 Broadcast request received: send_to_all={send_to_all}, "
+        f"subscription_type={subscription_type}, message_length={len(message)}"
+    )
+    
     if not message.strip():
+        logger.warning("⚠️ Empty message provided")
         return JSONResponse(
             {"success": False, "message": "Сообщение не может быть пустым"},
             status_code=400
@@ -92,10 +123,12 @@ async def send_broadcast(
     
     # Parse send_to_all (comes as string "true" or "false" from form)
     send_to_all_bool = send_to_all.lower() in ("true", "1", "yes", "on")
+    logger.info(f"📋 Send to all: {send_to_all_bool}")
     
     # Валидация: если выбрано "По тарифу", то subscription_type обязателен
     if not send_to_all_bool:
         if not subscription_type or not subscription_type.strip():
+            logger.warning("⚠️ Subscription type not provided for targeted broadcast")
             return JSONResponse(
                 {"success": False, "message": "При выборе 'По тарифу' необходимо указать тип подписки"},
                 status_code=400
@@ -103,6 +136,7 @@ async def send_broadcast(
     
     bot = await get_bot_instance()
     if not bot:
+        logger.error("❌ Failed to create bot instance")
         return JSONResponse(
             {"success": False, "message": "Бот не настроен. Проверьте BOT_TOKEN"},
             status_code=500
@@ -116,34 +150,58 @@ async def send_broadcast(
                 try:
                     sub_type_enum = SubscriptionType[subscription_type]
                     query = query.where(User.subscription_type == sub_type_enum)
+                    logger.info(f"🎯 Targeting users with subscription: {sub_type_enum.value}")
                 except KeyError:
+                    logger.error(f"❌ Unknown subscription type: {subscription_type}")
                     return JSONResponse(
                         {"success": False, "message": f"Неизвестный тип подписки: {subscription_type}"},
                         status_code=400
                     )
+            else:
+                logger.info("🌐 Targeting all users")
             
             users_result = await session.execute(query)
             users = users_result.scalars().all()
             
+            logger.info(f"👥 Found {len(users)} users for broadcast")
+            
             if not users:
+                logger.warning("⚠️ No users found for broadcast")
                 return JSONResponse(
                     {"success": False, "message": "Не найдено пользователей для рассылки"},
                     status_code=404
                 )
             
+            # Log first few user IDs for debugging
+            user_ids_sample = [u.telegram_id for u in users[:5]]
+            logger.info(f"📋 Sample user IDs: {user_ids_sample}")
+            
             # Send messages
             sent_count = 0
             failed_count = 0
+            errors = []
             
-            for user in users:
-                success = await send_message_to_user(bot, user.telegram_id, message)
+            for i, user in enumerate(users, 1):
+                success, error_msg = await send_message_to_user(bot, user.telegram_id, message)
                 if success:
                     sent_count += 1
                 else:
                     failed_count += 1
+                    if len(errors) < 5:  # Collect first 5 errors
+                        errors.append(f"User {user.telegram_id}: {error_msg}")
+                
+                # Log progress every 10 messages
+                if i % 10 == 0:
+                    logger.info(f"📊 Progress: {i}/{len(users)} - Sent: {sent_count}, Failed: {failed_count}")
                 
                 # Rate limiting - wait between messages (20 messages per second)
                 await asyncio.sleep(0.05)
+            
+            logger.info(
+                f"✅ Broadcast completed: Sent: {sent_count}, Failed: {failed_count}, Total: {len(users)}"
+            )
+            if errors:
+                logger.warning(f"⚠️ Sample errors: {errors}")
             
             # Save broadcast record
             from datetime import datetime
