@@ -59,9 +59,14 @@
                         </td>
                         <td>{{ broadcast.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
                         <td>
-                            <button class="btn btn-sm btn-primary" onclick="showBroadcastDetails({{ broadcast.id }})">
+                            <button class="btn btn-sm btn-primary me-1" onclick="showBroadcastDetails({{ broadcast.id }})" title="Просмотр">
                                 <i class="fas fa-eye"></i>
                             </button>
+                            {% if broadcast.sent_at %}
+                            <button class="btn btn-sm btn-warning" onclick="editBroadcast({{ broadcast.id }})" title="Редактировать">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -118,6 +123,48 @@
         </div>
     </div>
 </div>
+
+<!-- Broadcast Edit Modal -->
+<div id="broadcastEditModal" class="modal fade" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Редактировать рассылку</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Внимание!</strong> Это действие отредактирует сообщение у всех получателей рассылки.
+                </div>
+                <form id="editBroadcastForm">
+                    <input type="hidden" id="editBroadcastId" name="broadcast_id">
+                    <div class="mb-3">
+                        <label for="editBroadcastText" class="form-label">Новый текст сообщения:</label>
+                        <textarea 
+                            id="editBroadcastText" 
+                            name="new_text" 
+                            class="form-control" 
+                            rows="10" 
+                            required
+                            style="font-family: monospace;"
+                        ></textarea>
+                        <small class="form-text text-muted">
+                            Поддерживается HTML форматирование: &lt;b&gt;, &lt;i&gt;, &lt;u&gt;, &lt;s&gt;, &lt;a href="..."&gt;
+                        </small>
+                    </div>
+                </form>
+                <div id="editBroadcastResult" class="mt-3"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-warning" onclick="submitEditBroadcast()">
+                    <i class="fas fa-save me-1"></i>Сохранить изменения
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -140,6 +187,7 @@ async function showBroadcastDetails(id) {
             <div class="row mb-3">
                 <div class="col-md-6">
                     <strong>Получателей:</strong> <span class="badge bg-info">${data.recipients_count}</span>
+                    ${data.editable_count ? `<span class="badge bg-success ms-2">Можно отредактировать: ${data.editable_count}</span>` : ''}
                 </div>
                 <div class="col-md-6">
                     <strong>Дата отправки:</strong> ${data.sent_at || '—'}
@@ -155,6 +203,97 @@ async function showBroadcastDetails(id) {
         modal.show();
     } catch (error) {
         alert('Ошибка загрузки деталей рассылки');
+    }
+}
+
+async function editBroadcast(id) {
+    try {
+        // Load current broadcast text
+        const response = await fetch(`/broadcast/${id}`);
+        const data = await response.json();
+        
+        if (!data.editable_count || data.editable_count === 0) {
+            alert('Нет сообщений для редактирования. Возможно, рассылка еще не отправлена или все сообщения были удалены.');
+            return;
+        }
+        
+        // Set form data
+        document.getElementById('editBroadcastId').value = id;
+        document.getElementById('editBroadcastText').value = data.text;
+        document.getElementById('editBroadcastResult').innerHTML = '';
+        
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('broadcastEditModal'));
+        modal.show();
+    } catch (error) {
+        alert('Ошибка загрузки данных рассылки');
+    }
+}
+
+async function submitEditBroadcast() {
+    const form = document.getElementById('editBroadcastForm');
+    const formData = new FormData(form);
+    const broadcastId = formData.get('broadcast_id');
+    const newText = formData.get('new_text');
+    const resultDiv = document.getElementById('editBroadcastResult');
+    
+    if (!newText.trim()) {
+        resultDiv.innerHTML = '<div class="alert alert-danger">Текст не может быть пустым</div>';
+        return;
+    }
+    
+    // Disable button
+    const submitBtn = event.target;
+    const originalText = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Редактирование...';
+    
+    try {
+        const response = await fetch(`/broadcast/${broadcastId}/edit`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            resultDiv.innerHTML = `
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle me-2"></i><strong>Успешно!</strong>
+                    <p class="mb-0 mt-2">${result.message}</p>
+                    <hr>
+                    <p class="mb-0"><strong>Отредактировано:</strong> ${result.edited_count}</p>
+                    <p class="mb-0"><strong>Не удалось отредактировать:</strong> ${result.failed_count}</p>
+                    <p class="mb-0"><strong>Всего получателей:</strong> ${result.total_recipients}</p>
+                    ${result.errors && result.errors.length > 0 ? 
+                        '<hr><small><strong>Ошибки:</strong><br>' + result.errors.join('<br>') + '</small>' : 
+                        ''}
+                </div>
+            `;
+            
+            // Reload page after 2 seconds
+            setTimeout(() => {
+                location.reload();
+            }, 2000);
+        } else {
+            resultDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-circle me-2"></i><strong>Ошибка!</strong>
+                    <p class="mb-0 mt-2">${result.message}</p>
+                </div>
+            `;
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
+    } catch (error) {
+        resultDiv.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-circle me-2"></i><strong>Ошибка!</strong>
+                <p class="mb-0 mt-2">Ошибка при редактировании: ${error.message}</p>
+            </div>
+        `;
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
     }
 }
 </script>

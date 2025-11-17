@@ -12,6 +12,7 @@ from .user_issued_theme import UserIssuedTheme
 from .video_lesson import VideoLesson
 from .calendar_entry import CalendarEntry
 from .broadcast_message import BroadcastMessage
+from .broadcast_recipient import BroadcastRecipient
 from .audit_log import AuditLog
 from .llm_settings import LLMSettings, LLMProviderType
 from .asset_details import AssetDetails
@@ -39,6 +40,7 @@ __all__ = [
     "VideoLesson",
     "CalendarEntry",
     "BroadcastMessage",
+    "BroadcastRecipient",
     "AuditLog",
     "LLMSettings",
     "LLMProviderType",

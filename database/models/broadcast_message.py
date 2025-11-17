@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from sqlalchemy import DateTime, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from config.database import Base
 
@@ -18,6 +18,13 @@ class BroadcastMessage(Base):
     recipients_count: Mapped[int] = mapped_column(default=0)
     
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    
+    # Relationship to recipients
+    recipients: Mapped[list["BroadcastRecipient"]] = relationship(
+        "BroadcastRecipient",
+        back_populates="broadcast",
+        cascade="all, delete-orphan"
+    )
     
     def __repr__(self):
         return f"<BroadcastMessage(id={self.id}, recipients={self.recipients_count})>"

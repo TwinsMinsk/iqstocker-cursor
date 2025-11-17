@@ -6,11 +6,12 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import Optional
+from datetime import datetime
 import asyncio
 import logging
 
 from config.database import AsyncSessionLocal
-from database.models import User, SubscriptionType, BroadcastMessage
+from database.models import User, SubscriptionType, BroadcastMessage, BroadcastRecipient
 from config.settings import settings
 from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
@@ -44,35 +45,35 @@ async def get_bot_instance() -> Optional[Bot]:
         return None
 
 
-async def send_message_to_user(bot: Bot, telegram_id: int, message: str) -> tuple[bool, str]:
+async def send_message_to_user(bot: Bot, telegram_id: int, message: str) -> tuple[bool, str, int | None]:
     """
     Send message to a single user.
     
     Returns:
-        tuple[bool, str]: (success, error_message)
+        tuple[bool, str, int | None]: (success, error_message, message_id)
     """
     try:
-        await bot.send_message(
+        sent_message = await bot.send_message(
             chat_id=telegram_id,
             text=message,
             parse_mode="HTML"
         )
-        logger.debug(f"✅ Message sent to {telegram_id}")
-        return True, ""
+        logger.debug(f"✅ Message sent to {telegram_id}, message_id={sent_message.message_id}")
+        return True, "", sent_message.message_id
     except TelegramForbiddenError as e:
         # User blocked the bot
         logger.warning(f"🚫 User {telegram_id} blocked the bot: {e}")
-        return False, "User blocked bot"
+        return False, "User blocked bot", None
     except TelegramBadRequest as e:
         # Invalid request
         logger.warning(f"⚠️ Bad request for user {telegram_id}: {e}")
-        return False, f"Bad request: {e}"
+        return False, f"Bad request: {e}", None
     except TelegramAPIError as e:
         logger.error(f"❌ Telegram API error for user {telegram_id}: {e}")
-        return False, f"API error: {e}"
+        return False, f"API error: {e}", None
     except Exception as e:
         logger.error(f"❌ Unexpected error sending to {telegram_id}: {e}", exc_info=True)
-        return False, f"Error: {e}"
+        return False, f"Error: {e}", None
 
 
 @router.get("/broadcast", response_class=HTMLResponse)
@@ -108,12 +109,15 @@ def clean_html_for_telegram(html: str) -> str:
     Telegram supports only: <b>, <i>, <u>, <s>, <a>, <code>, <pre>
     """
     import re
+    import html as html_module
     
     if not html:
         return ""
     
+    # Decode HTML entities first (&nbsp;, &amp;, &lt;, &gt;, etc.)
+    cleaned = html_module.unescape(html)
+    
     # Remove unsupported tags: <p>, <div>, <br> (replace with newlines)
-    cleaned = html
     cleaned = re.sub(r'<p[^>]*>', '', cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r'</p>', '\n', cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r'<div[^>]*>', '', cleaned, flags=re.IGNORECASE)
@@ -243,13 +247,34 @@ async def send_broadcast(
             user_ids_sample = [u.telegram_id for u in users[:5]]
             logger.info(f"📋 Sample user IDs: {user_ids_sample}")
             
+            # Save broadcast record FIRST (save original message, not cleaned)
+            broadcast = BroadcastMessage(
+                text=message,  # Save original for history
+                recipients_count=len(users),
+                sent_at=datetime.utcnow()
+            )
+            session.add(broadcast)
+            await session.flush()  # Flush to get broadcast.id before creating recipients
+            
             # Send messages
             sent_count = 0
             failed_count = 0
             errors = []
             
             for i, user in enumerate(users, 1):
-                success, error_msg = await send_message_to_user(bot, user.telegram_id, cleaned_message)
+                success, error_msg, message_id = await send_message_to_user(bot, user.telegram_id, cleaned_message)
+                
+                # Save recipient record with message_id
+                recipient = BroadcastRecipient(
+                    broadcast_id=broadcast.id,
+                    telegram_id=user.telegram_id,
+                    message_id=message_id,
+                    sent_at=datetime.utcnow() if success else None,
+                    status="sent" if success else "failed",
+                    error_message=error_msg if not success else None
+                )
+                session.add(recipient)
+                
                 if success:
                     sent_count += 1
                 else:
@@ -270,39 +295,56 @@ async def send_broadcast(
             if errors:
                 logger.warning(f"⚠️ Sample errors: {errors}")
             
-            # Save broadcast record (save original message, not cleaned)
-            from datetime import datetime
-            broadcast = BroadcastMessage(
-                text=message,  # Save original for history
-                recipients_count=len(users),
-                sent_at=datetime.utcnow()
-            )
-            session.add(broadcast)
+            # Commit all recipients
             await session.commit()
             await session.refresh(broadcast)
             
-            return JSONResponse({
+            # Prepare response BEFORE closing bot session
+            response_data = {
                 "success": True,
                 "message": f"Рассылка завершена успешно",
                 "sent_count": sent_count,
                 "failed_count": failed_count,
                 "total_users": len(users),
                 "broadcast_id": broadcast.id
-            })
+            }
+            
+            # Close bot session safely (don't let errors affect the response)
+            try:
+                if bot and hasattr(bot, 'session') and bot.session:
+                    # Check if session is already closed
+                    if hasattr(bot.session, '_closed') and bot.session._closed:
+                        logger.debug("ℹ️ Bot session already closed")
+                    else:
+                        # Use timeout to prevent hanging
+                        await asyncio.wait_for(bot.session.close(), timeout=2.0)
+                        logger.debug("✅ Bot session closed successfully")
+            except asyncio.TimeoutError:
+                logger.warning("⚠️ Timeout closing bot session (non-critical)")
+            except Exception as e:
+                # Log but don't fail - рассылка уже завершена успешно
+                logger.warning(f"⚠️ Error closing bot session (non-critical): {e}")
+            
+            return JSONResponse(response_data)
             
         except Exception as e:
             await session.rollback()
+            logger.error(f"❌ Error during broadcast: {e}", exc_info=True)
+            
+            # Try to close bot session even on error
+            try:
+                if bot and hasattr(bot, 'session') and bot.session:
+                    if hasattr(bot.session, '_closed') and bot.session._closed:
+                        pass  # Already closed
+                    else:
+                        await asyncio.wait_for(bot.session.close(), timeout=2.0)
+            except (asyncio.TimeoutError, Exception) as close_error:
+                logger.warning(f"⚠️ Error closing bot session after error: {close_error}")
+            
             return JSONResponse(
                 {"success": False, "message": f"Ошибка при рассылке: {str(e)}"},
                 status_code=500
             )
-        finally:
-            # Безопасное закрытие сессии бота
-            try:
-                if bot and hasattr(bot, 'session'):
-                    await bot.session.close()
-            except Exception as e:
-                print(f"Error closing bot session: {e}")
 
 
 @router.get("/broadcast/{broadcast_id}", response_class=JSONResponse)
@@ -317,13 +359,161 @@ async def get_broadcast_details(broadcast_id: int):
         if not broadcast:
             raise HTTPException(status_code=404, detail="Рассылка не найдена")
         
+        # Get recipients count with message_id (editable)
+        recipients_with_message = await session.execute(
+            select(func.count(BroadcastRecipient.id))
+            .where(
+                BroadcastRecipient.broadcast_id == broadcast_id,
+                BroadcastRecipient.message_id.isnot(None),
+                BroadcastRecipient.status == "sent"
+            )
+        )
+        editable_count = recipients_with_message.scalar() or 0
+        
         return JSONResponse({
             "id": broadcast.id,
             "text": broadcast.text,
             "recipients_count": broadcast.recipients_count,
+            "editable_count": editable_count,
             "sent_at": broadcast.sent_at.strftime("%d.%m.%Y %H:%M") if broadcast.sent_at else None,
             "created_at": broadcast.created_at.strftime("%d.%m.%Y %H:%M")
         })
+
+
+@router.post("/broadcast/{broadcast_id}/edit", response_class=JSONResponse)
+async def edit_broadcast(
+    broadcast_id: int,
+    new_text: str = Form(...)
+):
+    """Edit broadcast message for all recipients."""
+    logger.info(f"✏️ Edit broadcast request: broadcast_id={broadcast_id}, new_text_length={len(new_text)}")
+    
+    if not new_text.strip():
+        return JSONResponse(
+            {"success": False, "message": "Новый текст не может быть пустым"},
+            status_code=400
+        )
+    
+    # Clean HTML
+    cleaned_message = clean_html_for_telegram(new_text)
+    logger.info(f"🧹 Cleaned message length: {len(cleaned_message)}")
+    
+    if not cleaned_message.strip():
+        return JSONResponse(
+            {"success": False, "message": "Сообщение стало пустым после очистки HTML"},
+            status_code=400
+        )
+    
+    bot = await get_bot_instance()
+    if not bot:
+        return JSONResponse(
+            {"success": False, "message": "Бот не настроен"},
+            status_code=500
+        )
+    
+    async with AsyncSessionLocal() as session:
+        # Get broadcast
+        broadcast_result = await session.execute(
+            select(BroadcastMessage).where(BroadcastMessage.id == broadcast_id)
+        )
+        broadcast = broadcast_result.scalar_one_or_none()
+        
+        if not broadcast:
+            return JSONResponse(
+                {"success": False, "message": "Рассылка не найдена"},
+                status_code=404
+            )
+        
+        # Get all recipients with message_id
+        recipients_result = await session.execute(
+            select(BroadcastRecipient)
+            .where(
+                BroadcastRecipient.broadcast_id == broadcast_id,
+                BroadcastRecipient.message_id.isnot(None),
+                BroadcastRecipient.status == "sent"
+            )
+        )
+        recipients = recipients_result.scalars().all()
+        
+        if not recipients:
+            return JSONResponse(
+                {"success": False, "message": "Не найдено сообщений для редактирования"},
+                status_code=404
+            )
+        
+        logger.info(f"📝 Editing {len(recipients)} messages")
+        
+        # Edit messages
+        edited_count = 0
+        failed_count = 0
+        errors = []
+        
+        for i, recipient in enumerate(recipients, 1):
+            try:
+                await bot.edit_message_text(
+                    chat_id=recipient.telegram_id,
+                    message_id=recipient.message_id,
+                    text=cleaned_message,
+                    parse_mode="HTML"
+                )
+                recipient.status = "edited"
+                edited_count += 1
+                logger.debug(f"✅ Edited message for user {recipient.telegram_id}")
+            except TelegramBadRequest as e:
+                failed_count += 1
+                recipient.status = "edit_failed"
+                recipient.error_message = str(e)
+                if len(errors) < 5:
+                    errors.append(f"User {recipient.telegram_id}: {e}")
+                logger.warning(f"⚠️ Failed to edit message for user {recipient.telegram_id}: {e}")
+            except Exception as e:
+                failed_count += 1
+                recipient.status = "edit_failed"
+                recipient.error_message = str(e)
+                if len(errors) < 5:
+                    errors.append(f"User {recipient.telegram_id}: {e}")
+                logger.error(f"❌ Error editing message for user {recipient.telegram_id}: {e}")
+            
+            # Log progress every 50 messages
+            if i % 50 == 0:
+                logger.info(f"📊 Edit progress: {i}/{len(recipients)} - Edited: {edited_count}, Failed: {failed_count}")
+            
+            # Rate limiting
+            await asyncio.sleep(0.05)
+        
+        # Update broadcast text
+        broadcast.text = new_text  # Save new text
+        
+        await session.commit()
+        
+        logger.info(
+            f"✅ Broadcast edit completed: Edited: {edited_count}, Failed: {failed_count}, Total: {len(recipients)}"
+        )
+        
+        # Prepare response BEFORE closing bot session
+        response_data = {
+            "success": True,
+            "message": f"Редактирование завершено",
+            "edited_count": edited_count,
+            "failed_count": failed_count,
+            "total_recipients": len(recipients),
+            "errors": errors[:5] if errors else []
+        }
+        
+        # Close bot session safely
+        try:
+            if bot and hasattr(bot, 'session') and bot.session:
+                if hasattr(bot.session, '_closed') and bot.session._closed:
+                    logger.debug("ℹ️ Bot session already closed")
+                else:
+                    await asyncio.wait_for(bot.session.close(), timeout=2.0)
+                    logger.debug("✅ Bot session closed successfully")
+        except asyncio.TimeoutError:
+            logger.warning("⚠️ Timeout closing bot session (non-critical)")
+        except Exception as e:
+            logger.warning(f"⚠️ Error closing bot session (non-critical): {e}")
+        
+        return JSONResponse(response_data)
 
 
 @router.get("/broadcast-history", response_class=HTMLResponse)
