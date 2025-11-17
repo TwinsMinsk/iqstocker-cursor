@@ -80,18 +80,26 @@ async def import_csv(
             
             for row_num, row in enumerate(csv_reader, start=2):  # Start from 2 (header is row 1)
                 try:
+                    # Skip empty rows
+                    if not row or not any(row.values()):
+                        continue
+                    
                     # Try to get ID from different possible column names
                     telegram_id = None
                     for col_name in ['ID', 'id', 'telegram_id', 'Telegram ID', 'user_id']:
-                        if col_name in row and row[col_name]:
-                            try:
-                                telegram_id = int(row[col_name])
-                                break
-                            except (ValueError, TypeError):
-                                continue
+                        if col_name in row:
+                            value = row[col_name]
+                            # Handle empty strings, whitespace, None
+                            if value and str(value).strip():
+                                try:
+                                    telegram_id = int(str(value).strip())
+                                    break
+                                except (ValueError, TypeError):
+                                    continue
                     
+                    # ID is required - skip if not found
                     if not telegram_id:
-                        errors.append(f"Row {row_num}: No valid ID found")
+                        errors.append(f"Row {row_num}: No valid ID found (skipped)")
                         skipped_count += 1
                         continue
                     
@@ -106,12 +114,20 @@ async def import_csv(
                         skipped_count += 1
                         continue
                     
-                    # Get optional fields
-                    username = row.get('Username', row.get('username', '')) or None
-                    first_name = row.get('First Name', row.get('first_name', row.get('First Name', ''))) or None
+                    # Get optional fields - all are optional except ID
+                    # Clean and normalize values
+                    def clean_value(value):
+                        """Clean and normalize CSV value."""
+                        if value is None:
+                            return None
+                        value_str = str(value).strip()
+                        return value_str if value_str else None
+                    
+                    username = clean_value(row.get('Username') or row.get('username'))
+                    first_name = clean_value(row.get('First Name') or row.get('first_name'))
                     note = f"Imported from CSV on {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"
                     
-                    # Create whitelist entry
+                    # Create whitelist entry - all fields except telegram_id are optional
                     whitelist_entry = VIPGroupWhitelist(
                         telegram_id=telegram_id,
                         username=username,
@@ -123,9 +139,10 @@ async def import_csv(
                     added_count += 1
                     
                 except Exception as e:
-                    errors.append(f"Row {row_num}: {str(e)}")
+                    error_msg = f"Row {row_num}: {str(e)}"
+                    errors.append(error_msg)
                     skipped_count += 1
-                    logger.error(f"Error processing CSV row {row_num}: {e}")
+                    logger.error(f"Error processing CSV row {row_num}: {e}", exc_info=True)
             
             await session.commit()
             
@@ -139,8 +156,16 @@ async def import_csv(
             
         except Exception as e:
             await session.rollback()
+            error_detail = str(e)
             logger.error(f"Error importing CSV: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=f"Ошибка при импорте CSV: {str(e)}")
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "success": False,
+                    "message": f"Ошибка при импорте CSV: {error_detail}",
+                    "error": error_detail
+                }
+            )
 
 
 @router.post("/vip-group/add", response_class=JSONResponse)
