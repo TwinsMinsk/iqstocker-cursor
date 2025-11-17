@@ -12,7 +12,7 @@ from aiogram.fsm.storage.redis import DefaultKeyBuilder
 
 from core.notifications.scheduler import get_scheduler
 from config.settings import settings
-from bot.handlers import start, menu, profile, analytics, themes, lessons, calendar, faq, channel, payments, admin, invite, referral
+from bot.handlers import start, menu, profile, analytics, themes, lessons, calendar, faq, channel, payments, admin, invite, referral, vip_group
 from bot.middlewares.database import DatabaseMiddleware
 from bot.middlewares.subscription import SubscriptionMiddleware
 from bot.middlewares.blocked_user import BlockedUserMiddleware
@@ -117,6 +117,7 @@ async def main():
     dp.include_router(admin.router)
     dp.include_router(invite.router)
     dp.include_router(referral.router)
+    dp.include_router(vip_group.router)
     
     logger.info("Bot started successfully")
     
@@ -130,7 +131,7 @@ async def main():
         # aiogram automatically handles TelegramConflictError and retries
         await dp.start_polling(
             bot,
-            allowed_updates=["message", "callback_query", "inline_query"]
+            allowed_updates=["message", "callback_query", "inline_query", "chat_member"]
         )
     except KeyboardInterrupt:
         logger.info("Bot stopped by user")

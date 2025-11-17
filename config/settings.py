@@ -159,6 +159,8 @@ class Settings:
         self.new_works_id_prefix = self.app.new_works_id_prefix
         self.supabase_url = self.app.supabase_url
         self.supabase_key = self.app.supabase_key
+        self.vip_group_id = self.app.vip_group_id
+        self.vip_group_check_enabled = self.app.vip_group_check_enabled
 
 
 class AppSettings(BaseSettings):
@@ -217,6 +219,10 @@ class AppSettings(BaseSettings):
     # Пороговое значение ID для определения "новых" работ (ID >= этого значения считаются новыми)
     # Например: "1490000000" означает, что все работы с ID >= 1490000000 - новые
     new_works_id_prefix: str = Field("1490000000", env="NEW_WORKS_ID_PREFIX")
+    
+    # VIP Group Settings
+    vip_group_id: int = Field(-2849149148, env="VIP_GROUP_ID")
+    vip_group_check_enabled: bool = Field(True, env="VIP_GROUP_CHECK_ENABLED")
 
 
 

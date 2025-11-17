@@ -113,6 +113,14 @@ class TaskScheduler:
             name='Resource monitoring'
         )
         
+        # Daily VIP group access check (at 03:00 UTC)
+        self.scheduler.add_job(
+            self.check_vip_group_access,
+            CronTrigger(hour=3, minute=0),
+            id='vip_group_access_check',
+            name='Check VIP group members access'
+        )
+        
         # Start the scheduler
         self.scheduler.start()
         print("Task scheduler started successfully")
@@ -292,6 +300,27 @@ class TaskScheduler:
             except Exception as e:
                 logger.error(f"Error sending 1-day reminders: {e}")
                 print(f"Error sending 1-day reminders: {e}")
+    
+    async def check_vip_group_access(self):
+        """Check VIP group members access and remove those without access."""
+        print("Checking VIP group members access...")
+        if not self.bot:
+            print("Bot not available for VIP group check")
+            return
+        
+        from core.notifications.vip_group_checker import check_vip_group_members
+        
+        async with AsyncSessionLocal() as session:
+            try:
+                stats = await check_vip_group_members(self.bot, session)
+                print(
+                    f"VIP group check completed: checked={stats['checked']}, "
+                    f"in_group={stats['in_group']}, removed={stats['removed']}, "
+                    f"errors={stats['errors']}"
+                )
+            except Exception as e:
+                logger.error(f"Error checking VIP group access: {e}")
+                print(f"Error checking VIP group access: {e}")
     
     async def monitor_resources(self):
         """Мониторинг использования ресурсов."""

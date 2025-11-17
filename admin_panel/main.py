@@ -15,7 +15,7 @@ import logging
 from config.database import get_async_session, AsyncSessionLocal
 # SQLAdmin model imports removed - not needed anymore
 from admin_panel.auth import authentication_backend, ADMIN_SECRET_KEY
-from admin_panel.views import dashboard, themes, placeholders, lexicon, users, analytics, broadcast, payments, payment_test, tariff_limits, referral
+from admin_panel.views import dashboard, themes, placeholders, lexicon, users, analytics, broadcast, payments, payment_test, tariff_limits, referral, vip_group
 from api.webhook_server import webhook_router
 
 # Определяем корень директории admin_panel
@@ -90,6 +90,7 @@ app.include_router(payment_test.router, prefix="", tags=["payment_test"])
 app.include_router(tariff_limits.router, prefix="", tags=["tariff_limits"])
 app.include_router(referral.router, prefix="", tags=["referral"])
 app.include_router(themes.router, prefix="", tags=["themes"])
+app.include_router(vip_group.router, prefix="", tags=["vip_group"])
 # Webhook router for payment processing
 app.include_router(webhook_router, prefix="", tags=["webhooks"])
 # Placeholders router should be last to catch any unmatched routes

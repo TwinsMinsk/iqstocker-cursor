@@ -56,6 +56,10 @@
                 <i class="fas fa-gift"></i>
                 <span>Реферальная программа</span>
             </a>
+            <a class="nav-link {% if request.url.path == '/vip-group' or '/vip-group' in request.url.path %}active{% endif %}" href="/vip-group">
+                <i class="fas fa-crown"></i>
+                <span>VIP Group</span>
+            </a>
             <a class="nav-link {% if request.url.path == '/payment-test' or '/payment-test' in request.url.path %}active{% endif %}" href="/payment-test">
                 <i class="fas fa-vial"></i>
                 <span>Тест платежей</span>
