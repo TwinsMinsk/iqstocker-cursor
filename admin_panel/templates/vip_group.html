@@ -84,103 +84,19 @@
     </div>
 </div>
 
-<!-- Whitelist Table -->
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
+<!-- ======== НОВАЯ ТАБЛИЦА: История участников VIP-группы (ВЫШЕ старой таблицы) ======== -->
+<div class="card mb-4" style="background-color: #fff5e6; border: 2px solid #ff9800;">
+    <div class="card-header d-flex justify-content-between align-items-center" style="background-color: #ff9800; color: white;">
         <h5 class="mb-0">
-            <i class="fas fa-table me-2"></i>Список пользователей в Whitelist
-        </h5>
-    </div>
-    <div class="card-body">
-        {% if whitelist_entries %}
-        <div class="table-responsive">
-            <table class="table table-hover">
-                <thead>
-                    <tr>
-                        <th>Telegram ID</th>
-                        <th>Username</th>
-                        <th>First Name</th>
-                        <th>Примечание</th>
-                        <th>Добавлен</th>
-                        <th>Кем добавлен</th>
-                        <th>Действия</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for entry in whitelist_entries %}
-                    <tr>
-                        <td><code>{{ entry.telegram_id }}</code></td>
-                        <td>{{ entry.username or '-' }}</td>
-                        <td>{{ entry.first_name or '-' }}</td>
-                        <td>{{ entry.note or '-' }}</td>
-                        <td>{{ entry.added_at.strftime('%d.%m.%Y %H:%M') if entry.added_at else '-' }}</td>
-                        <td>{{ entry.added_by or '-' }}</td>
-                        <td>
-                            <button class="btn btn-sm btn-danger" onclick="removeUser({{ entry.telegram_id }})">
-                                <i class="fas fa-trash me-1"></i>Удалить
-                            </button>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        
-        <!-- Pagination -->
-        {% if total_pages > 1 %}
-        <nav aria-label="Page navigation">
-            <ul class="pagination justify-content-center">
-                {% if current_page > 1 %}
-                <li class="page-item">
-                    <a class="page-link" href="?page={{ current_page - 1 }}">Предыдущая</a>
-                </li>
-                {% endif %}
-                
-                {% for page_num in range(1, total_pages + 1) %}
-                    {% if page_num == current_page %}
-                    <li class="page-item active">
-                        <span class="page-link">{{ page_num }}</span>
-                    </li>
-                    {% elif page_num <= 3 or page_num > total_pages - 3 or (page_num >= current_page - 1 and page_num <= current_page + 1) %}
-                    <li class="page-item">
-                        <a class="page-link" href="?page={{ page_num }}">{{ page_num }}</a>
-                    </li>
-                    {% elif page_num == 4 or page_num == total_pages - 3 %}
-                    <li class="page-item disabled">
-                        <span class="page-link">...</span>
-                    </li>
-                    {% endif %}
-                {% endfor %}
-                
-                {% if current_page < total_pages %}
-                <li class="page-item">
-                    <a class="page-link" href="?page={{ current_page + 1 }}">Следующая</a>
-                </li>
-                {% endif %}
-            </ul>
-        </nav>
-        {% endif %}
-        {% else %}
-        <div class="alert alert-info">
-            <i class="fas fa-info-circle me-2"></i>Whitelist пуст. Импортируйте CSV файл или добавьте пользователей вручную.
-        </div>
-        {% endif %}
-    </div>
-</div>
-
-<!-- VIP Group Members History -->
-<div class="card mt-4">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">
-            <i class="fas fa-history me-2"></i>История участников VIP-группы
+            <i class="fas fa-history me-2"></i>🆕 История участников VIP-группы
             <span class="badge bg-success ms-2">{{ members_total_count }}</span>
-            <small class="text-muted ms-2">(Вступили: {{ joined_count }})</small>
+            <small class="text-white ms-2">(Вступили: {{ joined_count }})</small>
         </h5>
     </div>
     <div class="card-body">
         <div class="table-responsive">
-            <table class="table table-hover">
-                <thead>
+            <table class="table table-hover table-bordered">
+                <thead class="table-warning">
                     <tr>
                         <th>ID</th>
                         <th>Telegram ID</th>
@@ -299,6 +215,90 @@
     </div>
 </div>
 
+<!-- ======== СТАРАЯ ТАБЛИЦА: Whitelist (теперь ниже) ======== -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            <i class="fas fa-table me-2"></i>Список пользователей в Whitelist
+        </h5>
+    </div>
+    <div class="card-body">
+        {% if whitelist_entries %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Telegram ID</th>
+                        <th>Username</th>
+                        <th>First Name</th>
+                        <th>Примечание</th>
+                        <th>Добавлен</th>
+                        <th>Кем добавлен</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in whitelist_entries %}
+                    <tr>
+                        <td><code>{{ entry.telegram_id }}</code></td>
+                        <td>{{ entry.username or '-' }}</td>
+                        <td>{{ entry.first_name or '-' }}</td>
+                        <td>{{ entry.note or '-' }}</td>
+                        <td>{{ entry.added_at.strftime('%d.%m.%Y %H:%M') if entry.added_at else '-' }}</td>
+                        <td>{{ entry.added_by or '-' }}</td>
+                        <td>
+                            <button class="btn btn-sm btn-danger" onclick="removeUser({{ entry.telegram_id }})">
+                                <i class="fas fa-trash me-1"></i>Удалить
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        {% if total_pages > 1 %}
+        <nav aria-label="Page navigation">
+            <ul class="pagination justify-content-center">
+                {% if current_page > 1 %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ current_page - 1 }}">Предыдущая</a>
+                </li>
+                {% endif %}
+                
+                {% for page_num in range(1, total_pages + 1) %}
+                    {% if page_num == current_page %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ page_num }}</span>
+                    </li>
+                    {% elif page_num <= 3 or page_num > total_pages - 3 or (page_num >= current_page - 1 and page_num <= current_page + 1) %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_num }}">{{ page_num }}</a>
+                    </li>
+                    {% elif page_num == 4 or page_num == total_pages - 3 %}
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if current_page < total_pages %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ current_page + 1 }}">Следующая</a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+        {% else %}
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>Whitelist пуст. Импортируйте CSV файл или добавьте пользователей вручную.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
 <script>
 // CSV Import
 document.getElementById('csvImportForm').addEventListener('submit', async function(e) {
@@ -396,4 +396,3 @@ async function removeUser(telegramId) {
 }
 </script>
 {% endblock %}
-
