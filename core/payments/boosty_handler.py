@@ -234,6 +234,24 @@ class BoostyPaymentHandler:
             
             db.commit()
             
+            # Разбанить пользователя из VIP группы, если он был удален ранее
+            # Это позволит ему снова войти по ссылке после обновления подписки
+            if subscription_type in [SubscriptionType.PRO, SubscriptionType.ULTRA]:
+                try:
+                    from aiogram import Bot
+                    from config.settings import settings
+                    from core.vip_group.vip_group_service import VIPGroupService
+                    
+                    bot = Bot(token=settings.bot_token)
+                    vip_service = VIPGroupService()
+                    # Метод async, используем await
+                    await vip_service.unban_user_from_group(bot, user.telegram_id)
+                    await bot.session.close()
+                    print(f"✅ Разбанен пользователь {user.telegram_id} из VIP группы после обновления подписки")
+                except Exception as e:
+                    print(f"⚠️ Не удалось разбанить пользователя {user.telegram_id} из VIP группы: {e}")
+                    # Не прерываем обработку оплаты, если разбан не удался
+            
             # Invalidate cache after updating user and limits (sync version)
             try:
                 from core.cache.user_cache import get_user_cache_service

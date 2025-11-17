@@ -93,6 +93,23 @@ class PaymentHandler:
                 
                 await session.commit()
                 
+                # Разбанить пользователя из VIP группы, если он был удален ранее
+                # Это позволит ему снова войти по ссылке после обновления подписки
+                if sub_type in [SubscriptionType.PRO, SubscriptionType.ULTRA]:
+                    try:
+                        from aiogram import Bot
+                        from config.settings import settings
+                        from core.vip_group.vip_group_service import VIPGroupService
+                        
+                        bot = Bot(token=settings.bot_token)
+                        vip_service = VIPGroupService()
+                        await vip_service.unban_user_from_group(bot, user.telegram_id)
+                        await bot.session.close()
+                        logger.info(f"Unbanned user {user.telegram_id} from VIP group after subscription upgrade")
+                    except Exception as e:
+                        logger.warning(f"Failed to unban user {user.telegram_id} from VIP group: {e}")
+                        # Не прерываем обработку оплаты, если разбан не удался
+                
                 # Invalidate cache after updating user and limits
                 cache_service = get_user_cache_service()
                 await cache_service.invalidate_user_and_limits(user.telegram_id, user.id)
