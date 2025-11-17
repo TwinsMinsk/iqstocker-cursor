@@ -61,11 +61,6 @@ async def import_csv(
     file: UploadFile = File(...)
 ):
     """Import CSV file with whitelist users."""
-    # Check authentication
-    user = await get_current_user(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    
     if not file.filename.endswith('.csv'):
         raise HTTPException(status_code=400, detail="File must be a CSV file")
     
