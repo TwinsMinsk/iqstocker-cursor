@@ -130,6 +130,13 @@ async def main():
     
     logger.info("Bot started successfully")
     
+    # Log VIP group settings for debugging
+    logger.info(
+        f"🔧 VIP Group Settings: "
+        f"vip_group_id={settings.vip_group_id}, "
+        f"vip_group_check_enabled={settings.vip_group_check_enabled}"
+    )
+    
     # Start task scheduler
     scheduler = get_scheduler(bot)
     scheduler.start()

@@ -24,6 +24,13 @@ async def handle_all_chat_member_updates(
     Handle ALL chat member updates to diagnose issues.
     Logs all updates and only processes VIP group.
     """
+    # Log settings at startup for debugging
+    logger.info(
+        f"🔧 DEBUG VIP Group Settings: "
+        f"vip_group_id={settings.vip_group_id} (type: {type(settings.vip_group_id).__name__}), "
+        f"vip_group_check_enabled={settings.vip_group_check_enabled}"
+    )
+    
     chat_id = event.chat.id
     chat_title = event.chat.title or "Unknown"
     
@@ -35,7 +42,10 @@ async def handle_all_chat_member_updates(
         f"new_status={event.new_chat_member.status}"
     )
     
-    logger.info(f"🔍 Comparing: received chat_id={chat_id}, expected VIP_GROUP_ID={settings.vip_group_id}")
+    logger.info(
+        f"🔍 Comparing: received chat_id={chat_id} (type: {type(chat_id).__name__}), "
+        f"expected VIP_GROUP_ID={settings.vip_group_id} (type: {type(settings.vip_group_id).__name__})"
+    )
     
     # Check if this is the VIP group
     if chat_id != settings.vip_group_id:
