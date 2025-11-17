@@ -151,14 +151,27 @@ document.addEventListener('DOMContentLoaded', function() {
     function cleanHtmlForTelegram(html) {
         if (!html) return '';
         
-        // Заменяем теги на совместимые с Telegram
+        // ВАЖНО: Удаляем неподдерживаемые Telegram теги <p>, <div>, <br>
+        // Telegram поддерживает только: <b>, <i>, <u>, <s>, <a>, <code>, <pre>
         let cleaned = html
+            // Удаляем теги <p> и <div>, заменяем на перенос строки
+            .replace(/<p[^>]*>/gi, '')
+            .replace(/<\/p>/gi, '\n')
+            .replace(/<div[^>]*>/gi, '')
+            .replace(/<\/div>/gi, '\n')
+            // Заменяем <br> на перенос строки
+            .replace(/<br\s*\/?>/gi, '\n')
+            // Заменяем теги на совместимые с Telegram
             .replace(/<strong\b[^>]*>/gi, '<b>')
             .replace(/<\/strong>/gi, '</b>')
             .replace(/<em\b[^>]*>/gi, '<i>')
             .replace(/<\/em>/gi, '</i>')
             .replace(/<strike\b[^>]*>/gi, '<s>')
-            .replace(/<\/strike>/gi, '</s>');
+            .replace(/<\/strike>/gi, '</s>')
+            .replace(/<del\b[^>]*>/gi, '<s>')
+            .replace(/<\/del>/gi, '</s>')
+            .replace(/<ins\b[^>]*>/gi, '<u>')
+            .replace(/<\/ins>/gi, '</u>');
         
         // Удаляем неразрешенные атрибуты из разрешенных тегов
         // Для <span> оставляем только style с color
@@ -182,15 +195,18 @@ document.addEventListener('DOMContentLoaded', function() {
             return '<a>';
         });
         
-        // Удаляем все атрибуты из других тегов (b, i, u, s, p, br, code, pre)
-        cleaned = cleaned.replace(/<(b|i|u|s|p|br|code|pre)\b[^>]*>/gi, '<$1>');
+        // Удаляем все атрибуты из других тегов (b, i, u, s, code, pre)
+        cleaned = cleaned.replace(/<(b|i|u|s|code|pre)\b[^>]*>/gi, '<$1>');
         
-        // Удаляем неразрешенные теги (h1, h2, h3, h4, h5, h6, div и т.д.), оставляя только содержимое
-        cleaned = cleaned.replace(/<(h[1-6]|div|section|article|header|footer|nav|aside|main)\b[^>]*>/gi, '');
-        cleaned = cleaned.replace(/<\/(h[1-6]|div|section|article|header|footer|nav|aside|main)>/gi, '');
+        // Удаляем неразрешенные теги (h1, h2, h3, h4, h5, h6, section, article и т.д.), оставляя только содержимое
+        cleaned = cleaned.replace(/<(h[1-6]|section|article|header|footer|nav|aside|main)\b[^>]*>/gi, '');
+        cleaned = cleaned.replace(/<\/(h[1-6]|section|article|header|footer|nav|aside|main)>/gi, '');
         
-        // Удаляем пустые параграфы
-        cleaned = cleaned.replace(/<p><br><\/p>/gi, '').replace(/<p>\s*<\/p>/gi, '').trim();
+        // Удаляем множественные переносы строк (более 2 подряд)
+        cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+        
+        // Удаляем пробелы в начале и конце
+        cleaned = cleaned.trim();
         
         return cleaned;
     }

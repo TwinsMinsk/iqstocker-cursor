@@ -102,6 +102,62 @@ async def broadcast_page(request: Request):
         )
 
 
+def clean_html_for_telegram(html: str) -> str:
+    """
+    Clean HTML to be compatible with Telegram API.
+    Telegram supports only: <b>, <i>, <u>, <s>, <a>, <code>, <pre>
+    """
+    import re
+    
+    if not html:
+        return ""
+    
+    # Remove unsupported tags: <p>, <div>, <br> (replace with newlines)
+    cleaned = html
+    cleaned = re.sub(r'<p[^>]*>', '', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'</p>', '\n', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'<div[^>]*>', '', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'</div>', '\n', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'<br\s*/?>', '\n', cleaned, flags=re.IGNORECASE)
+    
+    # Replace common tags with Telegram-compatible ones
+    cleaned = re.sub(r'<strong[^>]*>', '<b>', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'</strong>', '</b>', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'<em[^>]*>', '<i>', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'</em>', '</i>', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'<strike[^>]*>', '<s>', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'</strike>', '</s>', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'<del[^>]*>', '<s>', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'</del>', '</s>', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'<ins[^>]*>', '<u>', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'</ins>', '</u>', cleaned, flags=re.IGNORECASE)
+    
+    # Remove other unsupported tags (h1-h6, section, article, etc.) but keep content
+    cleaned = re.sub(r'<(h[1-6]|section|article|header|footer|nav|aside|main)[^>]*>', '', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'</(h[1-6]|section|article|header|footer|nav|aside|main)>', '', cleaned, flags=re.IGNORECASE)
+    
+    # Remove attributes from allowed tags (keep only href for <a>)
+    cleaned = re.sub(r'<(b|i|u|s|code|pre)\b[^>]*>', r'<\1>', cleaned, flags=re.IGNORECASE)
+    
+    # Clean <a> tags - keep only href
+    def clean_a_tag(match):
+        attrs = match.group(1)
+        href_match = re.search(r'href\s*=\s*["\']([^"\']+)["\']', attrs, re.IGNORECASE)
+        if href_match:
+            return f'<a href="{href_match.group(1)}">'
+        return '<a>'
+    
+    cleaned = re.sub(r'<a\s+([^>]*)>', clean_a_tag, cleaned, flags=re.IGNORECASE)
+    
+    # Remove multiple consecutive newlines (more than 2)
+    cleaned = re.sub(r'\n{3,}', '\n\n', cleaned)
+    
+    # Trim whitespace
+    cleaned = cleaned.strip()
+    
+    return cleaned
+
+
 @router.post("/broadcast/send", response_class=JSONResponse)
 async def send_broadcast(
     message: str = Form(...),
@@ -118,6 +174,17 @@ async def send_broadcast(
         logger.warning("⚠️ Empty message provided")
         return JSONResponse(
             {"success": False, "message": "Сообщение не может быть пустым"},
+            status_code=400
+        )
+    
+    # Clean HTML to be Telegram-compatible
+    cleaned_message = clean_html_for_telegram(message)
+    logger.info(f"🧹 Cleaned message length: {len(cleaned_message)} (original: {len(message)})")
+    
+    if not cleaned_message.strip():
+        logger.warning("⚠️ Message became empty after cleaning")
+        return JSONResponse(
+            {"success": False, "message": "Сообщение стало пустым после очистки HTML. Убедитесь, что есть текст."},
             status_code=400
         )
     
@@ -182,7 +249,7 @@ async def send_broadcast(
             errors = []
             
             for i, user in enumerate(users, 1):
-                success, error_msg = await send_message_to_user(bot, user.telegram_id, message)
+                success, error_msg = await send_message_to_user(bot, user.telegram_id, cleaned_message)
                 if success:
                     sent_count += 1
                 else:
@@ -203,10 +270,10 @@ async def send_broadcast(
             if errors:
                 logger.warning(f"⚠️ Sample errors: {errors}")
             
-            # Save broadcast record
+            # Save broadcast record (save original message, not cleaned)
             from datetime import datetime
             broadcast = BroadcastMessage(
-                text=message,
+                text=message,  # Save original for history
                 recipients_count=len(users),
                 sent_at=datetime.utcnow()
             )
