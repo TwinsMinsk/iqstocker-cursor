@@ -62,6 +62,20 @@ if not STATIC_DIR.is_dir():
     raise RuntimeError(f"Static directory not found at {STATIC_DIR}")
 else:
     logger.info("Static directory found.")
+    # Mount static files with no-cache headers
+    from starlette.middleware.base import BaseHTTPMiddleware
+    from starlette.types import ASGIApp
+    
+    class NoCacheStaticMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request, call_next):
+            response = await call_next(request)
+            if request.url.path.startswith("/static/"):
+                response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+                response.headers["Pragma"] = "no-cache"
+                response.headers["Expires"] = "0"
+            return response
+    
+    app.add_middleware(NoCacheStaticMiddleware)
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 # Setup templates с проверкой

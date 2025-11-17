@@ -70,21 +70,24 @@ async def vip_group_page(
         joined_count_result = await session.execute(joined_count_query)
         joined_count = joined_count_result.scalar() or 0
         
+        # Ensure all variables are set (never None)
+        member_entries_list = list(member_entries) if member_entries else []
+        
         return templates.TemplateResponse(
             "vip_group.html",
             {
                 "request": request,
-                "whitelist_entries": whitelist_entries,
+                "whitelist_entries": whitelist_entries or [],
                 "current_page": page,
                 "total_pages": total_pages,
                 "total_count": total_count,
                 "per_page": per_page,
-                # Members data
-                "member_entries": member_entries,
+                # Members data - always provide, even if empty
+                "member_entries": member_entries_list,
                 "members_current_page": members_page,
-                "members_total_pages": members_total_pages,
-                "members_total_count": members_total_count,
-                "joined_count": joined_count,
+                "members_total_pages": members_total_pages or 1,
+                "members_total_count": members_total_count or 0,
+                "joined_count": joined_count or 0,
             }
         )
 
