@@ -13,15 +13,6 @@ from datetime import datetime
 
 from config.database import AsyncSessionLocal
 from database.models.vip_group_whitelist import VIPGroupWhitelist
-# Authentication helper
-async def get_current_user(request: Request):
-    """Get current authenticated user from session."""
-    if request.session.get("admin_authenticated"):
-        return {
-            "username": request.session.get("admin_username", "admin"),
-            "authenticated": True
-        }
-    return None
 
 logger = logging.getLogger(__name__)
 
@@ -36,11 +27,6 @@ async def vip_group_page(
     per_page: int = Query(50, ge=1, le=100)
 ):
     """VIP Group whitelist management page."""
-    # Check authentication
-    user = await get_current_user(request)
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-    
     async with AsyncSessionLocal() as session:
         # Get total count
         count_query = select(func.count(VIPGroupWhitelist.id))
@@ -95,7 +81,7 @@ async def import_csv(
             csv_reader = csv.DictReader(io.StringIO(csv_text))
             
             # Get admin username for added_by field
-            admin_username = user.get('username', 'admin') if isinstance(user, dict) else 'admin'
+            admin_username = request.session.get("admin_username", "admin")
             
             for row_num, row in enumerate(csv_reader, start=2):  # Start from 2 (header is row 1)
                 try:
@@ -171,11 +157,6 @@ async def add_user(
     note: Optional[str] = Form(None)
 ):
     """Add single user to whitelist."""
-    # Check authentication
-    user = await get_current_user(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    
     async with AsyncSessionLocal() as session:
         try:
             # Check if already exists
@@ -192,7 +173,7 @@ async def add_user(
                 )
             
             # Get admin username
-            admin_username = user.get('username', 'admin') if isinstance(user, dict) else 'admin'
+            admin_username = request.session.get("admin_username", "admin")
             
             # Create whitelist entry
             whitelist_entry = VIPGroupWhitelist(
@@ -225,11 +206,6 @@ async def remove_user(
     telegram_id: int = Path(...)
 ):
     """Remove user from whitelist."""
-    # Check authentication
-    user = await get_current_user(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    
     async with AsyncSessionLocal() as session:
         try:
             # Find entry
@@ -265,11 +241,6 @@ async def remove_user(
 @router.get("/api/vip-group/stats", response_class=JSONResponse)
 async def get_stats(request: Request):
     """Get VIP group whitelist statistics."""
-    # Check authentication
-    user = await get_current_user(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    
     async with AsyncSessionLocal() as session:
         try:
             # Get total count

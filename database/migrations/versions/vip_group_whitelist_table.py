@@ -1,7 +1,7 @@
 """add vip_group_whitelist table
 
 Revision ID: vip_group_whitelist_001
-Revises: add_support_request
+Revises: f9a0b1c2d3e4
 Create Date: 2025-01-28 12:00:00.000000
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'vip_group_whitelist_001'
-down_revision = 'add_support_request'
+down_revision = 'f9a0b1c2d3e4'
 branch_labels = None
 depends_on = None
 
