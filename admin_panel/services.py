@@ -245,7 +245,25 @@ async def get_dashboard_stats(session: AsyncSession, month: Optional[str] = None
         current_date += timedelta(days=1)
     
     # Get subscription metrics for the selected month
-    subscription_metrics = await get_subscription_metrics(session, month)
+    try:
+        subscription_metrics = await get_subscription_metrics(session, month)
+        logger.debug(f"Subscription metrics loaded for month={month}: {subscription_metrics.get('month_display', 'N/A')}")
+    except Exception as e:
+        logger.error(f"❌ Failed to load subscription metrics for month={month}: {e}", exc_info=True)
+        # Используем default значения
+        subscription_metrics = {
+            'new_users': 0,
+            'test_pro_to_pro': 0,
+            'test_pro_to_ultra': 0,
+            'test_pro_to_free': 0,
+            'free_to_paid': 0,
+            'pro_churn_count': 0,
+            'pro_churn_percent': 0.0,
+            'ultra_churn_count': 0,
+            'ultra_churn_percent': 0.0,
+            'selected_month': month or 'all',
+            'month_display': 'Ошибка загрузки'
+        }
     
     # Combine all stats
     stats = {
@@ -276,10 +294,16 @@ async def get_dashboard_stats(session: AsyncSession, month: Optional[str] = None
     }
     
     # Add subscription metrics to stats
-    stats.update(subscription_metrics)
+    # Проверяем, что метрики загрузились корректно (не default значения)
+    if subscription_metrics.get('month_display') == 'Ошибка загрузки':
+        logger.error(f"⚠️ Subscription metrics failed to load for month={month}, using default values")
+        # Не кешируем ошибочные данные
+    else:
+        stats.update(subscription_metrics)
     
     # Кешируем результат (сериализуем latest_users в словари)
-    if redis_client is not None:
+    # НЕ кешируем если метрики не загрузились (month_display == 'Ошибка загрузки')
+    if redis_client is not None and stats.get('month_display') != 'Ошибка загрузки':
         try:
             # Конвертируем latest_users в сериализуемый формат
             cache_stats = stats.copy()
@@ -329,6 +353,18 @@ async def get_subscription_metrics(
     
     logger = logging.getLogger(__name__)
     
+    # Helper function to convert timezone-aware datetime to naive (for DB compatibility)
+    # Database columns use TIMESTAMP WITHOUT TIME ZONE, which requires naive datetime
+    def to_naive_utc(dt):
+        """Convert timezone-aware datetime to naive UTC datetime for database queries."""
+        if dt is None:
+            return None
+        if dt.tzinfo is None:
+            # Already naive, return as is
+            return dt
+        # Convert to UTC and remove timezone info
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    
     # Default return values in case of error
     default_metrics = {
         'new_users': 0,
@@ -367,13 +403,18 @@ async def get_subscription_metrics(
             if now.month == month_end.month and now.year == month_end.year:
                 month_end = now
         
+        # Конвертируем timezone-aware datetime в naive для запросов к БД
+        # БД использует TIMESTAMP WITHOUT TIME ZONE, который требует naive datetime
+        month_start_naive = to_naive_utc(month_start)
+        month_end_naive = to_naive_utc(month_end)
+        
         # Metric 1: New users in the month (registered on TEST_PRO)
         new_users_query = await session.execute(
             select(func.count(User.id))
             .where(
                 and_(
-                    User.created_at >= month_start,
-                    User.created_at <= month_end
+                    User.created_at >= month_start_naive,
+                    User.created_at <= month_end_naive
                 )
             )
         )
@@ -385,8 +426,8 @@ async def get_subscription_metrics(
             select(Subscription)
             .where(
                 and_(
-                    Subscription.started_at >= month_start,
-                    Subscription.started_at <= month_end
+                    Subscription.started_at >= month_start_naive,
+                    Subscription.started_at <= month_end_naive
                 )
             )
             .order_by(Subscription.user_id, Subscription.started_at)
@@ -568,14 +609,18 @@ async def get_subscription_metrics(
         
         # Get all FREE users who might have expired TEST_PRO in this month
         # Check by test_pro_started_at + 14 days
+        # Конвертируем даты для запроса к БД
+        test_pro_start_naive = to_naive_utc(month_start - timedelta(days=14))
+        test_pro_end_naive = to_naive_utc(month_end - timedelta(days=14))
+        
         test_pro_started_candidates = await session.execute(
             select(User)
             .where(
                 and_(
                     User.subscription_type == SubscriptionType.FREE,
                     User.test_pro_started_at.isnot(None),
-                    User.test_pro_started_at >= (month_start - timedelta(days=14)),
-                    User.test_pro_started_at <= (month_end - timedelta(days=14))
+                    User.test_pro_started_at >= test_pro_start_naive,
+                    User.test_pro_started_at <= test_pro_end_naive
                 )
             )
         )
@@ -589,8 +634,8 @@ async def get_subscription_metrics(
                     User.subscription_type == SubscriptionType.FREE,
                     User.test_pro_started_at.is_(None),
                     User.created_at.isnot(None),
-                    User.created_at >= (month_start - timedelta(days=14)),
-                    User.created_at <= (month_end - timedelta(days=14))
+                    User.created_at >= test_pro_start_naive,
+                    User.created_at <= test_pro_end_naive
                 )
             )
         )
@@ -635,8 +680,8 @@ async def get_subscription_metrics(
                 and_(
                     Subscription.subscription_type == SubscriptionType.PRO,
                     Subscription.payment_id.isnot(None),  # Only paid subscriptions
-                    Subscription.expires_at >= month_start,
-                    Subscription.expires_at <= month_end,
+                    Subscription.expires_at >= month_start_naive,
+                    Subscription.expires_at <= month_end_naive,
                     Subscription.expires_at.isnot(None)
                 )
             )
@@ -649,8 +694,8 @@ async def get_subscription_metrics(
                 and_(
                     Subscription.subscription_type == SubscriptionType.ULTRA,
                     Subscription.payment_id.isnot(None),  # Only paid subscriptions
-                    Subscription.expires_at >= month_start,
-                    Subscription.expires_at <= month_end,
+                    Subscription.expires_at >= month_start_naive,
+                    Subscription.expires_at <= month_end_naive,
                     Subscription.expires_at.isnot(None)
                 )
             )

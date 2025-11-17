@@ -198,11 +198,14 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
                     if key in hidden_keys:
                         continue
                     
-                    # IQ Радар category (VIP group notifications) - check FIRST before broadcast
-                    if key.startswith('notification_vip_group_'):
+                    # IQ Радар category (VIP group notifications and messages) - check FIRST before broadcast
+                    if (key.startswith('notification_vip_group_') or 
+                        key.startswith('vip_group_') or
+                        key in ['vip_group_access_granted', 'vip_group_access_denied']):
                         categories['iq_radar']['items'][key] = value
-                        notification_keys_found.append(key)
-                        logger.debug(f"Added to IQ Радар category: {key}")
+                        if key.startswith('notification_'):
+                            notification_keys_found.append(key)
+                        logger.info(f"✅ Added to IQ Радар category: {key}")
                     # Broadcast category (other notifications) - check after IQ Радар
                     elif key.startswith('notification_'):
                         categories['broadcast']['items'][key] = value
@@ -288,6 +291,27 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
         # Log broadcast category status
         broadcast_count = len(categories['broadcast']['items'])
         logger.info(f"Broadcast category items count: {broadcast_count}")
+        
+        # Log IQ Радар category status
+        iq_radar_count = len(categories['iq_radar']['items'])
+        logger.info(f"IQ Радар category items count: {iq_radar_count}")
+        if iq_radar_count > 0:
+            iq_radar_keys = list(categories['iq_radar']['items'].keys())
+            logger.info(f"✅ IQ Радар items: {iq_radar_keys}")
+        else:
+            logger.warning("⚠️ IQ Радар category is EMPTY! Checking for VIP group keys in lexicon...")
+            # Проверяем, есть ли ключи VIP группы в лексиконе
+            vip_keys_in_lexicon = [
+                k for k in LEXICON_RU.keys() 
+                if (k.startswith('notification_vip_group_') or 
+                    k.startswith('vip_group_') or
+                    k in ['vip_group_access_granted', 'vip_group_access_denied'])
+            ]
+            if vip_keys_in_lexicon:
+                logger.warning(f"⚠️ Found VIP group keys in LEXICON_RU but not categorized: {vip_keys_in_lexicon}")
+            else:
+                logger.warning("⚠️ No VIP group keys found in LEXICON_RU at all!")
+        
         if notification_keys_found:
             logger.info(f"Notification keys categorized: {notification_keys_found}")
         else:
