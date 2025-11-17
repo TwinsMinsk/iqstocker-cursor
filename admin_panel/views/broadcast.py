@@ -124,6 +124,17 @@ def clean_html_for_telegram(html: str) -> str:
     cleaned = re.sub(r'</div>', '\n', cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r'<br\s*/?>', '\n', cleaned, flags=re.IGNORECASE)
     
+    # Convert lists to plain text (Telegram doesn't support <ol>, <ul>, <li>)
+    cleaned = re.sub(r'<ol[^>]*>', '', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'</ol>', '\n', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'<ul[^>]*>', '', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'</ul>', '\n', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'<li[^>]*>', '• ', cleaned, flags=re.IGNORECASE)  # Bullet point
+    cleaned = re.sub(r'</li>', '\n', cleaned, flags=re.IGNORECASE)
+    
+    # Remove <span> tags completely (Telegram doesn't support colored text)
+    cleaned = re.sub(r'</?span[^>]*>', '', cleaned, flags=re.IGNORECASE)
+    
     # Replace common tags with Telegram-compatible ones
     cleaned = re.sub(r'<strong[^>]*>', '<b>', cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r'</strong>', '</b>', cleaned, flags=re.IGNORECASE)

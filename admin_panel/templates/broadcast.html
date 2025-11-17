@@ -132,8 +132,6 @@ document.addEventListener('DOMContentLoaded', function() {
         modules: {
             toolbar: [
                 ['bold', 'italic', 'underline', 'strike'],
-                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                [{ 'color': [] }], // Только цвет текста (Telegram поддерживает)
                 ['link'],
                 ['clean']
             ]
@@ -186,20 +184,16 @@ document.addEventListener('DOMContentLoaded', function() {
             .replace(/<del\b[^>]*>/gi, '<s>')
             .replace(/<\/del>/gi, '</s>')
             .replace(/<ins\b[^>]*>/gi, '<u>')
-            .replace(/<\/ins>/gi, '</u>');
-        
-        // Удаляем неразрешенные атрибуты из разрешенных тегов
-        // Для <span> оставляем только style с color
-        cleaned = cleaned.replace(/<span\s+([^>]*)>/gi, function(match, attrs) {
-            const colorMatch = attrs.match(/style\s*=\s*["']([^"']*color[^"']*)["']/i);
-            if (colorMatch) {
-                const colorValue = colorMatch[1].match(/color\s*:\s*([^;]+)/i);
-                if (colorValue) {
-                    return `<span style="color: ${colorValue[1].trim()}">`;
-                }
-            }
-            return '<span>';
-        });
+            .replace(/<\/ins>/gi, '</u>')
+            // Конвертируем списки в текст с символами (Telegram не поддерживает <ol>, <ul>, <li>)
+            .replace(/<ol[^>]*>/gi, '')
+            .replace(/<\/ol>/gi, '\n')
+            .replace(/<ul[^>]*>/gi, '')
+            .replace(/<\/ul>/gi, '\n')
+            .replace(/<li[^>]*>/gi, '• ')  // Маркер для списков
+            .replace(/<\/li>/gi, '\n')
+            // Удаляем <span> теги полностью (Telegram не поддерживает цвет текста)
+            .replace(/<\/?span[^>]*>/gi, '');
         
         // Для <a> оставляем только href
         cleaned = cleaned.replace(/<a\s+([^>]*)>/gi, function(match, attrs) {
