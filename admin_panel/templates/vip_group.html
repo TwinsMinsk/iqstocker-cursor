@@ -178,7 +178,6 @@
         </h5>
     </div>
     <div class="card-body">
-        {% if member_entries %}
         <div class="table-responsive">
             <table class="table table-hover">
                 <thead>
@@ -195,6 +194,7 @@
                     </tr>
                 </thead>
                 <tbody>
+                    {% if member_entries %}
                     {% for member in member_entries %}
                     <tr>
                         <td>{{ member.id }}</td>
@@ -248,12 +248,22 @@
                         </td>
                     </tr>
                     {% endfor %}
+                    {% else %}
+                    <tr>
+                        <td colspan="9" class="text-center py-4">
+                            <div class="text-muted">
+                                <i class="fas fa-info-circle me-2"></i>
+                                История пуста. Когда пользователи начнут вступать в VIP-группу, здесь появятся записи.
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}
                 </tbody>
             </table>
         </div>
         
         <!-- Pagination for members -->
-        {% if members_total_pages > 1 %}
+        {% if member_entries and members_total_pages > 1 %}
         <nav aria-label="Members pagination">
             <ul class="pagination justify-content-center">
                 {% if members_current_page > 1 %}
@@ -285,11 +295,6 @@
                 {% endif %}
             </ul>
         </nav>
-        {% endif %}
-        {% else %}
-        <div class="alert alert-info">
-            <i class="fas fa-info-circle me-2"></i>История пуста. Когда пользователи начнут вступать в VIP-группу, здесь появятся записи.
-        </div>
         {% endif %}
     </div>
 </div>
