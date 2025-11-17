@@ -80,103 +80,103 @@ async def import_csv(
         errors = []
         
         async with AsyncSessionLocal() as session:
-        try:
-            # Read CSV file
-            contents = await file.read()
-            csv_text = contents.decode('utf-8-sig')  # Handle BOM
-            csv_reader = csv.DictReader(io.StringIO(csv_text))
-            
-            # Get admin username for added_by field
-            admin_username = request.session.get("admin_username", "admin")
-            
-            for row_num, row in enumerate(csv_reader, start=2):  # Start from 2 (header is row 1)
-                try:
-                    # Skip empty rows
-                    if not row or not any(row.values()):
-                        continue
-                    
-                    # Try to get ID from different possible column names
-                    telegram_id = None
-                    for col_name in ['ID', 'id', 'telegram_id', 'Telegram ID', 'user_id']:
-                        if col_name in row:
-                            value = row[col_name]
-                            # Handle empty strings, whitespace, None
-                            if value and str(value).strip():
-                                try:
-                                    telegram_id = int(str(value).strip())
-                                    break
-                                except (ValueError, TypeError):
-                                    continue
-                    
-                    # ID is required - skip if not found
-                    if not telegram_id:
-                        errors.append(f"Row {row_num}: No valid ID found (skipped)")
+            try:
+                # Read CSV file
+                contents = await file.read()
+                csv_text = contents.decode('utf-8-sig')  # Handle BOM
+                csv_reader = csv.DictReader(io.StringIO(csv_text))
+                
+                # Get admin username for added_by field
+                admin_username = request.session.get("admin_username", "admin")
+                
+                for row_num, row in enumerate(csv_reader, start=2):  # Start from 2 (header is row 1)
+                    try:
+                        # Skip empty rows
+                        if not row or not any(row.values()):
+                            continue
+                        
+                        # Try to get ID from different possible column names
+                        telegram_id = None
+                        for col_name in ['ID', 'id', 'telegram_id', 'Telegram ID', 'user_id']:
+                            if col_name in row:
+                                value = row[col_name]
+                                # Handle empty strings, whitespace, None
+                                if value and str(value).strip():
+                                    try:
+                                        telegram_id = int(str(value).strip())
+                                        break
+                                    except (ValueError, TypeError):
+                                        continue
+                        
+                        # ID is required - skip if not found
+                        if not telegram_id:
+                            errors.append(f"Row {row_num}: No valid ID found (skipped)")
+                            skipped_count += 1
+                            continue
+                        
+                        # Check if already exists
+                        existing_query = select(VIPGroupWhitelist).where(
+                            VIPGroupWhitelist.telegram_id == telegram_id
+                        )
+                        existing_result = await session.execute(existing_query)
+                        existing = existing_result.scalar_one_or_none()
+                        
+                        if existing:
+                            skipped_count += 1
+                            continue
+                        
+                        # Get optional fields - all are optional except ID
+                        # Clean and normalize values
+                        def clean_value(value):
+                            """Clean and normalize CSV value."""
+                            if value is None:
+                                return None
+                            value_str = str(value).strip()
+                            return value_str if value_str else None
+                        
+                        username = clean_value(row.get('Username') or row.get('username'))
+                        first_name = clean_value(row.get('First Name') or row.get('first_name'))
+                        note = f"Imported from CSV on {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"
+                        
+                        # Create whitelist entry - all fields except telegram_id are optional
+                        whitelist_entry = VIPGroupWhitelist(
+                            telegram_id=telegram_id,
+                            username=username,
+                            first_name=first_name,
+                            note=note,
+                            added_by=admin_username
+                        )
+                        session.add(whitelist_entry)
+                        added_count += 1
+                        
+                    except Exception as e:
+                        error_msg = f"Row {row_num}: {str(e)}"
+                        errors.append(error_msg)
                         skipped_count += 1
-                        continue
-                    
-                    # Check if already exists
-                    existing_query = select(VIPGroupWhitelist).where(
-                        VIPGroupWhitelist.telegram_id == telegram_id
-                    )
-                    existing_result = await session.execute(existing_query)
-                    existing = existing_result.scalar_one_or_none()
-                    
-                    if existing:
-                        skipped_count += 1
-                        continue
-                    
-                    # Get optional fields - all are optional except ID
-                    # Clean and normalize values
-                    def clean_value(value):
-                        """Clean and normalize CSV value."""
-                        if value is None:
-                            return None
-                        value_str = str(value).strip()
-                        return value_str if value_str else None
-                    
-                    username = clean_value(row.get('Username') or row.get('username'))
-                    first_name = clean_value(row.get('First Name') or row.get('first_name'))
-                    note = f"Imported from CSV on {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"
-                    
-                    # Create whitelist entry - all fields except telegram_id are optional
-                    whitelist_entry = VIPGroupWhitelist(
-                        telegram_id=telegram_id,
-                        username=username,
-                        first_name=first_name,
-                        note=note,
-                        added_by=admin_username
-                    )
-                    session.add(whitelist_entry)
-                    added_count += 1
-                    
-                except Exception as e:
-                    error_msg = f"Row {row_num}: {str(e)}"
-                    errors.append(error_msg)
-                    skipped_count += 1
-                    logger.error(f"Error processing CSV row {row_num}: {e}", exc_info=True)
-            
-            await session.commit()
-            
-            return JSONResponse(content={
-                "success": True,
-                "added": added_count,
-                "skipped": skipped_count,
-                "errors": errors[:10],  # Limit errors to first 10
-                "message": f"Импорт завершен: добавлено {added_count}, пропущено {skipped_count}"
-            })
-            
-        except Exception as e:
-            await session.rollback()
-            error_detail = str(e)
-            logger.error(f"Error importing CSV: {e}", exc_info=True)
-            return JSONResponse(
-                status_code=500,
-                content={
-                    "success": False,
-                    "message": f"Ошибка при импорте CSV: {error_detail}",
-                    "error": error_detail
-                }
-            )
+                        logger.error(f"Error processing CSV row {row_num}: {e}", exc_info=True)
+                
+                await session.commit()
+                
+                return JSONResponse(content={
+                    "success": True,
+                    "added": added_count,
+                    "skipped": skipped_count,
+                    "errors": errors[:10],  # Limit errors to first 10
+                    "message": f"Импорт завершен: добавлено {added_count}, пропущено {skipped_count}"
+                })
+                
+            except Exception as e:
+                await session.rollback()
+                error_detail = str(e)
+                logger.error(f"Error importing CSV: {e}", exc_info=True)
+                return JSONResponse(
+                    status_code=500,
+                    content={
+                        "success": False,
+                        "message": f"Ошибка при импорте CSV: {error_detail}",
+                        "error": error_detail
+                    }
+                )
     except Exception as e:
         # Catch any errors outside the session context
         error_detail = str(e)
