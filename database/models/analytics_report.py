@@ -24,7 +24,7 @@ class AnalyticsReport(Base):
     portfolio_sold_percent: Mapped[float] = mapped_column(Numeric(5, 2))
     new_works_sales_percent: Mapped[float] = mapped_column(Numeric(5, 2))
     acceptance_rate_calc: Mapped[float] = mapped_column(Numeric(5, 2), nullable=True)
-    upload_limit_usage: Mapped[float] = mapped_column(Numeric(5, 2), nullable=True)
+    upload_limit_usage: Mapped[float] = mapped_column(Numeric(6, 2), nullable=True)
     
     # Report text and period for display
     report_text_html: Mapped[str] = mapped_column(Text, nullable=True)

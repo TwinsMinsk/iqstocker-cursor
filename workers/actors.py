@@ -243,7 +243,13 @@ def process_csv_analysis_task(csv_analysis_id: int, user_telegram_id: int):
             logger.info(f"Analysis {csv_analysis_id} completed successfully")
             
             # Отправка уведомления пользователю
-            notify_analysis_complete.send(user_telegram_id, csv_analysis_id)
+            try:
+                logger.info(f"Enqueuing notification task: user_id={user_telegram_id}, analysis_id={csv_analysis_id}")
+                message = notify_analysis_complete.send(user_telegram_id, csv_analysis_id)
+                logger.info(f"Notification task enqueued successfully: message_id={getattr(message, 'message_id', 'N/A')}")
+            except Exception as e:
+                logger.error(f"Failed to enqueue notification task: {e}", exc_info=True)
+                # Не прерываем выполнение основной задачи, но логируем ошибку
             
             return {"status": "success", "analysis_id": csv_analysis_id}
             
@@ -276,9 +282,11 @@ def process_csv_analysis_task(csv_analysis_id: int, user_telegram_id: int):
                     logger.error(f"Failed to delete temp file: {e}")
 
 
-@dramatiq.actor
+@dramatiq.actor(max_retries=3, time_limit=60000)  # 1 минута на отправку отчета
 def notify_analysis_complete(user_telegram_id: int, csv_analysis_id: int):
     """Отправить пользователю полный отчет после завершения анализа."""
+    logger.info(f"Starting notification task: user_id={user_telegram_id}, analysis_id={csv_analysis_id}")
+    
     from aiogram import Bot
     from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
     from config.settings import settings
@@ -485,7 +493,13 @@ def notify_analysis_complete(user_telegram_id: int, csv_analysis_id: int):
                 finally:
                     await bot.session.close()
             
-            message_ids = asyncio.run(send_report())
+            logger.info(f"Calling asyncio.run() to send report to user {user_telegram_id}")
+            try:
+                message_ids = asyncio.run(send_report())
+                logger.info(f"Report sent successfully, message_ids: {message_ids}")
+            except Exception as send_error:
+                logger.error(f"Error in asyncio.run(send_report): {send_error}", exc_info=True)
+                raise
             
             # Сохраняем все message_id в БД для последующего удаления
             # Включаем ID первого сообщения при входе в раздел (если есть) и ID сообщений отчета
