@@ -61,8 +61,19 @@ async def import_csv(
     file: UploadFile = File(...)
 ):
     """Import CSV file with whitelist users."""
-    if not file.filename.endswith('.csv'):
-        raise HTTPException(status_code=400, detail="File must be a CSV file")
+    try:
+        # Validate file
+        if not file or not file.filename:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "Файл не выбран"}
+            )
+        
+        if not file.filename.endswith('.csv'):
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "Файл должен быть в формате CSV"}
+            )
     
     added_count = 0
     skipped_count = 0
@@ -166,6 +177,18 @@ async def import_csv(
                     "error": error_detail
                 }
             )
+    except Exception as e:
+        # Catch any errors outside the session context
+        error_detail = str(e)
+        logger.error(f"Error in import_csv handler: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "message": f"Ошибка при обработке запроса: {error_detail}",
+                "error": error_detail
+            }
+        )
 
 
 @router.post("/vip-group/add", response_class=JSONResponse)
