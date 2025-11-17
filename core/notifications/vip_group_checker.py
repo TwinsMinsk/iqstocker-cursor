@@ -11,6 +11,7 @@ from config.settings import settings
 from config.database import AsyncSessionLocal
 from database.models import User, SubscriptionType
 from core.vip_group.vip_group_service import VIPGroupService
+from core.notifications.vip_group_notifications import send_vip_group_removal_notification
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +111,14 @@ async def check_vip_group_members(bot: Bot, session: AsyncSession) -> dict:
                                 logger.info(
                                     f"Successfully removed user {user.telegram_id} from VIP group"
                                 )
+                                
+                                # Send notification to user about removal
+                                try:
+                                    await send_vip_group_removal_notification(bot, user, session)
+                                except Exception as e:
+                                    logger.error(
+                                        f"Failed to send VIP removal notification to user {user.telegram_id}: {e}"
+                                    )
                             else:
                                 stats['errors'] += 1
                                 logger.warning(

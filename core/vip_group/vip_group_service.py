@@ -122,10 +122,20 @@ class VIPGroupService:
     async def remove_user_from_group(
         self, 
         bot: Bot, 
-        telegram_id: int
+        telegram_id: int,
+        send_notification: bool = False,
+        user: Optional[User] = None,
+        session: Optional[AsyncSession] = None
     ) -> bool:
         """
         Remove user from VIP group (kick, not ban - user can rejoin via link).
+        
+        Args:
+            bot: Bot instance
+            telegram_id: User's Telegram ID
+            send_notification: Whether to send notification to user (requires user and session)
+            user: User object (required if send_notification=True)
+            session: Database session (required if send_notification=True)
         
         Returns True if successful, False otherwise.
         """
@@ -138,6 +148,15 @@ class VIPGroupService:
                 until_date=datetime.utcnow() - timedelta(seconds=1)  # Kick, not ban
             )
             logger.info(f"Successfully removed user {telegram_id} from VIP group")
+            
+            # Send notification if requested
+            if send_notification and user and session:
+                try:
+                    from core.notifications.vip_group_notifications import send_vip_group_removal_notification
+                    await send_vip_group_removal_notification(bot, user, session)
+                except Exception as e:
+                    logger.error(f"Failed to send VIP removal notification to user {telegram_id}: {e}")
+            
             return True
         except TelegramAPIError as e:
             # If user is not in group or bot doesn't have permissions, log but don't fail

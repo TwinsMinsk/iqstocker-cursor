@@ -4,13 +4,14 @@ import asyncio
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 
 from config.database import AsyncSessionLocal
 from database.models import User, SubscriptionType, Limits
 from config.settings import settings
+from core.notifications.notification_utils import add_main_menu_button_to_keyboard
 
 
 class NotificationManager:
@@ -86,6 +87,9 @@ class NotificationManager:
                 [InlineKeyboardButton(text=button_text, callback_data="upgrade_pro")]
             ])
             
+            # Добавляем кнопку "Назад в меню" в новый ряд
+            keyboard = add_main_menu_button_to_keyboard(keyboard, user.subscription_type)
+            
             if await self.send_notification(user.telegram_id, message, keyboard):
                 sent_count += 1
         
@@ -118,13 +122,16 @@ class NotificationManager:
                 [InlineKeyboardButton(text=button_text, callback_data="upgrade_pro")]
             ])
             
+            # Добавляем кнопку "Назад в меню" в новый ряд
+            keyboard = add_main_menu_button_to_keyboard(keyboard, user.subscription_type)
+            
             if await self.send_notification(user.telegram_id, message, keyboard):
                 sent_count += 1
         
         return sent_count
     
     async def send_marketing_notifications(self, session: AsyncSession) -> int:
-        """Send marketing notifications to FREE users."""
+        """Send marketing notifications to FREE users who haven't received one this month."""
         
         from bot.lexicon import LEXICON_RU, LEXICON_COMMANDS_RU
         
@@ -135,9 +142,15 @@ class NotificationManager:
         now = datetime.utcnow()
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         
+        # Filter: FREE users created before this month AND
+        # (never received notification OR last notification was before this month)
         stmt = select(User).filter(
             User.subscription_type == SubscriptionType.FREE,
-            User.created_at < month_start  # Users created before this month
+            User.created_at < month_start,  # Users created before this month
+            or_(
+                User.last_marketing_notification_sent_at.is_(None),  # Never received
+                User.last_marketing_notification_sent_at < month_start  # Last notification was before this month
+            )
         )
         result = await session.execute(stmt)
         free_users = result.scalars().all()
@@ -162,8 +175,22 @@ class NotificationManager:
                 [InlineKeyboardButton(text=button_compare_text, callback_data="compare_free_pro")]
             ])
             
+            # Добавляем кнопку "Назад в меню" в новый ряд
+            keyboard = add_main_menu_button_to_keyboard(keyboard, user.subscription_type)
+            
             if await self.send_notification(user.telegram_id, message, keyboard):
+                # Update last_marketing_notification_sent_at after successful send
+                user.last_marketing_notification_sent_at = now
                 sent_count += 1
+                
+                # Invalidate user cache to reflect the update
+                from core.cache.user_cache import get_user_cache_service
+                cache_service = get_user_cache_service()
+                await cache_service.invalidate_user(user.telegram_id)
+        
+        # Commit all updates at once
+        if sent_count > 0:
+            await session.commit()
         
         return sent_count
     

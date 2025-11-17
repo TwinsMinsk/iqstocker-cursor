@@ -60,6 +60,7 @@ class UserCacheService:
             "created_at": user.created_at.isoformat() if user.created_at else None,
             "updated_at": user.updated_at.isoformat() if user.updated_at else None,
             "last_activity_at": user.last_activity_at.isoformat() if user.last_activity_at else None,
+            "last_marketing_notification_sent_at": user.last_marketing_notification_sent_at.isoformat() if user.last_marketing_notification_sent_at else None,
         }
     
     def _limits_to_dict(self, limits: Limits) -> Dict[str, Any]:
@@ -105,6 +106,7 @@ class UserCacheService:
             user.created_at = datetime.fromisoformat(data["created_at"]) if data.get("created_at") else None
             user.updated_at = datetime.fromisoformat(data["updated_at"]) if data.get("updated_at") else None
             user.last_activity_at = datetime.fromisoformat(data["last_activity_at"]) if data.get("last_activity_at") else None
+            user.last_marketing_notification_sent_at = datetime.fromisoformat(data["last_marketing_notification_sent_at"]) if data.get("last_marketing_notification_sent_at") else None
             
             # Explicitly mark as transient so SQLAlchemy knows it's not in session
             # This prevents accidental INSERT when object is used in relationships

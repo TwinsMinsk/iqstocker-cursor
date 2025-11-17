@@ -49,6 +49,7 @@ class User(Base):
         onupdate=utc_now
     )
     last_activity_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    last_marketing_notification_sent_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     
     # Admin flag
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)

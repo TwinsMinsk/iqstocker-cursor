@@ -2,13 +2,17 @@
 
 import logging
 from aiogram import Router, F
-from aiogram.types import ChatMemberUpdated
+from aiogram.types import ChatMemberUpdated, Message
 from aiogram.enums import ChatMemberStatus
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.settings import settings
 from core.vip_group.vip_group_service import VIPGroupService
 from database.models.vip_group_member import VIPGroupMemberStatus
+from database.models import User
+from sqlalchemy import select
+from core.notifications.vip_group_notifications import send_vip_group_removal_notification
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +117,20 @@ async def handle_all_chat_member_updates(
                             status=VIPGroupMemberStatus.REMOVED,
                             note="Removed by bot: no access"
                         )
+                        
+                        # Send notification to user about removal
+                        try:
+                            # Get user from database
+                            stmt = select(User).where(User.telegram_id == telegram_id)
+                            result = await session.execute(stmt)
+                            user = result.scalar_one_or_none()
+                            
+                            if user:
+                                await send_vip_group_removal_notification(event.bot, user, session)
+                            else:
+                                logger.warning(f"User {telegram_id} not found in database, cannot send notification")
+                        except Exception as e:
+                            logger.error(f"Failed to send VIP removal notification to user {telegram_id}: {e}")
                     else:
                         logger.warning(f"⚠️ Failed to remove user {telegram_id} from VIP group")
                 else:
@@ -158,4 +176,123 @@ async def handle_all_chat_member_updates(
             
     except Exception as e:
         logger.error(f"❌ Error handling VIP group member update: {e}", exc_info=True)
+
+
+@router.message(F.chat.id == settings.vip_group_id)
+async def handle_vip_group_system_messages(
+    message: Message,
+    session: AsyncSession
+):
+    """
+    Automatically delete system messages in VIP group.
+    
+    Deletes:
+    - New member joins (new_chat_members)
+    - Member leaves (left_chat_member)
+    - Pinned messages notifications
+    - Group info changes (title, photo, description)
+    - Other service messages
+    
+    Requires bot to be admin with "Delete messages" permission.
+    """
+    # Check if VIP group cleanup is enabled
+    if not settings.vip_group_cleanup_enabled:
+        logger.debug("VIP group cleanup is disabled, skipping system message deletion")
+        return
+    
+    # Check if this is a service message
+    is_service_message = (
+        message.new_chat_members is not None or
+        message.left_chat_member is not None or
+        message.pinned_message is not None or
+        message.new_chat_title is not None or
+        message.new_chat_photo is not None or
+        message.delete_chat_photo is not None or
+        message.new_chat_description is not None or
+        message.group_chat_created is not None or
+        message.supergroup_chat_created is not None or
+        message.channel_chat_created is not None or
+        message.migrate_to_chat_id is not None or
+        message.migrate_from_chat_id is not None or
+        message.connected_website is not None
+    )
+    
+    if not is_service_message:
+        return  # Not a service message, ignore
+    
+    # Get service message type for logging
+    service_type = _get_service_message_type(message)
+    
+    try:
+        # Delete the service message
+        await message.delete()
+        logger.info(
+            f"🗑️ Deleted system message in VIP group: "
+            f"message_id={message.message_id}, "
+            f"type={service_type}, "
+            f"chat_id={message.chat.id}"
+        )
+    except TelegramBadRequest as e:
+        error_msg = str(e).lower()
+        # Message already deleted or doesn't exist
+        if "message to delete not found" in error_msg or "message can't be deleted" in error_msg:
+            logger.debug(
+                f"ℹ️ System message {message.message_id} already deleted or can't be deleted: {service_type}"
+            )
+        else:
+            logger.warning(
+                f"⚠️ Failed to delete system message {message.message_id} "
+                f"(type: {service_type}): {e}"
+            )
+    except TelegramForbiddenError:
+        # Bot doesn't have permission to delete messages
+        logger.error(
+            f"❌ Bot doesn't have permission to delete messages in VIP group. "
+            f"Make sure bot is admin with 'Delete messages' permission. "
+            f"Message type: {service_type}, message_id: {message.message_id}"
+        )
+    except Exception as e:
+        logger.error(
+            f"❌ Unexpected error deleting system message "
+            f"(type: {service_type}, message_id: {message.message_id}): {e}",
+            exc_info=True
+        )
+
+
+def _get_service_message_type(message: Message) -> str:
+    """
+    Get type of service message for logging.
+    
+    Returns:
+        str: Type of service message (e.g., 'new_chat_members', 'pinned_message')
+    """
+    if message.new_chat_members:
+        members_count = len(message.new_chat_members)
+        return f"new_chat_members({members_count})"
+    elif message.left_chat_member:
+        return "left_chat_member"
+    elif message.pinned_message:
+        return "pinned_message"
+    elif message.new_chat_title:
+        return "new_chat_title"
+    elif message.new_chat_photo:
+        return "new_chat_photo"
+    elif message.delete_chat_photo:
+        return "delete_chat_photo"
+    elif message.new_chat_description:
+        return "new_chat_description"
+    elif message.group_chat_created:
+        return "group_chat_created"
+    elif message.supergroup_chat_created:
+        return "supergroup_chat_created"
+    elif message.channel_chat_created:
+        return "channel_chat_created"
+    elif message.migrate_to_chat_id:
+        return f"migrate_to_chat_id({message.migrate_to_chat_id})"
+    elif message.migrate_from_chat_id:
+        return f"migrate_from_chat_id({message.migrate_from_chat_id})"
+    elif message.connected_website:
+        return "connected_website"
+    else:
+        return "unknown_service"
 

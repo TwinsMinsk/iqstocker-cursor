@@ -134,8 +134,17 @@ async def main():
     logger.info(
         f"🔧 VIP Group Settings: "
         f"vip_group_id={settings.vip_group_id}, "
-        f"vip_group_check_enabled={settings.vip_group_check_enabled}"
+        f"vip_group_check_enabled={settings.vip_group_check_enabled}, "
+        f"vip_group_cleanup_enabled={settings.vip_group_cleanup_enabled}"
     )
+    
+    if settings.vip_group_cleanup_enabled:
+        logger.info(
+            f"🧹 VIP Group Cleanup: Enabled - System messages will be automatically deleted. "
+            f"Make sure bot is admin with 'Delete messages' permission."
+        )
+    else:
+        logger.info("🧹 VIP Group Cleanup: Disabled - System messages will not be deleted")
     
     # Start task scheduler
     scheduler = get_scheduler(bot)

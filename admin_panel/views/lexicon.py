@@ -144,15 +144,8 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
         # Load lexicon from database or file
         if lexicon_service:
             try:
-                # Invalidate cache first to ensure fresh data
-                try:
-                    lexicon_service.invalidate_cache()
-                    logger.debug("Cache invalidated before loading lexicon")
-                except Exception as cache_error:
-                    logger.warning(f"Failed to invalidate cache (non-critical): {cache_error}")
-                
-                # Use force_refresh to bypass cache and get fresh data
-                lexicon_data = lexicon_service.load_lexicon(force_refresh=True)
+                # Используем кеш по умолчанию, без принудительной инвалидации
+                lexicon_data = lexicon_service.load_lexicon(force_refresh=False)
                 LEXICON_RU = lexicon_data.get('LEXICON_RU', {})
                 LEXICON_COMMANDS_RU = lexicon_data.get('LEXICON_COMMANDS_RU', {})
                 
@@ -184,6 +177,7 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
             'tg_channel': {'name': 'ТГ-канал', 'items': {}},
             'referral': {'name': 'Реферальная', 'items': {}},
             'broadcast': {'name': 'Рассылка', 'items': {}},
+            'iq_radar': {'name': 'IQ Радар', 'items': {}},
             'lessons': {'name': 'Уроки', 'items': {}},
             'profile': {'name': 'Профиль', 'items': {}},
             'payments': {'name': 'Платежи', 'items': {}},
@@ -204,8 +198,13 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
                     if key in hidden_keys:
                         continue
                     
-                    # Broadcast category (notifications) - check FIRST before other categories
-                    if key.startswith('notification_'):
+                    # IQ Радар category (VIP group notifications) - check FIRST before broadcast
+                    if key.startswith('notification_vip_group_'):
+                        categories['iq_radar']['items'][key] = value
+                        notification_keys_found.append(key)
+                        logger.debug(f"Added to IQ Радар category: {key}")
+                    # Broadcast category (other notifications) - check after IQ Радар
+                    elif key.startswith('notification_'):
                         categories['broadcast']['items'][key] = value
                         notification_keys_found.append(key)
                         logger.debug(f"Added to broadcast category: {key}")
@@ -270,8 +269,11 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
                     if key in hidden_faq_buttons:
                         continue
                     
+                    # IQ Радар category - VIP group related buttons
+                    if key == 'button_subscribe_pro_vip':
+                        categories['iq_radar']['items'][key] = value
                     # FAQ кнопки должны быть в категории FAQ, а не buttons (кроме скрытых)
-                    if key.startswith('faq_btn_') or key.startswith('faq_q'):
+                    elif key.startswith('faq_btn_') or key.startswith('faq_q'):
                         categories['faq']['items'][key] = value
                     # Payment button texts from buttons category go to payments
                     elif key in ['payment_btn_text_free_to_pro', 'payment_btn_text_free_to_ultra',
@@ -311,6 +313,7 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
             'tg_channel': {'name': 'ТГ-канал', 'items': {}},
             'referral': {'name': 'Реферальная', 'items': {}},
             'broadcast': {'name': 'Рассылка', 'items': {}},
+            'iq_radar': {'name': 'IQ Радар', 'items': {}},
             'lessons': {'name': 'Уроки', 'items': {}},
             'profile': {'name': 'Профиль', 'items': {}},
             'payments': {'name': 'Платежи', 'items': {}},
@@ -325,22 +328,14 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
 async def lexicon_page(request: Request, category: str = "main", search: str = ""):
     """Lexicon management page."""
     try:
-        # Force cache invalidation to get fresh data
+        # Используем кеш по умолчанию, без принудительной инвалидации
         if lexicon_service:
             try:
-                lexicon_service.invalidate_cache()
-                logger.debug("Cache invalidated for lexicon page")
+                # Загружаем с кешем (без force_refresh)
+                lexicon_data = lexicon_service.load_lexicon_sync(force_refresh=False)
+                logger.debug("Lexicon loaded from cache or database")
             except Exception as e:
-                logger.warning(f"Failed to invalidate cache (non-critical): {e}")
-        
-        # Load lexicon with force_refresh to bypass cache
-        if lexicon_service:
-            try:
-                # Force refresh to ensure we get fresh data including new notification keys
-                lexicon_data = lexicon_service.load_lexicon_sync(force_refresh=True)
-                logger.info("Lexicon loaded with force_refresh=True")
-            except Exception as e:
-                logger.warning(f"Failed to force refresh lexicon: {e}")
+                logger.warning(f"Failed to load lexicon: {e}")
         
         categories = get_lexicon_categories()
         

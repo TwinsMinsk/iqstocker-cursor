@@ -62,20 +62,39 @@ if not STATIC_DIR.is_dir():
     raise RuntimeError(f"Static directory not found at {STATIC_DIR}")
 else:
     logger.info("Static directory found.")
-    # Mount static files with no-cache headers
+    # Mount static files with proper caching headers
     from starlette.middleware.base import BaseHTTPMiddleware
     from starlette.types import ASGIApp
+    import hashlib
     
-    class NoCacheStaticMiddleware(BaseHTTPMiddleware):
+    class StaticCacheMiddleware(BaseHTTPMiddleware):
+        """Middleware для правильного кеширования статических файлов."""
         async def dispatch(self, request, call_next):
             response = await call_next(request)
             if request.url.path.startswith("/static/"):
-                response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
-                response.headers["Pragma"] = "no-cache"
-                response.headers["Expires"] = "0"
+                # Определяем тип файла
+                file_path = request.url.path
+                if file_path.endswith(('.css', '.js')):
+                    # Для CSS и JS - кешируем на 1 день, но с проверкой версии через query параметр
+                    response.headers["Cache-Control"] = "public, max-age=86400, must-revalidate"
+                    # Генерируем ETag на основе содержимого файла
+                    try:
+                        full_path = STATIC_DIR / file_path.lstrip("/static/")
+                        if full_path.exists():
+                            content = full_path.read_bytes()
+                            etag = hashlib.md5(content).hexdigest()
+                            response.headers["ETag"] = f'"{etag}"'
+                    except Exception:
+                        pass
+                elif file_path.endswith(('.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.woff', '.woff2')):
+                    # Для изображений и шрифтов - кешируем на 1 год
+                    response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+                else:
+                    # Для остальных - короткий кеш
+                    response.headers["Cache-Control"] = "public, max-age=3600"
             return response
     
-    app.add_middleware(NoCacheStaticMiddleware)
+    app.add_middleware(StaticCacheMiddleware)
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 # Setup templates с проверкой

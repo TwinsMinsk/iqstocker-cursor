@@ -1,5 +1,7 @@
 """Services for admin panel data operations."""
 
+import json
+import logging
 from typing import Dict, List, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc
@@ -9,10 +11,70 @@ from database.models import (
     User, Subscription, GlobalTheme, ThemeRequest, 
     LLMSettings, SystemMessage, AnalyticsReport, VideoLesson, SubscriptionType
 )
+from config.database import redis_client
+from core.utils.log_rate_limiter import should_log_redis_warning
+
+logger = logging.getLogger(__name__)
 
 
 async def get_dashboard_stats(session: AsyncSession, month: Optional[str] = None) -> Dict[str, Any]:
-    """Get dashboard statistics."""
+    """Get dashboard statistics with caching."""
+    # Генерируем ключ кеша
+    cache_key = f"admin:dashboard_stats:{month or 'all'}"
+    cache_ttl = 300  # 5 минут
+    
+    # Пытаемся загрузить из кеша
+    if redis_client is not None:
+        try:
+            cached_data = redis_client.get(cache_key)
+            if cached_data:
+                logger.debug(f"Dashboard stats loaded from cache for month={month}")
+                # Десериализуем данные
+                stats = json.loads(cached_data)
+                # Восстанавливаем latest_users как объекты-обертки для совместимости с шаблоном
+                if 'latest_users' in stats and stats['latest_users']:
+                    from datetime import datetime
+                    
+                    class UserWrapper:
+                        """Обертка для словаря пользователя, чтобы работал доступ через точку."""
+                        def __init__(self, data):
+                            self._data = data
+                            self.id = data.get('id')
+                            self.telegram_id = data.get('telegram_id')
+                            self.username = data.get('username')
+                            self.first_name = data.get('first_name')
+                            self.last_name = data.get('last_name')
+                            # Восстанавливаем subscription_type как строку (для сравнения в шаблоне)
+                            sub_type = data.get('subscription_type')
+                            self.subscription_type = sub_type
+                            # Восстанавливаем datetime объекты из ISO строк
+                            created_at_str = data.get('created_at')
+                            if created_at_str:
+                                try:
+                                    self.created_at = datetime.fromisoformat(created_at_str.replace('Z', '+00:00'))
+                                except (ValueError, AttributeError):
+                                    self.created_at = None
+                            else:
+                                self.created_at = None
+                            
+                            last_activity_str = data.get('last_activity_at')
+                            if last_activity_str:
+                                try:
+                                    self.last_activity_at = datetime.fromisoformat(last_activity_str.replace('Z', '+00:00'))
+                                except (ValueError, AttributeError):
+                                    self.last_activity_at = None
+                            else:
+                                self.last_activity_at = None
+                        
+                        def __getattr__(self, name):
+                            return self._data.get(name)
+                    
+                    stats['latest_users'] = [UserWrapper(user_dict) for user_dict in stats['latest_users']]
+                return stats
+        except Exception as e:
+            if should_log_redis_warning("dashboard_stats"):
+                logger.warning(f"Failed to load dashboard stats from cache: {e}")
+    
     from datetime import datetime, timedelta
     from database.models import CSVAnalysis, Limits
     
@@ -182,7 +244,11 @@ async def get_dashboard_stats(session: AsyncSession, month: Optional[str] = None
         
         current_date += timedelta(days=1)
     
-    return {
+    # Get subscription metrics for the selected month
+    subscription_metrics = await get_subscription_metrics(session, month)
+    
+    # Combine all stats
+    stats = {
         'subscription_counts': {
             'FREE': free_count,
             'PRO': pro_count,
@@ -209,11 +275,35 @@ async def get_dashboard_stats(session: AsyncSession, month: Optional[str] = None
         },
     }
     
-    # Get subscription metrics for the selected month
-    subscription_metrics = await get_subscription_metrics(session, month)
-    
-    # Add metrics to stats
+    # Add subscription metrics to stats
     stats.update(subscription_metrics)
+    
+    # Кешируем результат (сериализуем latest_users в словари)
+    if redis_client is not None:
+        try:
+            # Конвертируем latest_users в сериализуемый формат
+            cache_stats = stats.copy()
+            if 'latest_users' in cache_stats and cache_stats['latest_users']:
+                cache_stats['latest_users'] = [
+                    {
+                        'id': user.id,
+                        'telegram_id': user.telegram_id,
+                        'username': user.username,
+                        'first_name': user.first_name,
+                        'last_name': user.last_name,
+                        'subscription_type': user.subscription_type.value if user.subscription_type else None,
+                        'created_at': user.created_at.isoformat() if user.created_at else None,
+                        'last_activity_at': user.last_activity_at.isoformat() if hasattr(user, 'last_activity_at') and user.last_activity_at else None,
+                    }
+                    for user in cache_stats['latest_users']
+                ]
+            
+            cache_data = json.dumps(cache_stats, default=str, ensure_ascii=False)
+            redis_client.setex(cache_key, cache_ttl, cache_data)
+            logger.debug(f"Dashboard stats cached for month={month}")
+        except Exception as e:
+            if should_log_redis_warning("dashboard_stats"):
+                logger.warning(f"Failed to cache dashboard stats: {e}")
     
     return stats
 
@@ -232,63 +322,419 @@ async def get_subscription_metrics(
     Returns:
         Dictionary with all 7 metrics
     """
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
     from calendar import monthrange
     from sqlalchemy import and_, or_, case
+    import logging
     
-    # Parse month or use current month
-    if month:
-        try:
-            year, month_num = map(int, month.split('-'))
-            month_start = datetime(year, month_num, 1)
-            days_in_month = monthrange(year, month_num)[1]
-            month_end = datetime(year, month_num, days_in_month, 23, 59, 59)
-        except (ValueError, IndexError):
-            # Invalid format, use current month
-            now = datetime.utcnow()
-            month_start = datetime(now.year, now.month, 1)
+    logger = logging.getLogger(__name__)
+    
+    # Default return values in case of error
+    default_metrics = {
+        'new_users': 0,
+        'test_pro_to_pro': 0,
+        'test_pro_to_ultra': 0,
+        'test_pro_to_free': 0,
+        'free_to_paid': 0,
+        'pro_churn_count': 0,
+        'pro_churn_percent': 0.0,
+        'ultra_churn_count': 0,
+        'ultra_churn_percent': 0.0,
+        'selected_month': month or datetime.now(timezone.utc).strftime('%Y-%m'),
+        'month_display': 'Ошибка загрузки'
+    }
+    
+    try:
+        # Parse month or use current month
+        if month:
+            try:
+                year, month_num = map(int, month.split('-'))
+                month_start = datetime(year, month_num, 1, tzinfo=timezone.utc)
+                days_in_month = monthrange(year, month_num)[1]
+                month_end = datetime(year, month_num, days_in_month, 23, 59, 59, tzinfo=timezone.utc)
+            except (ValueError, IndexError):
+                # Invalid format, use current month
+                now = datetime.now(timezone.utc)
+                month_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+                days_in_month = monthrange(now.year, now.month)[1]
+                month_end = datetime(now.year, now.month, days_in_month, 23, 59, 59, tzinfo=timezone.utc)
+        else:
+            now = datetime.now(timezone.utc)
+            month_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
             days_in_month = monthrange(now.year, now.month)[1]
-            month_end = datetime(now.year, now.month, days_in_month, 23, 59, 59)
-    else:
-        now = datetime.utcnow()
-        month_start = datetime(now.year, now.month, 1)
-        days_in_month = monthrange(now.year, now.month)[1]
-        month_end = datetime(now.year, now.month, days_in_month, 23, 59, 59)
-        # For current month, end date is today
-        if now.month == month_end.month and now.year == month_end.year:
-            month_end = now
-    
-    # Metric 1: New users in the month (registered on TEST_PRO)
-    new_users_query = await session.execute(
-        select(func.count(User.id))
-        .where(
-            and_(
-                User.created_at >= month_start,
-                User.created_at <= month_end
+            month_end = datetime(now.year, now.month, days_in_month, 23, 59, 59, tzinfo=timezone.utc)
+            # For current month, end date is today
+            if now.month == month_end.month and now.year == month_end.year:
+                month_end = now
+        
+        # Metric 1: New users in the month (registered on TEST_PRO)
+        new_users_query = await session.execute(
+            select(func.count(User.id))
+            .where(
+                and_(
+                    User.created_at >= month_start,
+                    User.created_at <= month_end
+                )
             )
         )
-    )
-    new_users_count = new_users_query.scalar() or 0
-    
-    # Metrics 2-5: Need to analyze subscription transitions
-    # Get all subscriptions that started in the month
-    subscriptions_in_month = await session.execute(
-        select(Subscription)
-        .where(
-            and_(
-                Subscription.started_at >= month_start,
-                Subscription.started_at <= month_end
+        new_users_count = new_users_query.scalar() or 0
+        
+        # Metrics 2-5: Need to analyze subscription transitions
+        # Get all subscriptions that started in the month
+        subscriptions_in_month = await session.execute(
+            select(Subscription)
+            .where(
+                and_(
+                    Subscription.started_at >= month_start,
+                    Subscription.started_at <= month_end
+                )
+            )
+            .order_by(Subscription.user_id, Subscription.started_at)
+        )
+        subscriptions_list = subscriptions_in_month.scalars().all()
+        
+        # Get all subscriptions for users who have subscriptions in this month
+        user_ids = list(set([s.user_id for s in subscriptions_list]))
+        
+        if not user_ids:
+            # No subscriptions in this month
+            # Format month display in Russian
+            month_names_ru = {
+                1: 'Январь', 2: 'Февраль', 3: 'Март', 4: 'Апрель',
+                5: 'Май', 6: 'Июнь', 7: 'Июль', 8: 'Август',
+                9: 'Сентябрь', 10: 'Октябрь', 11: 'Ноябрь', 12: 'Декабрь'
+            }
+            month_display_ru = f"{month_names_ru[month_start.month]} {month_start.year}"
+            
+            return {
+                'new_users': new_users_count,
+                'test_pro_to_pro': 0,
+                'test_pro_to_ultra': 0,
+                'test_pro_to_free': 0,
+                'free_to_paid': 0,
+                'pro_churn_count': 0,
+                'pro_churn_percent': 0.0,
+                'ultra_churn_count': 0,
+                'ultra_churn_percent': 0.0,
+                'selected_month': month_start.strftime('%Y-%m'),
+                'month_display': month_display_ru
+            }
+        
+        # Get all subscriptions for these users (to determine previous subscription)
+        all_user_subscriptions = await session.execute(
+            select(Subscription)
+            .where(Subscription.user_id.in_(user_ids))
+            .order_by(Subscription.user_id, Subscription.started_at)
+        )
+        all_subs = all_user_subscriptions.scalars().all()
+        
+        # Group subscriptions by user
+        user_subscriptions = {}
+        for sub in all_subs:
+            if sub.user_id not in user_subscriptions:
+                user_subscriptions[sub.user_id] = []
+            user_subscriptions[sub.user_id].append(sub)
+        
+        # Metrics 2-4: Transitions from TEST_PRO
+        test_pro_to_pro = 0
+        test_pro_to_ultra = 0
+        test_pro_to_free = 0
+        
+        # Metric 5: Transitions from FREE to paid
+        free_to_paid = 0
+        
+        # Get all users data for better previous subscription detection
+        # Also get current subscription_type to help determine previous type
+        if user_ids:
+            all_users_data = await session.execute(
+                select(User.id, User.created_at, User.test_pro_started_at, User.subscription_type)
+                .where(User.id.in_(user_ids))
+            )
+            users_dict = {u.id: u for u in all_users_data.all()}
+        else:
+            users_dict = {}
+        
+        # Helper function to normalize datetime to UTC timezone-aware
+        def normalize_datetime(dt):
+            """Normalize datetime to UTC timezone-aware."""
+            if dt is None:
+                return None
+            if dt.tzinfo is None:
+                # Naive datetime, assume UTC
+                return dt.replace(tzinfo=timezone.utc)
+            # Already timezone-aware, convert to UTC
+            return dt.astimezone(timezone.utc)
+        
+        # Get user subscription history from User table changes
+        # We'll check if user had TEST_PRO before this subscription by looking at created_at
+        # and test_pro_started_at relative to subscription.started_at
+        
+        for sub in subscriptions_list:
+            user_id = sub.user_id
+            user_subs = user_subscriptions.get(user_id, [])
+            user_data = users_dict.get(user_id)
+            
+            # Find previous subscription (before this one) in subscriptions table
+            previous_sub = None
+            for i, usub in enumerate(user_subs):
+                if usub.id == sub.id:
+                    if i > 0:
+                        previous_sub = user_subs[i - 1]
+                    break
+            
+            # Improved logic to determine previous subscription type
+            if previous_sub is None:
+                # No previous subscription in subscriptions table
+                # This means this is the first paid subscription for this user
+                # Check if user had TEST_PRO before this subscription
+                if user_data:
+                    # Determine TEST_PRO expiration date
+                    test_pro_start = user_data.test_pro_started_at if user_data.test_pro_started_at else user_data.created_at
+                    if test_pro_start:
+                        # Normalize dates to UTC for comparison
+                        test_pro_start_normalized = normalize_datetime(test_pro_start)
+                        sub_started_normalized = normalize_datetime(sub.started_at)
+                        user_created_normalized = normalize_datetime(user_data.created_at)
+                        
+                        test_pro_expires = test_pro_start_normalized + timedelta(days=14)
+                        
+                        # If subscription started BEFORE or ON TEST_PRO expiration date, user was on TEST_PRO
+                        # Also check if subscription started within reasonable time after user creation (max 30 days)
+                        # to avoid false positives for very old users
+                        days_since_creation = (sub_started_normalized - user_created_normalized).days if user_created_normalized else 999
+                        
+                        if sub_started_normalized <= test_pro_expires and days_since_creation <= 30:
+                            previous_sub_type = SubscriptionType.TEST_PRO
+                        elif days_since_creation > 30:
+                            # User created too long ago, likely was on FREE
+                            previous_sub_type = SubscriptionType.FREE
+                        else:
+                            # Subscription started after TEST_PRO expired, user was on FREE
+                            previous_sub_type = SubscriptionType.FREE
+                    else:
+                        # No test_pro_started_at or created_at, can't determine
+                        # If user was created recently (within 14 days), assume TEST_PRO
+                        if user_data.created_at:
+                            user_created_normalized = normalize_datetime(user_data.created_at)
+                            sub_started_normalized = normalize_datetime(sub.started_at)
+                            days_since_creation = (sub_started_normalized - user_created_normalized).days
+                            if days_since_creation <= 14:
+                                previous_sub_type = SubscriptionType.TEST_PRO
+                            else:
+                                previous_sub_type = SubscriptionType.FREE
+                        else:
+                            previous_sub_type = None
+                else:
+                    previous_sub_type = None
+            else:
+                previous_sub_type = previous_sub.subscription_type
+            
+            # Metric 2: TEST_PRO → PRO (paid)
+            if (sub.subscription_type == SubscriptionType.PRO and 
+                previous_sub_type == SubscriptionType.TEST_PRO and
+                sub.payment_id is not None):
+                test_pro_to_pro += 1
+                # Debug logging
+                print(f"DEBUG: TEST_PRO → PRO transition found: user_id={user_id}, sub_id={sub.id}, "
+                      f"started_at={sub.started_at}, payment_id={sub.payment_id}, "
+                      f"previous_sub_type={previous_sub_type}")
+            
+            # Metric 3: TEST_PRO → ULTRA (paid)
+            elif (sub.subscription_type == SubscriptionType.ULTRA and 
+                  previous_sub_type == SubscriptionType.TEST_PRO and
+                  sub.payment_id is not None):
+                test_pro_to_ultra += 1
+                # Debug logging
+                print(f"DEBUG: TEST_PRO → ULTRA transition found: user_id={user_id}, sub_id={sub.id}, "
+                      f"started_at={sub.started_at}, payment_id={sub.payment_id}")
+            
+            # Metric 4: TEST_PRO → FREE (handled separately below, not in subscriptions table)
+            # This is skipped here as TEST_PRO→FREE doesn't create subscription record
+            
+            # Metric 5: FREE → Paid (PRO or ULTRA)
+            elif (previous_sub_type == SubscriptionType.FREE and
+                  sub.subscription_type in [SubscriptionType.PRO, SubscriptionType.ULTRA] and
+                  sub.payment_id is not None):
+                free_to_paid += 1
+                # Debug logging
+                print(f"DEBUG: FREE → Paid transition found: user_id={user_id}, sub_id={sub.id}, "
+                      f"started_at={sub.started_at}, subscription_type={sub.subscription_type}, "
+                      f"previous_sub_type={previous_sub_type}")
+        
+        # Metric 4: TEST_PRO → FREE (users whose TEST_PRO expired in this month)
+        # TEST_PRO expires after 14 days, and user.subscription_type changes to FREE
+        # Note: When TEST_PRO expires, subscription_expires_at is set to None,
+        # so we need to calculate expiration from test_pro_started_at or created_at
+        
+        # Get all FREE users who might have expired TEST_PRO in this month
+        # Check by test_pro_started_at + 14 days
+        test_pro_started_candidates = await session.execute(
+            select(User)
+            .where(
+                and_(
+                    User.subscription_type == SubscriptionType.FREE,
+                    User.test_pro_started_at.isnot(None),
+                    User.test_pro_started_at >= (month_start - timedelta(days=14)),
+                    User.test_pro_started_at <= (month_end - timedelta(days=14))
+                )
             )
         )
-        .order_by(Subscription.user_id, Subscription.started_at)
-    )
-    subscriptions_list = subscriptions_in_month.scalars().all()
+        candidates_by_started = test_pro_started_candidates.scalars().all()
+        
+        # Also check by created_at + 14 days (if no test_pro_started_at)
+        created_candidates = await session.execute(
+            select(User)
+            .where(
+                and_(
+                    User.subscription_type == SubscriptionType.FREE,
+                    User.test_pro_started_at.is_(None),
+                    User.created_at.isnot(None),
+                    User.created_at >= (month_start - timedelta(days=14)),
+                    User.created_at <= (month_end - timedelta(days=14))
+                )
+            )
+        )
+        candidates_by_created = created_candidates.scalars().all()
+        
+        # Combine all candidates and filter by actual expiration date
+        all_candidates = list(set(candidates_by_started + candidates_by_created))
+        test_pro_expired_list = []
+        
+        for user in all_candidates:
+            # Determine when TEST_PRO expired (14 days after start)
+            expiration_date = None
+            if user.test_pro_started_at:
+                expiration_date = normalize_datetime(user.test_pro_started_at) + timedelta(days=14)
+            elif user.created_at:
+                expiration_date = normalize_datetime(user.created_at) + timedelta(days=14)
+            
+            # Check if expiration falls within the selected month (normalize for comparison)
+            if expiration_date and month_start <= expiration_date <= month_end:
+                test_pro_expired_list.append(user)
+        
+        # Filter: only count users who didn't upgrade to PRO/ULTRA in this month
+        # (users who upgraded are already counted in metrics 2-3)
+        for user in test_pro_expired_list:
+            # Check if user upgraded to PRO/ULTRA in this month
+            upgraded = False
+            user_subs_in_month = [s for s in subscriptions_list if s.user_id == user.id]
+            for sub in user_subs_in_month:
+                if sub.subscription_type in [SubscriptionType.PRO, SubscriptionType.ULTRA] and sub.payment_id:
+                    upgraded = True
+                    break
+            
+            if not upgraded:
+                test_pro_to_free += 1
+        
+        # Metrics 6-7: Churn (subscriptions that expired and weren't renewed)
+        # Get all PAID PRO/ULTRA subscriptions that expired in this month
+        # Only count subscriptions with payment_id (paid subscriptions)
+        expired_pro_subs = await session.execute(
+            select(Subscription)
+            .where(
+                and_(
+                    Subscription.subscription_type == SubscriptionType.PRO,
+                    Subscription.payment_id.isnot(None),  # Only paid subscriptions
+                    Subscription.expires_at >= month_start,
+                    Subscription.expires_at <= month_end,
+                    Subscription.expires_at.isnot(None)
+                )
+            )
+        )
+        expired_pro_list = expired_pro_subs.scalars().all()
+        
+        expired_ultra_subs = await session.execute(
+            select(Subscription)
+            .where(
+                and_(
+                    Subscription.subscription_type == SubscriptionType.ULTRA,
+                    Subscription.payment_id.isnot(None),  # Only paid subscriptions
+                    Subscription.expires_at >= month_start,
+                    Subscription.expires_at <= month_end,
+                    Subscription.expires_at.isnot(None)
+                )
+            )
+        )
+        expired_ultra_list = expired_ultra_subs.scalars().all()
+        
+        # Check which users didn't renew (current subscription is FREE)
+        pro_churn_count = 0
+        for expired_sub in expired_pro_list:
+            # Check if user has a new PRO subscription after expiration
+            renewed_query = await session.execute(
+                select(func.count(Subscription.id))
+                .where(
+                    and_(
+                        Subscription.user_id == expired_sub.user_id,
+                        Subscription.subscription_type == SubscriptionType.PRO,
+                        Subscription.started_at > expired_sub.expires_at,
+                        Subscription.payment_id.isnot(None)
+                    )
+                )
+            )
+            renewed = renewed_query.scalar() or 0
+            
+            # Check current user subscription
+            user_query = await session.execute(
+                select(User.subscription_type)
+                .where(User.id == expired_sub.user_id)
+            )
+            current_type = user_query.scalar()
+            
+            # Churn if not renewed and current type is FREE
+            # Also check if user upgraded to ULTRA (not churn, but upgrade)
+            upgraded_to_ultra_query = await session.execute(
+                select(func.count(Subscription.id))
+                .where(
+                    and_(
+                        Subscription.user_id == expired_sub.user_id,
+                        Subscription.subscription_type == SubscriptionType.ULTRA,
+                        Subscription.started_at > expired_sub.expires_at,
+                        Subscription.payment_id.isnot(None)
+                    )
+                )
+            )
+            upgraded_to_ultra = upgraded_to_ultra_query.scalar() or 0
+            
+            # Churn only if: not renewed, not upgraded, and current type is FREE
+            if renewed == 0 and upgraded_to_ultra == 0 and current_type == SubscriptionType.FREE:
+                pro_churn_count += 1
+        
+        ultra_churn_count = 0
+        for expired_sub in expired_ultra_list:
+            # Check if user has a new ULTRA subscription after expiration
+            renewed_query = await session.execute(
+                select(func.count(Subscription.id))
+                .where(
+                    and_(
+                        Subscription.user_id == expired_sub.user_id,
+                        Subscription.subscription_type == SubscriptionType.ULTRA,
+                        Subscription.started_at > expired_sub.expires_at,
+                        Subscription.payment_id.isnot(None)
+                    )
+                )
+            )
+            renewed = renewed_query.scalar() or 0
+            
+            # Check current user subscription
+            user_query = await session.execute(
+                select(User.subscription_type)
+                .where(User.id == expired_sub.user_id)
+            )
+            current_type = user_query.scalar()
+            
+            # Churn if not renewed and current type is FREE
+            # Note: ULTRA users can't upgrade further, so we only check renewal
+            if renewed == 0 and current_type == SubscriptionType.FREE:
+                ultra_churn_count += 1
+        
+        # Calculate churn percentages
+        total_expired_pro = len(expired_pro_list)
+        total_expired_ultra = len(expired_ultra_list)
+        
+        pro_churn_percent = (pro_churn_count / total_expired_pro * 100) if total_expired_pro > 0 else 0.0
+        ultra_churn_percent = (ultra_churn_count / total_expired_ultra * 100) if total_expired_ultra > 0 else 0.0
     
-    # Get all subscriptions for users who have subscriptions in this month
-    user_ids = list(set([s.user_id for s in subscriptions_list]))
-    
-    if not user_ids:
-        # No subscriptions in this month
         # Format month display in Russian
         month_names_ru = {
             1: 'Январь', 2: 'Февраль', 3: 'Март', 4: 'Апрель',
@@ -299,333 +745,20 @@ async def get_subscription_metrics(
         
         return {
             'new_users': new_users_count,
-            'test_pro_to_pro': 0,
-            'test_pro_to_ultra': 0,
-            'test_pro_to_free': 0,
-            'free_to_paid': 0,
-            'pro_churn_count': 0,
-            'pro_churn_percent': 0.0,
-            'ultra_churn_count': 0,
-            'ultra_churn_percent': 0.0,
+            'test_pro_to_pro': test_pro_to_pro,
+            'test_pro_to_ultra': test_pro_to_ultra,
+            'test_pro_to_free': test_pro_to_free,
+            'free_to_paid': free_to_paid,
+            'pro_churn_count': pro_churn_count,
+            'pro_churn_percent': round(pro_churn_percent, 2),
+            'ultra_churn_count': ultra_churn_count,
+            'ultra_churn_percent': round(ultra_churn_percent, 2),
             'selected_month': month_start.strftime('%Y-%m'),
             'month_display': month_display_ru
         }
-    
-    # Get all subscriptions for these users (to determine previous subscription)
-    all_user_subscriptions = await session.execute(
-        select(Subscription)
-        .where(Subscription.user_id.in_(user_ids))
-        .order_by(Subscription.user_id, Subscription.started_at)
-    )
-    all_subs = all_user_subscriptions.scalars().all()
-    
-    # Group subscriptions by user
-    user_subscriptions = {}
-    for sub in all_subs:
-        if sub.user_id not in user_subscriptions:
-            user_subscriptions[sub.user_id] = []
-        user_subscriptions[sub.user_id].append(sub)
-    
-    # Metrics 2-4: Transitions from TEST_PRO
-    test_pro_to_pro = 0
-    test_pro_to_ultra = 0
-    test_pro_to_free = 0
-    
-    # Metric 5: Transitions from FREE to paid
-    free_to_paid = 0
-    
-    # Get all users data for better previous subscription detection
-    # Also get current subscription_type to help determine previous type
-    all_users_data = await session.execute(
-        select(User.id, User.created_at, User.test_pro_started_at, User.subscription_type)
-        .where(User.id.in_(user_ids) if user_ids else False)
-    )
-    users_dict = {u.id: u for u in all_users_data.all()}
-    
-    # Get user subscription history from User table changes
-    # We'll check if user had TEST_PRO before this subscription by looking at created_at
-    # and test_pro_started_at relative to subscription.started_at
-    
-    for sub in subscriptions_list:
-        user_id = sub.user_id
-        user_subs = user_subscriptions.get(user_id, [])
-        user_data = users_dict.get(user_id)
-        
-        # Find previous subscription (before this one) in subscriptions table
-        previous_sub = None
-        for i, usub in enumerate(user_subs):
-            if usub.id == sub.id:
-                if i > 0:
-                    previous_sub = user_subs[i - 1]
-                break
-        
-        # Improved logic to determine previous subscription type
-        if previous_sub is None:
-            # No previous subscription in subscriptions table
-            # This means this is the first paid subscription for this user
-            # Check if user had TEST_PRO before this subscription
-            if user_data:
-                # Determine TEST_PRO expiration date
-                test_pro_start = user_data.test_pro_started_at if user_data.test_pro_started_at else user_data.created_at
-                if test_pro_start:
-                    test_pro_expires = test_pro_start + timedelta(days=14)
-                    
-                    # If subscription started BEFORE or ON TEST_PRO expiration date, user was on TEST_PRO
-                    # Also check if subscription started within reasonable time after user creation (max 30 days)
-                    # to avoid false positives for very old users
-                    days_since_creation = (sub.started_at - user_data.created_at).days if user_data.created_at else 999
-                    
-                    if sub.started_at <= test_pro_expires and days_since_creation <= 30:
-                        previous_sub_type = SubscriptionType.TEST_PRO
-                    elif days_since_creation > 30:
-                        # User created too long ago, likely was on FREE
-                        previous_sub_type = SubscriptionType.FREE
-                    else:
-                        # Subscription started after TEST_PRO expired, user was on FREE
-                        previous_sub_type = SubscriptionType.FREE
-                else:
-                    # No test_pro_started_at or created_at, can't determine
-                    # If user was created recently (within 14 days), assume TEST_PRO
-                    if user_data.created_at:
-                        days_since_creation = (sub.started_at - user_data.created_at).days
-                        if days_since_creation <= 14:
-                            previous_sub_type = SubscriptionType.TEST_PRO
-                        else:
-                            previous_sub_type = SubscriptionType.FREE
-                    else:
-                        previous_sub_type = None
-            else:
-                previous_sub_type = None
-        else:
-            previous_sub_type = previous_sub.subscription_type
-        
-        # Metric 2: TEST_PRO → PRO (paid)
-        if (sub.subscription_type == SubscriptionType.PRO and 
-            previous_sub_type == SubscriptionType.TEST_PRO and
-            sub.payment_id is not None):
-            test_pro_to_pro += 1
-            # Debug logging
-            print(f"DEBUG: TEST_PRO → PRO transition found: user_id={user_id}, sub_id={sub.id}, "
-                  f"started_at={sub.started_at}, payment_id={sub.payment_id}, "
-                  f"previous_sub_type={previous_sub_type}")
-        
-        # Metric 3: TEST_PRO → ULTRA (paid)
-        elif (sub.subscription_type == SubscriptionType.ULTRA and 
-              previous_sub_type == SubscriptionType.TEST_PRO and
-              sub.payment_id is not None):
-            test_pro_to_ultra += 1
-            # Debug logging
-            print(f"DEBUG: TEST_PRO → ULTRA transition found: user_id={user_id}, sub_id={sub.id}, "
-                  f"started_at={sub.started_at}, payment_id={sub.payment_id}")
-        
-        # Metric 4: TEST_PRO → FREE (handled separately below, not in subscriptions table)
-        # This is skipped here as TEST_PRO→FREE doesn't create subscription record
-        
-        # Metric 5: FREE → Paid (PRO or ULTRA)
-        elif (previous_sub_type == SubscriptionType.FREE and
-              sub.subscription_type in [SubscriptionType.PRO, SubscriptionType.ULTRA] and
-              sub.payment_id is not None):
-            free_to_paid += 1
-            # Debug logging
-            print(f"DEBUG: FREE → Paid transition found: user_id={user_id}, sub_id={sub.id}, "
-                  f"started_at={sub.started_at}, subscription_type={sub.subscription_type}, "
-                  f"previous_sub_type={previous_sub_type}")
-    
-    # Metric 4: TEST_PRO → FREE (users whose TEST_PRO expired in this month)
-    # TEST_PRO expires after 14 days, and user.subscription_type changes to FREE
-    # Note: When TEST_PRO expires, subscription_expires_at is set to None,
-    # so we need to calculate expiration from test_pro_started_at or created_at
-    
-    # Get all FREE users who might have expired TEST_PRO in this month
-    # Check by test_pro_started_at + 14 days
-    test_pro_started_candidates = await session.execute(
-        select(User)
-        .where(
-            and_(
-                User.subscription_type == SubscriptionType.FREE,
-                User.test_pro_started_at.isnot(None),
-                User.test_pro_started_at >= (month_start - timedelta(days=14)),
-                User.test_pro_started_at <= (month_end - timedelta(days=14))
-            )
-        )
-    )
-    candidates_by_started = test_pro_started_candidates.scalars().all()
-    
-    # Also check by created_at + 14 days (if no test_pro_started_at)
-    created_candidates = await session.execute(
-        select(User)
-        .where(
-            and_(
-                User.subscription_type == SubscriptionType.FREE,
-                User.test_pro_started_at.is_(None),
-                User.created_at.isnot(None),
-                User.created_at >= (month_start - timedelta(days=14)),
-                User.created_at <= (month_end - timedelta(days=14))
-            )
-        )
-    )
-    candidates_by_created = created_candidates.scalars().all()
-    
-    # Combine all candidates and filter by actual expiration date
-    all_candidates = list(set(candidates_by_started + candidates_by_created))
-    test_pro_expired_list = []
-    
-    for user in all_candidates:
-        # Determine when TEST_PRO expired (14 days after start)
-        expiration_date = None
-        if user.test_pro_started_at:
-            expiration_date = user.test_pro_started_at + timedelta(days=14)
-        elif user.created_at:
-            expiration_date = user.created_at + timedelta(days=14)
-        
-        # Check if expiration falls within the selected month
-        if expiration_date and month_start <= expiration_date <= month_end:
-            test_pro_expired_list.append(user)
-    
-    # Filter: only count users who didn't upgrade to PRO/ULTRA in this month
-    # (users who upgraded are already counted in metrics 2-3)
-    for user in test_pro_expired_list:
-        # Check if user upgraded to PRO/ULTRA in this month
-        upgraded = False
-        user_subs_in_month = [s for s in subscriptions_list if s.user_id == user.id]
-        for sub in user_subs_in_month:
-            if sub.subscription_type in [SubscriptionType.PRO, SubscriptionType.ULTRA] and sub.payment_id:
-                upgraded = True
-                break
-        
-        if not upgraded:
-            test_pro_to_free += 1
-    
-    # Metrics 6-7: Churn (subscriptions that expired and weren't renewed)
-    # Get all PAID PRO/ULTRA subscriptions that expired in this month
-    # Only count subscriptions with payment_id (paid subscriptions)
-    expired_pro_subs = await session.execute(
-        select(Subscription)
-        .where(
-            and_(
-                Subscription.subscription_type == SubscriptionType.PRO,
-                Subscription.payment_id.isnot(None),  # Only paid subscriptions
-                Subscription.expires_at >= month_start,
-                Subscription.expires_at <= month_end,
-                Subscription.expires_at.isnot(None)
-            )
-        )
-    )
-    expired_pro_list = expired_pro_subs.scalars().all()
-    
-    expired_ultra_subs = await session.execute(
-        select(Subscription)
-        .where(
-            and_(
-                Subscription.subscription_type == SubscriptionType.ULTRA,
-                Subscription.payment_id.isnot(None),  # Only paid subscriptions
-                Subscription.expires_at >= month_start,
-                Subscription.expires_at <= month_end,
-                Subscription.expires_at.isnot(None)
-            )
-        )
-    )
-    expired_ultra_list = expired_ultra_subs.scalars().all()
-    
-    # Check which users didn't renew (current subscription is FREE)
-    pro_churn_count = 0
-    for expired_sub in expired_pro_list:
-        # Check if user has a new PRO subscription after expiration
-        renewed_query = await session.execute(
-            select(func.count(Subscription.id))
-            .where(
-                and_(
-                    Subscription.user_id == expired_sub.user_id,
-                    Subscription.subscription_type == SubscriptionType.PRO,
-                    Subscription.started_at > expired_sub.expires_at,
-                    Subscription.payment_id.isnot(None)
-                )
-            )
-        )
-        renewed = renewed_query.scalar() or 0
-        
-        # Check current user subscription
-        user_query = await session.execute(
-            select(User.subscription_type)
-            .where(User.id == expired_sub.user_id)
-        )
-        current_type = user_query.scalar()
-        
-        # Churn if not renewed and current type is FREE
-        # Also check if user upgraded to ULTRA (not churn, but upgrade)
-        upgraded_to_ultra_query = await session.execute(
-            select(func.count(Subscription.id))
-            .where(
-                and_(
-                    Subscription.user_id == expired_sub.user_id,
-                    Subscription.subscription_type == SubscriptionType.ULTRA,
-                    Subscription.started_at > expired_sub.expires_at,
-                    Subscription.payment_id.isnot(None)
-                )
-            )
-        )
-        upgraded_to_ultra = upgraded_to_ultra_query.scalar() or 0
-        
-        # Churn only if: not renewed, not upgraded, and current type is FREE
-        if renewed == 0 and upgraded_to_ultra == 0 and current_type == SubscriptionType.FREE:
-            pro_churn_count += 1
-    
-    ultra_churn_count = 0
-    for expired_sub in expired_ultra_list:
-        # Check if user has a new ULTRA subscription after expiration
-        renewed_query = await session.execute(
-            select(func.count(Subscription.id))
-            .where(
-                and_(
-                    Subscription.user_id == expired_sub.user_id,
-                    Subscription.subscription_type == SubscriptionType.ULTRA,
-                    Subscription.started_at > expired_sub.expires_at,
-                    Subscription.payment_id.isnot(None)
-                )
-            )
-        )
-        renewed = renewed_query.scalar() or 0
-        
-        # Check current user subscription
-        user_query = await session.execute(
-            select(User.subscription_type)
-            .where(User.id == expired_sub.user_id)
-        )
-        current_type = user_query.scalar()
-        
-        # Churn if not renewed and current type is FREE
-        # Note: ULTRA users can't upgrade further, so we only check renewal
-        if renewed == 0 and current_type == SubscriptionType.FREE:
-            ultra_churn_count += 1
-    
-    # Calculate churn percentages
-    total_expired_pro = len(expired_pro_list)
-    total_expired_ultra = len(expired_ultra_list)
-    
-    pro_churn_percent = (pro_churn_count / total_expired_pro * 100) if total_expired_pro > 0 else 0.0
-    ultra_churn_percent = (ultra_churn_count / total_expired_ultra * 100) if total_expired_ultra > 0 else 0.0
-    
-    # Format month display in Russian
-    month_names_ru = {
-        1: 'Январь', 2: 'Февраль', 3: 'Март', 4: 'Апрель',
-        5: 'Май', 6: 'Июнь', 7: 'Июль', 8: 'Август',
-        9: 'Сентябрь', 10: 'Октябрь', 11: 'Ноябрь', 12: 'Декабрь'
-    }
-    month_display_ru = f"{month_names_ru[month_start.month]} {month_start.year}"
-    
-    return {
-        'new_users': new_users_count,
-        'test_pro_to_pro': test_pro_to_pro,
-        'test_pro_to_ultra': test_pro_to_ultra,
-        'test_pro_to_free': test_pro_to_free,
-        'free_to_paid': free_to_paid,
-        'pro_churn_count': pro_churn_count,
-        'pro_churn_percent': round(pro_churn_percent, 2),
-        'ultra_churn_count': ultra_churn_count,
-        'ultra_churn_percent': round(ultra_churn_percent, 2),
-        'selected_month': month_start.strftime('%Y-%m'),
-        'month_display': month_display_ru
-    }
+    except Exception as e:
+        logger.error(f"Error calculating subscription metrics: {e}", exc_info=True)
+        return default_metrics
 
 
 async def get_all_themes_with_usage(session: AsyncSession) -> List[Dict[str, Any]]:

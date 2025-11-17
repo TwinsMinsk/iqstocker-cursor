@@ -161,6 +161,7 @@ class Settings:
         self.supabase_key = self.app.supabase_key
         self.vip_group_id = self.app.vip_group_id
         self.vip_group_check_enabled = self.app.vip_group_check_enabled
+        self.vip_group_cleanup_enabled = self.app.vip_group_cleanup_enabled
 
 
 class AppSettings(BaseSettings):
@@ -226,6 +227,9 @@ class AppSettings(BaseSettings):
     # Реальный ID группы "IQ Радар": -1002849149148
     vip_group_id: int = Field(-1002849149148, env="VIP_GROUP_ID")
     vip_group_check_enabled: bool = Field(True, env="VIP_GROUP_CHECK_ENABLED")
+    # Enable automatic cleanup of system messages in VIP group
+    # Requires bot to be admin with "Delete messages" permission
+    vip_group_cleanup_enabled: bool = Field(True, env="VIP_GROUP_CLEANUP_ENABLED")
 
 
 

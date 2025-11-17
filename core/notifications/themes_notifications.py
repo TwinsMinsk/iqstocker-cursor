@@ -11,6 +11,7 @@ from database.models import User, ThemeRequest, SubscriptionType, Limits
 from bot.lexicon import LEXICON_RU
 from core.theme_settings import get_theme_cooldown_days_for_session
 from core.lexicon.service import LexiconService
+from core.notifications.notification_utils import create_main_menu_button_keyboard
 
 logger = logging.getLogger(__name__)
 
@@ -100,12 +101,16 @@ async def notify_new_period_themes(bot: Bot, session: AsyncSession) -> int:
                     logger.warning("Message key 'new_themes_period_notification' not found in lexicon")
                     continue
                 
+                # Создаем клавиатуру с кнопкой "Назад в меню"
+                keyboard = create_main_menu_button_keyboard(user.subscription_type)
+                
                 # Отправляем уведомление
                 try:
                     await bot.send_message(
                         user.telegram_id,
                         message_text,
-                        parse_mode="HTML"
+                        parse_mode="HTML",
+                        reply_markup=keyboard
                     )
                     sent += 1
                     
@@ -292,12 +297,16 @@ async def send_theme_limit_burn_reminders(bot: Bot, session: AsyncSession, days_
                         logger.warning(f"Message key {message_key} not found in lexicon")
                         continue
                     
+                    # Создаем клавиатуру с кнопкой "Назад в меню"
+                    keyboard = create_main_menu_button_keyboard(user.subscription_type)
+                    
                     # Отправляем уведомление
                     try:
                         await bot.send_message(
                             user.telegram_id,
                             message_text,
-                            parse_mode="HTML"
+                            parse_mode="HTML",
+                            reply_markup=keyboard
                         )
                         sent += 1
                         
