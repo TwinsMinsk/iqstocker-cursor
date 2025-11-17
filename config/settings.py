@@ -221,6 +221,8 @@ class AppSettings(BaseSettings):
     new_works_id_prefix: str = Field("1490000000", env="NEW_WORKS_ID_PREFIX")
     
     # VIP Group Settings
+    # ВАЖНО: Установите правильный ID вашей VIP группы через @userinfobot
+    # ID группы начинается с -100, например: -1001234567890
     vip_group_id: int = Field(-2849149148, env="VIP_GROUP_ID")
     vip_group_check_enabled: bool = Field(True, env="VIP_GROUP_CHECK_ENABLED")
 

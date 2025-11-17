@@ -15,16 +15,38 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 
-@router.chat_member(F.chat.id == settings.vip_group_id)
-async def handle_vip_group_member_update(
+@router.chat_member()
+async def handle_all_chat_member_updates(
     event: ChatMemberUpdated,
     session: AsyncSession
 ):
     """
-    Handle chat member updates in VIP group.
-    
-    Checks access when user joins and removes them if they don't have access.
+    Handle ALL chat member updates to diagnose issues.
+    Logs all updates and only processes VIP group.
     """
+    chat_id = event.chat.id
+    chat_title = event.chat.title or "Unknown"
+    
+    logger.info(
+        f"📥 Chat member update received: "
+        f"chat_id={chat_id}, chat_title='{chat_title}', "
+        f"user={event.new_chat_member.user.id}, "
+        f"old_status={event.old_chat_member.status}, "
+        f"new_status={event.new_chat_member.status}"
+    )
+    
+    logger.info(f"🔍 Comparing: received chat_id={chat_id}, expected VIP_GROUP_ID={settings.vip_group_id}")
+    
+    # Check if this is the VIP group
+    if chat_id != settings.vip_group_id:
+        logger.warning(
+            f"⚠️ Update from different chat: {chat_id} (title: {chat_title}). "
+            f"Expected VIP_GROUP_ID: {settings.vip_group_id}"
+        )
+        return
+    
+    logger.info(f"✅ This is VIP group! Processing update...")
+    
     if not settings.vip_group_check_enabled:
         logger.debug("VIP group check is disabled, skipping")
         return
