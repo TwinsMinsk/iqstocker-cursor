@@ -74,12 +74,12 @@ async def import_csv(
                 status_code=400,
                 content={"success": False, "message": "Файл должен быть в формате CSV"}
             )
-    
-    added_count = 0
-    skipped_count = 0
-    errors = []
-    
-    async with AsyncSessionLocal() as session:
+        
+        added_count = 0
+        skipped_count = 0
+        errors = []
+        
+        async with AsyncSessionLocal() as session:
         try:
             # Read CSV file
             contents = await file.read()
