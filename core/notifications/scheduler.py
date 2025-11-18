@@ -65,12 +65,12 @@ class TaskScheduler:
             name='Send TEST_PRO expiration notifications'
         )
 
-        # Daily reminder for weekly themes availability (at 12:00 UTC)
+        # Periodic reminder for new themes period availability (every 10 minutes)
         self.scheduler.add_job(
             self.send_daily_weekly_themes_notify,
-            CronTrigger(hour=12, minute=0),
-            id='daily_weekly_themes_notify',
-            name='Send daily weekly-themes availability notifications'
+            IntervalTrigger(minutes=10),
+            id='periodic_themes_period_notify',
+            name='Send periodic themes period availability notifications'
         )
         
         # Monthly calendar generation (25th day of month at 12:00 UTC)

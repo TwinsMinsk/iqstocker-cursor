@@ -692,6 +692,7 @@ def set_admin_subscription(user: User, limits: Limits, target_type: str):
         limits.themes_used = 0
         limits.current_tariff_started_at = now  # Новая дата начала тарифа
         limits.last_theme_request_at = None  # Сбрасываем дату последнего запроса
+        limits.last_period_notified = None  # Сбрасываем последний уведомленный период
     else:
         # ПРОДЛЕНИЕ того же тарифа - только обновляем лимиты без сброса
         limits.analytics_total = tariff_limits['analytics_limit']

@@ -422,6 +422,7 @@ async def edit_user_submit(
                 limits.current_tariff_started_at = datetime.utcnow()
                 limits.theme_cooldown_days = tariff_limits['theme_cooldown_days']
                 limits.last_theme_request_at = None  # Сбрасываем дату последнего запроса
+                limits.last_period_notified = None  # Сбрасываем последний уведомленный период
             
             await session.commit()
             

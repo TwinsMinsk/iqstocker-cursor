@@ -75,6 +75,7 @@ class UserCacheService:
             "theme_cooldown_days": limits.theme_cooldown_days,
             "last_theme_request_at": limits.last_theme_request_at.isoformat() if limits.last_theme_request_at else None,
             "current_tariff_started_at": limits.current_tariff_started_at.isoformat() if limits.current_tariff_started_at else None,
+            "last_period_notified": limits.last_period_notified,
             "created_at": limits.created_at.isoformat() if limits.created_at else None,
             "updated_at": limits.updated_at.isoformat() if limits.updated_at else None,
         }
@@ -135,6 +136,7 @@ class UserCacheService:
             limits.theme_cooldown_days = data.get("theme_cooldown_days", 7)
             limits.last_theme_request_at = datetime.fromisoformat(data["last_theme_request_at"]) if data.get("last_theme_request_at") else None
             limits.current_tariff_started_at = datetime.fromisoformat(data["current_tariff_started_at"]) if data.get("current_tariff_started_at") else None
+            limits.last_period_notified = data.get("last_period_notified")
             limits.created_at = datetime.fromisoformat(data["created_at"]) if data.get("created_at") else None
             limits.updated_at = datetime.fromisoformat(data["updated_at"]) if data.get("updated_at") else None
             

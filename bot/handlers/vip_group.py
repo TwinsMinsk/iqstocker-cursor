@@ -208,7 +208,7 @@ async def handle_vip_group_system_messages(
         message.new_chat_title is not None or
         message.new_chat_photo is not None or
         message.delete_chat_photo is not None or
-        message.new_chat_description is not None or
+        getattr(message, 'new_chat_description', None) is not None or
         message.group_chat_created is not None or
         message.supergroup_chat_created is not None or
         message.channel_chat_created is not None or
@@ -279,7 +279,7 @@ def _get_service_message_type(message: Message) -> str:
         return "new_chat_photo"
     elif message.delete_chat_photo:
         return "delete_chat_photo"
-    elif message.new_chat_description:
+    elif getattr(message, 'new_chat_description', None):
         return "new_chat_description"
     elif message.group_chat_created:
         return "group_chat_created"

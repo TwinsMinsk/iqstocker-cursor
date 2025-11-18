@@ -36,6 +36,9 @@ class Limits(Base):
     # Date when current tariff started (for 7-day cooldown calculation)
     current_tariff_started_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     
+    # Last period number for which notification was sent (prevents duplicate notifications)
+    last_period_notified: Mapped[int] = mapped_column(Integer, nullable=True)
+    
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, 

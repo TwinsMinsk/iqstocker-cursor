@@ -23,9 +23,10 @@ async def notify_new_period_themes(bot: Bot, session: AsyncSession) -> int:
     
     Логика:
     - Определяет текущий период на основе current_tariff_started_at
-    - Проверяет, что мы находимся в начале нового периода (первые 6 часов)
+    - Проверяет, что мы находимся в начале нового периода (первые 15 минут)
+    - Проверяет, что уведомление еще не было отправлено для этого периода
     - Проверяет, что у пользователя есть доступные лимиты
-    - Отправляет уведомление ВСЕМ пользователям, у которых начался новый период
+    - Отправляет уведомление пользователям, у которых начался новый период
     """
     sent = 0
     try:
@@ -72,13 +73,21 @@ async def notify_new_period_themes(bot: Bot, session: AsyncSession) -> int:
                 if current_period <= 0:
                     continue
                 
+                # Проверяем, не отправляли ли уже уведомление для этого периода
+                if limits.last_period_notified == current_period:
+                    continue
+                
                 # Вычисляем начало текущего периода
                 current_period_start = tariff_start_time + timedelta(days=current_period * cooldown_days)
                 time_in_current_period = now - current_period_start
                 
-                # Проверяем, что мы в начале нового периода (первые 6 часов)
+                # Проверяем минимальную задержку (1 минута от начала периода, чтобы избежать гонок)
+                if time_in_current_period < timedelta(minutes=1):
+                    continue
+                
+                # Проверяем, что мы в начале нового периода (первые 15 минут)
                 # Это гарантирует, что уведомление отправится только один раз
-                if time_in_current_period > timedelta(hours=6):
+                if time_in_current_period > timedelta(minutes=15):
                     continue
                 
                 # Получаем текст уведомления из лексикона
@@ -112,16 +121,24 @@ async def notify_new_period_themes(bot: Bot, session: AsyncSession) -> int:
                         parse_mode="HTML",
                         reply_markup=keyboard
                     )
+                    
+                    # Обновляем last_period_notified после успешной отправки
+                    limits.last_period_notified = current_period
+                    session.add(limits)
+                    await session.commit()
+                    
                     sent += 1
                     
                     logger.info(
                         f"Sent new period notification to user {user.id} "
                         f"(telegram_id={user.telegram_id}, "
                         f"current_period={current_period}, "
-                        f"period_start={current_period_start.strftime('%Y-%m-%d %H:%M:%S UTC')})"
+                        f"period_start={current_period_start.strftime('%Y-%m-%d %H:%M:%S UTC')}, "
+                        f"time_since_start={time_in_current_period.total_seconds() / 60:.1f} minutes)"
                     )
                 except Exception as e:
                     logger.error(f"Failed to send notification to user {user.id}: {e}")
+                    await session.rollback()
                     
             except Exception as e:
                 logger.error(f"Error processing user {user.id} for new period notification: {e}")

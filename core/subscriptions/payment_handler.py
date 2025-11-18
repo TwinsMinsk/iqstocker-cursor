@@ -196,6 +196,9 @@ class PaymentHandler:
         
         # Сбрасываем дату последнего запроса тем
         limits.last_theme_request_at = None
+        
+        # Сбрасываем последний уведомленный период (для нового отсчета)
+        limits.last_period_notified = None
     
     def _create_limits_for_subscription(self, user_id: int, subscription_type: SubscriptionType) -> Limits:
         """Create limits for subscription type."""
@@ -207,7 +210,8 @@ class PaymentHandler:
             analytics_total=tariff_limits['analytics_limit'],
             themes_total=tariff_limits['themes_limit'],
             theme_cooldown_days=tariff_limits['theme_cooldown_days'],
-            current_tariff_started_at=datetime.utcnow()  # Устанавливаем дату начала тарифа
+            current_tariff_started_at=datetime.utcnow(),  # Устанавливаем дату начала тарифа
+            last_period_notified=None  # Инициализируем как NULL
         )
         
         return limits
