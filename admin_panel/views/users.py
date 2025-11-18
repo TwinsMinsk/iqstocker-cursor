@@ -43,16 +43,26 @@ async def users_page(
         
         # Search filter
         if search:
-            search_filter = (
-                User.username.ilike(f'%{search}%') |
-                User.first_name.ilike(f'%{search}%') |
-                User.last_name.ilike(f'%{search}%') |
-                User.telegram_id.cast(str).ilike(f'%{search}%')
-            )
+            # Try to parse search as integer for telegram_id search
+            try:
+                search_int = int(search)
+                search_filter = (
+                    User.username.ilike(f'%{search}%') |
+                    User.first_name.ilike(f'%{search}%') |
+                    User.last_name.ilike(f'%{search}%') |
+                    (User.telegram_id == search_int)
+                )
+            except ValueError:
+                # If search is not a number, search only in text fields
+                search_filter = (
+                    User.username.ilike(f'%{search}%') |
+                    User.first_name.ilike(f'%{search}%') |
+                    User.last_name.ilike(f'%{search}%')
+                )
             query = query.where(search_filter)
         
         # Get total count
-        count_query = select(func.count(User.id))
+        count_query = select(func.count()).select_from(User)
         if subscription_type and subscription_type != 'all':
             try:
                 sub_type = SubscriptionType(subscription_type)
@@ -60,12 +70,22 @@ async def users_page(
             except ValueError:
                 pass
         if search:
-            search_filter = (
-                User.username.ilike(f'%{search}%') |
-                User.first_name.ilike(f'%{search}%') |
-                User.last_name.ilike(f'%{search}%') |
-                User.telegram_id.cast(str).ilike(f'%{search}%')
-            )
+            # Try to parse search as integer for telegram_id search
+            try:
+                search_int = int(search)
+                search_filter = (
+                    User.username.ilike(f'%{search}%') |
+                    User.first_name.ilike(f'%{search}%') |
+                    User.last_name.ilike(f'%{search}%') |
+                    (User.telegram_id == search_int)
+                )
+            except ValueError:
+                # If search is not a number, search only in text fields
+                search_filter = (
+                    User.username.ilike(f'%{search}%') |
+                    User.first_name.ilike(f'%{search}%') |
+                    User.last_name.ilike(f'%{search}%')
+                )
             count_query = count_query.where(search_filter)
         
         total_count_result = await session.execute(count_query)

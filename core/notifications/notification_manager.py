@@ -130,69 +130,70 @@ class NotificationManager:
         
         return sent_count
     
-    async def send_marketing_notifications(self, session: AsyncSession) -> int:
-        """Send marketing notifications to FREE users who haven't received one this month."""
-        
-        from bot.lexicon import LEXICON_RU, LEXICON_COMMANDS_RU
-        
-        sent_count = 0
-        
-        # Get FREE users who haven't received marketing notification this month
-        # Use naive datetime for comparison with database (TIMESTAMP WITHOUT TIME ZONE)
-        now = datetime.utcnow()
-        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        
-        # Filter: FREE users created before this month AND
-        # (never received notification OR last notification was before this month)
-        stmt = select(User).filter(
-            User.subscription_type == SubscriptionType.FREE,
-            User.created_at < month_start,  # Users created before this month
-            or_(
-                User.last_marketing_notification_sent_at.is_(None),  # Never received
-                User.last_marketing_notification_sent_at < month_start  # Last notification was before this month
-            )
-        )
-        result = await session.execute(stmt)
-        free_users = result.scalars().all()
-        
-        for user in free_users:
-            try:
-                message = LEXICON_RU['notification_free_monthly_promo']
-            except KeyError:
-                # Fallback if key not found
-                message = "🚀 Хочешь больше продаж?\n\n🔥 Только сейчас у тебя есть шанс протестировать PRO подписку со скидкой 50%\n\nНо не жди долго - через 48 часов скидка пропадет."
-            
-            from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-            try:
-                button_pro_text = LEXICON_COMMANDS_RU['button_subscribe_pro_compare']
-                button_compare_text = LEXICON_COMMANDS_RU['button_compare_free_pro']
-            except KeyError:
-                button_pro_text = "🔓 Перейти на PRO"
-                button_compare_text = "📊 Сравнить Free и PRO"
-            
-            keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text=button_pro_text, callback_data="upgrade_pro")],
-                [InlineKeyboardButton(text=button_compare_text, callback_data="compare_free_pro")]
-            ])
-            
-            # Добавляем кнопку "Назад в меню" в новый ряд
-            keyboard = add_main_menu_button_to_keyboard(keyboard, user.subscription_type)
-            
-            if await self.send_notification(user.telegram_id, message, keyboard):
-                # Update last_marketing_notification_sent_at after successful send
-                user.last_marketing_notification_sent_at = now
-                sent_count += 1
-                
-                # Invalidate user cache to reflect the update
-                from core.cache.user_cache import get_user_cache_service
-                cache_service = get_user_cache_service()
-                await cache_service.invalidate_user(user.telegram_id)
-        
-        # Commit all updates at once
-        if sent_count > 0:
-            await session.commit()
-        
-        return sent_count
+    # УДАЛЕНО: Функция отправки маркетинговых уведомлений отключена
+    # async def send_marketing_notifications(self, session: AsyncSession) -> int:
+    #     """Send marketing notifications to FREE users who haven't received one this month."""
+    #     
+    #     from bot.lexicon import LEXICON_RU, LEXICON_COMMANDS_RU
+    #     
+    #     sent_count = 0
+    #     
+    #     # Get FREE users who haven't received marketing notification this month
+    #     # Use naive datetime for comparison with database (TIMESTAMP WITHOUT TIME ZONE)
+    #     now = datetime.utcnow()
+    #     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    #     
+    #     # Filter: FREE users created before this month AND
+    #     # (never received notification OR last notification was before this month)
+    #     stmt = select(User).filter(
+    #         User.subscription_type == SubscriptionType.FREE,
+    #         User.created_at < month_start,  # Users created before this month
+    #         or_(
+    #             User.last_marketing_notification_sent_at.is_(None),  # Never received
+    #             User.last_marketing_notification_sent_at < month_start  # Last notification was before this month
+    #         )
+    #     )
+    #     result = await session.execute(stmt)
+    #     free_users = result.scalars().all()
+    #     
+    #     for user in free_users:
+    #         try:
+    #             message = LEXICON_RU['notification_free_monthly_promo']
+    #         except KeyError:
+    #             # Fallback if key not found
+    #             message = "🚀 Хочешь больше продаж?\n\n🔥 Только сейчас у тебя есть шанс протестировать PRO подписку со скидкой 50%\n\nНо не жди долго - через 48 часов скидка пропадет."
+    #         
+    #         from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    #         try:
+    #             button_pro_text = LEXICON_COMMANDS_RU['button_subscribe_pro_compare']
+    #             button_compare_text = LEXICON_COMMANDS_RU['button_compare_free_pro']
+    #         except KeyError:
+    #             button_pro_text = "🔓 Перейти на PRO"
+    #             button_compare_text = "📊 Сравнить Free и PRO"
+    #         
+    #         keyboard = InlineKeyboardMarkup(inline_keyboard=[
+    #             [InlineKeyboardButton(text=button_pro_text, callback_data="upgrade_pro")],
+    #             [InlineKeyboardButton(text=button_compare_text, callback_data="compare_free_pro")]
+    #         ])
+    #         
+    #         # Добавляем кнопку "Назад в меню" в новый ряд
+    #         keyboard = add_main_menu_button_to_keyboard(keyboard, user.subscription_type)
+    #         
+    #         if await self.send_notification(user.telegram_id, message, keyboard):
+    #             # Update last_marketing_notification_sent_at after successful send
+    #             user.last_marketing_notification_sent_at = now
+    #             sent_count += 1
+    #             
+    #             # Invalidate user cache to reflect the update
+    #             from core.cache.user_cache import get_user_cache_service
+    #             cache_service = get_user_cache_service()
+    #             await cache_service.invalidate_user(user.telegram_id)
+    #     
+    #     # Commit all updates at once
+    #     if sent_count > 0:
+    #         await session.commit()
+    #     
+    #     return sent_count
     
     # УДАЛЕНО: Старая функция, не используется. Вместо неё используется notify_new_period_themes
     # async def send_weekly_themes_notifications(self, session: AsyncSession) -> int:

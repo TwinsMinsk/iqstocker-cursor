@@ -77,10 +77,10 @@ async def test_notification_system():
         sent_count = await notification_manager.send_test_pro_expiring_notifications()
         print(f"   - Sent {sent_count} TEST_PRO expiration notifications")
         
-        # Test marketing notifications
-        print("   - Testing marketing notifications...")
-        sent_count = await notification_manager.send_marketing_notifications()
-        print(f"   - Sent {sent_count} marketing notifications")
+        # УДАЛЕНО: Test marketing notifications - функция отключена
+        # print("   - Testing marketing notifications...")
+        # sent_count = await notification_manager.send_marketing_notifications()
+        # print(f"   - Sent {sent_count} marketing notifications")
         
         # Test weekly themes notifications - УДАЛЕНО, функция не используется
         # print("   - Testing weekly themes notifications...")

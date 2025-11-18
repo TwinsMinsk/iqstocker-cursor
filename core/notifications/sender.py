@@ -137,27 +137,28 @@ class NotificationSender:
         
         print(f"Sent TEST_PRO notifications: {len(users_7_days)} (7 days), {len(users_2_days)} (2 days)")
     
-    async def send_marketing_notifications(self):
-        """Send marketing notifications to FREE users."""
-        
-        free_users = self.db.query(User).filter(
-            User.subscription_type == SubscriptionType.FREE
-        ).all()
-        
-        message = """🔥 Хочешь больше продаж?
-
-📣 Только сейчас у тебя есть шанс протестировать PRO подписку со скидкой 50%
-
-Но не жди долго - через 48 часов скидка пропадет."""
-        
-        sent_count = 0
-        for user in free_users:
-            success = await self.send_notification(user.telegram_id, message)
-            if success:
-                sent_count += 1
-            await asyncio.sleep(0.05)  # Rate limiting
-        
-        print(f"Sent marketing notifications to {sent_count} FREE users")
+    # УДАЛЕНО: Функция отправки маркетинговых уведомлений отключена
+    # async def send_marketing_notifications(self):
+    #     """Send marketing notifications to FREE users."""
+    #     
+    #     free_users = self.db.query(User).filter(
+    #         User.subscription_type == SubscriptionType.FREE
+    #     ).all()
+    #     
+    #     message = """🔥 Хочешь больше продаж?
+    # 
+    # 📣 Только сейчас у тебя есть шанс протестировать PRO подписку со скидкой 50%
+    # 
+    # Но не жди долго - через 48 часов скидка пропадет."""
+    #     
+    #     sent_count = 0
+    #     for user in free_users:
+    #         success = await self.send_notification(user.telegram_id, message)
+    #         if success:
+    #             sent_count += 1
+    #         await asyncio.sleep(0.05)  # Rate limiting
+    #     
+    #     print(f"Sent marketing notifications to {sent_count} FREE users")
     
     async def send_new_themes_notifications(self):
         """Send notifications about new themes availability."""

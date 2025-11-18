@@ -49,13 +49,13 @@ class TaskScheduler:
         #     name='Send weekly themes notifications'
         # )
         
-        # Monthly marketing notifications (1st day of month at 10:00 UTC)
-        self.scheduler.add_job(
-            self.send_marketing_notifications,
-            CronTrigger(day=1, hour=10, minute=0),
-            id='monthly_marketing_notifications',
-            name='Send monthly marketing notifications'
-        )
+        # УДАЛЕНО: Monthly marketing notifications - функция отключена
+        # self.scheduler.add_job(
+        #     self.send_marketing_notifications,
+        #     CronTrigger(day=1, hour=10, minute=0),
+        #     id='monthly_marketing_notifications',
+        #     name='Send monthly marketing notifications'
+        # )
         
         # Daily TEST_PRO expiration notifications (at 12:00 UTC)
         self.scheduler.add_job(
@@ -151,15 +151,16 @@ class TaskScheduler:
     #         except Exception as e:
     #             print(f"Error sending weekly themes notifications: {e}")
     
-    async def send_marketing_notifications(self):
-        """Send monthly marketing notifications."""
-        print("Sending monthly marketing notifications...")
-        async with AsyncSessionLocal() as session:
-            try:
-                sent_count = await self.notification_manager.send_marketing_notifications(session)
-                print(f"Sent {sent_count} marketing notifications")
-            except Exception as e:
-                print(f"Error sending marketing notifications: {e}")
+    # УДАЛЕНО: Функция отправки маркетинговых уведомлений отключена
+    # async def send_marketing_notifications(self):
+    #     """Send monthly marketing notifications."""
+    #     print("Sending monthly marketing notifications...")
+    #     async with AsyncSessionLocal() as session:
+    #         try:
+    #             sent_count = await self.notification_manager.send_marketing_notifications(session)
+    #             print(f"Sent {sent_count} marketing notifications")
+    #         except Exception as e:
+    #             print(f"Error sending marketing notifications: {e}")
     
     async def send_test_pro_expiring_notifications(self):
         """Send TEST_PRO expiration notifications."""
