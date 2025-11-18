@@ -50,9 +50,17 @@ class SubscriptionMiddleware(BaseMiddleware):
                         if limits:
                             data["limits"] = limits
                 except Exception as e:
-                    # Если ошибка при получении пользователя, просто продолжаем без user
-                    # DatabaseMiddleware уже обработает ошибку подключения
-                    logger.warning(f"Error loading user {telegram_id} in SubscriptionMiddleware: {e}")
-                    pass
+                    # Если ошибка при получении пользователя, логируем и НЕ устанавливаем user
+                    # Это важно: обработчики, требующие user, не будут вызваны aiogram автоматически
+                    # если user отсутствует в data
+                    error_msg = str(e)
+                    if "does not exist" in error_msg or "UndefinedColumnError" in error_msg:
+                        logger.error(
+                            f"Database schema error loading user {telegram_id}: {e}. "
+                            f"Please apply migrations (run: python scripts/deployment/run_migrations.py)"
+                        )
+                    else:
+                        logger.warning(f"Error loading user {telegram_id} in SubscriptionMiddleware: {e}")
+                    # Не устанавливаем user в data - aiogram пропустит обработчики, требующие user
         
         return await handler(event, data)

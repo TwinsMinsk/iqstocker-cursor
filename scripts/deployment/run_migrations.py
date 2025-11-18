@@ -10,6 +10,7 @@ import logging
 from pathlib import Path
 from alembic.config import Config
 from alembic import command
+from dotenv import load_dotenv
 
 # Настройка логирования
 logging.basicConfig(
@@ -19,9 +20,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Этот скрипт находится в scripts/deployment/run_migrations.py
-# Поднимаемся на 2 уровня вверх, чтобы получить корень проекта (/app)
+# Поднимаемся на 2 уровня вверх, чтобы получить корень проекта
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
+
+# Load .env file if it exists
+env_path = PROJECT_ROOT / '.env'
+if env_path.exists():
+    load_dotenv(env_path)
 
 # Добавляем корень проекта в sys.path для импорта моделей
 sys.path.insert(0, str(PROJECT_ROOT))

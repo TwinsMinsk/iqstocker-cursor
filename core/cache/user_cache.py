@@ -215,7 +215,18 @@ class UserCacheService:
                 return user, limits
         
         except Exception as e:
-            logger.error(f"Error loading user from database: {e}")
+            error_msg = str(e)
+            # Проверяем, является ли это ошибкой схемы БД (отсутствующая колонка)
+            if "does not exist" in error_msg or "UndefinedColumnError" in error_msg:
+                logger.error(
+                    f"Database schema error loading user {telegram_id}: {e}. "
+                    f"This usually means migrations are not applied. "
+                    f"Please run: python scripts/deployment/run_migrations.py"
+                )
+            else:
+                logger.error(f"Error loading user from database: {e}")
+            # Пробрасываем исключение дальше, чтобы middleware мог его обработать
+            raise
         
         return None, None
     
