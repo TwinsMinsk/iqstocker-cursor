@@ -42,15 +42,22 @@ class LexiconMapping(Mapping[str, str]):
         self._category = category
         self._service = service or LexiconService()
         self._lock = threading.RLock()
-        # НЕ загружаем локальный кэш при инициализации - всегда загружаем из БД
+        # Локальный кэш для быстрого доступа к часто используемым значениям
+        # Основной кэш находится в Redis через LexiconService
         self._cache: Dict[str, str] = {}
 
     def _load_full(self) -> Dict[str, str]:
-        """Fetch entire category from service, falling back to local snapshot."""
+        """Fetch entire category from service, falling back to local snapshot.
+        
+        Uses Redis cache for performance. Cache is automatically invalidated
+        when lexicon entries are updated in admin panel, ensuring fresh data
+        is loaded on next access.
+        """
         try:
-            # ВСЕГДА загружаем с force_refresh=True, чтобы обойти Redis кэш и получить актуальные данные из БД
-            # Это гарантирует, что изменения из админ-панели сразу видны в боте
-            lexicon_data = self._service.load_lexicon(force_refresh=True)
+            # Используем кэш по умолчанию (force_refresh=False) для производительности
+            # Кэш автоматически инвалидируется при обновлении в админ-панели через
+            # LexiconService.invalidate_cache(), что гарантирует актуальность данных
+            lexicon_data = self._service.load_lexicon(force_refresh=False)
             category_data = lexicon_data.get(self._category, {})
             
             # Данные из service уже содержат merge БД + статический файл,
@@ -67,48 +74,41 @@ class LexiconMapping(Mapping[str, str]):
             return static_snapshot
 
     def refresh(self) -> None:
-        """Force refresh of cached lexicon data."""
+        """Force refresh of cached lexicon data.
+        
+        Clears local cache and reloads from service (which will use Redis cache
+        or load from database if cache is invalidated).
+        """
+        with self._lock:
+            self._cache.clear()
         self._load_full()
 
     def __getitem__(self, key: str) -> str:
-        # ВСЕГДА сначала пытаемся получить из service (БД/Redis), чтобы получить актуальные данные из БД
-        # Это гарантирует, что изменения из админ-панели сразу видны в боте
+        """Get lexicon value by key.
+        
+        Uses service.get_value_sync() which leverages Redis cache for performance.
+        Cache is automatically invalidated when entries are updated in admin panel.
+        Falls back to full category load and static file if needed.
+        """
         value = None
+        
+        # Сначала проверяем локальный кэш
+        with self._lock:
+            if key in self._cache:
+                return self._cache[key]
+        
+        # Используем service.get_value_sync() который использует Redis кэш
+        # и загружает из БД только при кэш-миссе
         try:
-            # Пытаемся получить из service напрямую из БД (минуя Redis кэш для актуальности)
-            # Используем _get_from_db_sync напрямую для гарантии актуальности данных
-            from config.database import SessionLocal
-            from database.models.lexicon_entry import LexiconEntry, LexiconCategory
-            
-            # Определяем правильную категорию
-            category_enum = LexiconCategory[self._category] if self._category in ['LEXICON_RU', 'LEXICON_COMMANDS_RU'] else LexiconCategory.LEXICON_RU
-            
-            # Загружаем напрямую из БД
-            with SessionLocal() as db_session:
-                entry = db_session.query(LexiconEntry).filter(
-                    LexiconEntry.key == key,
-                    LexiconEntry.category == category_enum
-                ).first()
-                
-                if entry:
-                    value = entry.value
-                    # Обновляем локальный кэш актуальным значением из БД
-                    with self._lock:
-                        self._cache[key] = value
-                    return value
+            value = self._service.get_value_sync(key, self._category)
+            if value is not None:
+                with self._lock:
+                    self._cache[key] = value
+                return value
         except Exception as exc:
-            logger.warning(f"Failed to get lexicon value '{key}' from database: {exc}")
-            # Пробуем через service (может быть Redis кэш)
-            try:
-                value = self._service.get_value_sync(key, self._category)
-                if value is not None:
-                    with self._lock:
-                        self._cache[key] = value
-                    return value
-            except Exception as exc2:
-                logger.warning(f"Failed to get lexicon value '{key}' from service: {exc2}")
+            logger.debug(f"Failed to get lexicon value '{key}' from service: {exc}")
 
-        # Если не нашли в БД, загружаем полный словарь из service
+        # Если не нашли через service, загружаем полный словарь из service
         # (который уже содержит merge БД + статический файл, где БД имеет приоритет)
         category_map = self._load_full()
         try:

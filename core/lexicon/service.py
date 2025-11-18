@@ -178,12 +178,16 @@ class LexiconService:
             try:
                 cached_data = self.redis_client.get(cache_key)
                 if cached_data:
+                    logger.debug(f"Lexicon cache hit for key: {cache_key}")
                     logger.info("Lexicon loaded from Redis cache")
                     return json.loads(cached_data)
+                else:
+                    logger.debug(f"Lexicon cache miss for key: {cache_key}, loading from database")
             except Exception as e:
                 from core.utils.log_rate_limiter import should_log_redis_warning
                 if should_log_redis_warning("load_lexicon"):
                     logger.warning(f"Failed to load from cache: {e}")
+                logger.debug(f"Lexicon cache error for key: {cache_key}, falling back to database")
         
         # Load from database if cache miss or force_refresh
         try:
@@ -307,11 +311,15 @@ class LexiconService:
             try:
                 cached_value = self.redis_client.get(cache_key)
                 if cached_value:
+                    logger.debug(f"Lexicon value cache hit: {category}:{key}")
                     return cached_value
+                else:
+                    logger.debug(f"Lexicon value cache miss: {category}:{key}, loading from database")
             except Exception as e:
                 from core.utils.log_rate_limiter import should_log_redis_warning
                 if should_log_redis_warning("get_value"):
                     logger.warning(f"Failed to get from cache: {e}")
+                logger.debug(f"Lexicon value cache error: {category}:{key}, falling back to database")
         
         # Load from database
         try:
