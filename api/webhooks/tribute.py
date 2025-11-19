@@ -3,6 +3,7 @@
 import hashlib
 import hmac
 import json
+from datetime import datetime
 from typing import Dict, Any, Optional
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -88,6 +89,9 @@ class TributeWebhookHandler:
             if event_name == 'new_subscription':
                 print("Обрабатываем как new_subscription")
                 await self._handle_payment_success(data, is_subscription=True)
+            elif event_name == 'cancelled_subscription':
+                print("Обрабатываем как cancelled_subscription")
+                await self._handle_cancelled_subscription(data)
             elif event_name == 'new_digital_product':
                 print("Обрабатываем как new_digital_product")
                 await self._handle_payment_success(data, is_subscription=False)
@@ -205,6 +209,21 @@ class TributeWebhookHandler:
                 print(f"ВНИМАНИЕ: Неизвестная валюта '{currency}', предполагаем EUR")
             amount_eur = amount_in_currency
         
+        # КРИТИЧНО: Извлекаем expires_at от Tribute (если есть)
+        expires_at = None
+        if is_subscription and 'expires_at' in payload:
+            expires_at_str = payload.get('expires_at')
+            if expires_at_str:
+                try:
+                    # Формат: "2025-04-20T01:15:57.305733Z"
+                    expires_at = datetime.fromisoformat(expires_at_str.replace('Z', '+00:00'))
+                    # Преобразуем в naive datetime для совместимости с БД
+                    expires_at = expires_at.replace(tzinfo=None)
+                    print(f"✅ Используем expires_at от Tribute: {expires_at.strftime('%Y-%m-%d %H:%M:%S')}")
+                except Exception as e:
+                    print(f"⚠️ Ошибка парсинга expires_at '{expires_at_str}': {e}, будет использован +30 дней")
+                    expires_at = None
+        
         # Вызываем универсальный обработчик БД
         db_handler = PaymentHandler()
         
@@ -213,13 +232,36 @@ class TributeWebhookHandler:
             user_id=int(telegram_user_id),
             amount=amount_eur,  # Сумма в евро
             subscription_type=subscription_type_str,
-            discount_percent=0  # Tribute не передает скидку в вебхуке
+            discount_percent=0,  # Tribute не передает скидку в вебхуке
+            expires_at=expires_at  # Передаем дату от Tribute!
         )
         
         if success:
             print(f"Подписка Tribute ({subscription_type_str}) успешно активирована для user {telegram_user_id}")
         else:
             print(f"Ошибка активации подписки Tribute для user {telegram_user_id}")
+    
+    async def _handle_cancelled_subscription(self, data: Dict[str, Any]):
+        """Обработка отмены подписки."""
+        payload = data.get('payload', {})
+        
+        telegram_user_id = payload.get('telegram_user_id')
+        subscription_id = payload.get('subscription_id')
+        subscription_name = payload.get('subscription_name', 'Unknown')
+        
+        if not telegram_user_id:
+            print(f"❌ Отсутствует telegram_user_id при отмене подписки")
+            return
+        
+        print(f"🚫 Отмена подписки:")
+        print(f"   User: {telegram_user_id}")
+        print(f"   Subscription ID: {subscription_id}")
+        print(f"   Subscription Name: {subscription_name}")
+        print(f"   Полный payload: {json.dumps(payload, ensure_ascii=False)}")
+        
+        # TODO: В будущем можно добавить обработку отмены подписки в БД
+        # Например, установить флаг auto_renew=False или отметить подписку как отмененную
+        print(f"ℹ️ Подписка будет действовать до expires_at, автопродление отключено")
 
 
 # Global handler instance

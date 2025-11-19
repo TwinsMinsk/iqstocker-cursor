@@ -1,4 +1,4 @@
-"""Payment handler for Boosty integration."""
+"""Payment handler for payment processing and subscription management."""
 
 import logging
 from datetime import datetime, timedelta
@@ -28,9 +28,19 @@ class PaymentHandler:
         user_id: int, 
         amount: float, 
         subscription_type: str,
-        discount_percent: int = 0
+        discount_percent: int = 0,
+        expires_at: Optional[datetime] = None
     ) -> bool:
-        """Process successful payment and activate subscription."""
+        """Process successful payment and activate subscription.
+        
+        Args:
+            payment_id: Unique payment identifier
+            user_id: Telegram user ID
+            amount: Payment amount in EUR
+            subscription_type: Type of subscription (PRO/ULTRA)
+            discount_percent: Discount percentage applied
+            expires_at: Expiration date from payment provider (if provided)
+        """
         async with AsyncSessionLocal() as session:
             try:
                 # Find user by telegram_id
@@ -48,8 +58,12 @@ class PaymentHandler:
                     print(f"Invalid subscription type: {subscription_type}")
                     return False
                 
-                # Calculate expiration date
-                expires_at = datetime.utcnow() + timedelta(days=30)  # Monthly subscription
+                # Use provided expires_at or calculate default (30 days)
+                if expires_at is None:
+                    expires_at = datetime.utcnow() + timedelta(days=30)  # Default: monthly subscription
+                    print(f"ℹ️ expires_at не предоставлен, используем +30 дней: {expires_at.strftime('%Y-%m-%d %H:%M:%S')}")
+                else:
+                    print(f"✅ Используем expires_at от платежной системы: {expires_at.strftime('%Y-%m-%d %H:%M:%S')}")
                 
                 # Store old subscription type BEFORE changing it
                 old_subscription_type = user.subscription_type
