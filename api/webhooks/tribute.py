@@ -39,11 +39,22 @@ class TributeWebhookHandler:
             payload = await request.body()
             payload_str = payload.decode('utf-8')
             
+            # Логирование для отладки
+            print(f"=== WEBHOOK DEBUG: Получен webhook от Tribute ===")
+            print(f"Payload length: {len(payload_str)}")
+            print(f"Payload (raw): {payload_str}")
+            print(f"Signature header: {signature[:50] if signature else 'None'}...")
+            
             if not self.verify_signature(payload_str, signature):
                 print("Ошибка вебхука Tribute: Неверная подпись")
                 return JSONResponse(status_code=401, content={"error": "Invalid signature"})
             
             data = json.loads(payload_str)
+            
+            # Логирование распарсенных данных
+            print(f"=== WEBHOOK DEBUG: Распарсенные данные ===")
+            print(f"Data keys: {list(data.keys())}")
+            print(f"Full data: {json.dumps(data, indent=2, ensure_ascii=False)}")
             
             # Запускаем обработку в фоне, чтобы сразу вернуть 200 OK
             import asyncio
@@ -59,15 +70,41 @@ class TributeWebhookHandler:
     
     async def _process_event(self, data: Dict[str, Any]):
         """Process Tribute event."""
+        # Логирование для отладки
+        print(f"=== PROCESS EVENT DEBUG ===")
+        print(f"Event data: {json.dumps(data, indent=2, ensure_ascii=False)}")
+        
         event_name = data.get('name')
+        
+        # Проверка альтернативных полей для имени события
+        if not event_name:
+            event_name = data.get('event') or data.get('type') or data.get('event_type') or data.get('action')
+            if event_name:
+                print(f"DEBUG: Найдено имя события в альтернативном поле: {event_name}")
+        
+        print(f"Event name: {event_name}")
         
         try:
             if event_name == 'new_subscription':
+                print("Обрабатываем как new_subscription")
                 await self._handle_payment_success(data, is_subscription=True)
             elif event_name == 'new_digital_product':
+                print("Обрабатываем как new_digital_product")
                 await self._handle_payment_success(data, is_subscription=False)
             else:
                 print(f"Получено неизвестное событие Tribute: {event_name}")
+                print(f"DEBUG: Структура данных: {list(data.keys())}")
+                
+                # Fallback: попробуем обработать как платеж, если есть данные пользователя
+                payload = data.get('payload', {})
+                telegram_user_id = payload.get('telegram_user_id') or payload.get('user_id') or data.get('telegram_user_id') or data.get('user_id')
+                
+                if telegram_user_id:
+                    print(f"DEBUG: Найдены данные пользователя (telegram_user_id={telegram_user_id}), пытаемся обработать как платеж")
+                    # Пытаемся обработать как подписку
+                    await self._handle_payment_success(data, is_subscription=True)
+                else:
+                    print(f"DEBUG: Недостаточно данных для обработки платежа. Нет telegram_user_id")
         except Exception as e:
             print(f"Ошибка при обработке события {event_name}: {e}")
             import traceback
