@@ -30,6 +30,28 @@ async def notify_new_period_themes(bot: Bot, session: AsyncSession) -> int:
     """
     sent = 0
     try:
+        # Получаем текст уведомления ДО цикла, чтобы избежать проблем с greenlet
+        # Используем отдельную сессию для LexiconService, чтобы не конфликтовать с основной
+        message_text = None
+        try:
+            lexicon_service = LexiconService()
+            async with AsyncSessionLocal() as lexicon_session:
+                message_text = await lexicon_service.get_value_async(
+                    'new_themes_period_notification',
+                    'LEXICON_RU',
+                    lexicon_session
+                )
+        except Exception as e:
+            logger.warning(f"Failed to get message from LexiconService: {e}")
+        
+        # Fallback to static lexicon
+        if not message_text:
+            message_text = LEXICON_RU.get('new_themes_period_notification', "")
+        
+        if not message_text:
+            logger.warning("Message key 'new_themes_period_notification' not found in lexicon")
+            return 0
+        
         # Получаем всех пользователей с активными тарифами и лимитами
         # Исключаем заблокированных пользователей
         stmt = select(User, Limits).join(Limits).where(
@@ -93,26 +115,6 @@ async def notify_new_period_themes(bot: Bot, session: AsyncSession) -> int:
                 if time_in_current_period > timedelta(minutes=15):
                     continue
                 
-                # Получаем текст уведомления из лексикона
-                message_text = None
-                try:
-                    lexicon_service = LexiconService()
-                    message_text = await lexicon_service.get_value_async(
-                        'new_themes_period_notification',
-                        'LEXICON_RU',
-                        session
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to get message from LexiconService: {e}")
-                
-                # Fallback to static lexicon
-                if not message_text:
-                    message_text = LEXICON_RU.get('new_themes_period_notification', "")
-                
-                if not message_text:
-                    logger.warning("Message key 'new_themes_period_notification' not found in lexicon")
-                    continue
-                
                 # Создаем клавиатуру с кнопкой "Назад в меню"
                 keyboard = create_main_menu_button_keyboard(user.subscription_type)
                 
@@ -172,6 +174,11 @@ async def notify_new_period_themes(bot: Bot, session: AsyncSession) -> int:
         
     except Exception as e:
         logger.error(f"Error in notify_new_period_themes: {e}")
+        # Убеждаемся, что сессия откатывается при ошибке
+        try:
+            await session.rollback()
+        except Exception:
+            pass
         return 0
 
 
