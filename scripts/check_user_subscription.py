@@ -112,6 +112,12 @@ async def check_user_subscription(telegram_id: int):
 
 
 if __name__ == "__main__":
-    telegram_id = 1105557180
-    asyncio.run(check_user_subscription(telegram_id))
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Проверка подписки пользователя')
+    parser.add_argument('telegram_id', type=int, nargs='?', default=1105557180,
+                        help='Telegram ID пользователя (по умолчанию: 1105557180)')
+    
+    args = parser.parse_args()
+    asyncio.run(check_user_subscription(args.telegram_id))
 

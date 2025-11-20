@@ -10,6 +10,7 @@ from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message, Document, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
+from aiogram.enums import ChatType
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -290,7 +291,7 @@ async def send_analytics_report_messages(
 # ОБРАБОТЧИКИ КОМАНД И CALLBACK
 # ============================================================================
 
-@router.message(Command("cancel"))
+@router.message(Command("cancel"), F.chat.type == ChatType.PRIVATE)
 async def cancel_handler(message: Message, state: FSMContext, user: User) -> None:
     """Обработчик команды отмены во время сбора данных."""
     current_state = await state.get_state()
@@ -435,7 +436,7 @@ async def show_reports_callback(callback: CallbackQuery, user: User, limits: Lim
         )
 
 
-@router.message(F.document)
+@router.message(F.document, F.chat.type == ChatType.PRIVATE)
 async def handle_csv_upload(
     message: Message, 
     state: FSMContext, 
@@ -592,7 +593,7 @@ async def handle_csv_upload(
                 logger.warning(f"Failed to delete temp file {temp_file_path}: {cleanup_error}")
 
 
-@router.message(AnalyticsStates.waiting_for_portfolio_size)
+@router.message(AnalyticsStates.waiting_for_portfolio_size, F.chat.type == ChatType.PRIVATE)
 async def handle_portfolio_size(message: Message, state: FSMContext) -> None:
     """Обработчик ввода размера портфеля."""
     await handle_fsm_input(
@@ -606,7 +607,7 @@ async def handle_portfolio_size(message: Message, state: FSMContext) -> None:
     )
 
 
-@router.message(AnalyticsStates.waiting_for_upload_limit)
+@router.message(AnalyticsStates.waiting_for_upload_limit, F.chat.type == ChatType.PRIVATE)
 async def handle_upload_limit(message: Message, state: FSMContext) -> None:
     """Обработчик ввода лимита загрузки."""
     await handle_fsm_input(
@@ -620,7 +621,7 @@ async def handle_upload_limit(message: Message, state: FSMContext) -> None:
     )
 
 
-@router.message(AnalyticsStates.waiting_for_monthly_uploads)
+@router.message(AnalyticsStates.waiting_for_monthly_uploads, F.chat.type == ChatType.PRIVATE)
 async def handle_monthly_uploads(message: Message, state: FSMContext) -> None:
     """Обработчик ввода количества ежемесячных загрузок."""
     await handle_fsm_input(
@@ -634,7 +635,7 @@ async def handle_monthly_uploads(message: Message, state: FSMContext) -> None:
     )
 
 
-@router.message(AnalyticsStates.waiting_for_acceptance_rate)
+@router.message(AnalyticsStates.waiting_for_acceptance_rate, F.chat.type == ChatType.PRIVATE)
 async def handle_acceptance_rate(message: Message, state: FSMContext) -> None:
     """Обработчик ввода процента приемки."""
     data = await state.get_data()
@@ -799,7 +800,7 @@ async def handle_content_type_callback(
         await callback.message.answer("Произошла ошибка при обработке. Попробуйте загрузить файл заново.")
 
 
-@router.message(AnalyticsStates.waiting_for_content_type)
+@router.message(AnalyticsStates.waiting_for_content_type, F.chat.type == ChatType.PRIVATE)
 async def handle_content_type_text(
     message: Message, 
     state: FSMContext, 

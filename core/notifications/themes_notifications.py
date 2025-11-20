@@ -31,20 +31,23 @@ async def notify_new_period_themes(bot: Bot, session: AsyncSession) -> int:
     sent = 0
     try:
         # Получаем всех пользователей с активными тарифами и лимитами
+        # Исключаем заблокированных пользователей
         stmt = select(User, Limits).join(Limits).where(
             User.subscription_type.in_([
                 SubscriptionType.TEST_PRO,
                 SubscriptionType.PRO,
                 SubscriptionType.ULTRA,
                 SubscriptionType.FREE
-            ])
+            ]),
+            User.is_blocked == False  # Не отправляем уведомления заблокированным пользователям
         )
         result = await session.execute(stmt)
         users_with_limits = result.all()
         
         now = datetime.now(timezone.utc)
-        logger.info(f"Checking new period notifications for {len(users_with_limits)} users")
+        logger.info(f"Checking new period notifications for {len(users_with_limits)} non-blocked users")
         
+        # Обрабатываем пользователей в одном цикле и делаем batch commit в конце
         for user, limits in users_with_limits:
             try:
                 # Пропускаем пользователей без current_tariff_started_at
@@ -123,9 +126,9 @@ async def notify_new_period_themes(bot: Bot, session: AsyncSession) -> int:
                     )
                     
                     # Обновляем last_period_notified после успешной отправки
+                    # Не делаем commit здесь, чтобы избежать проблем с greenlet в цикле
                     limits.last_period_notified = current_period
                     session.add(limits)
-                    await session.commit()
                     
                     sent += 1
                     
@@ -137,14 +140,34 @@ async def notify_new_period_themes(bot: Bot, session: AsyncSession) -> int:
                         f"time_since_start={time_in_current_period.total_seconds() / 60:.1f} minutes)"
                     )
                 except Exception as e:
-                    logger.error(f"Failed to send notification to user {user.id}: {e}")
-                    await session.rollback()
+                    error_msg = str(e).lower()
+                    
+                    # Проверяем, заблокировал ли пользователь бота
+                    if "forbidden" in error_msg and ("bot was blocked" in error_msg or "user is deactivated" in error_msg):
+                        # Помечаем пользователя как заблокировавшего бота
+                        user.is_blocked = True
+                        session.add(user)
+                        logger.warning(
+                            f"User {user.id} (telegram_id={user.telegram_id}) has blocked the bot. "
+                            f"Marked as blocked to skip future notifications."
+                        )
+                    else:
+                        logger.error(f"Failed to send notification to user {user.id}: {e}")
+                    
+                    # Не откатываем здесь, просто продолжаем со следующим пользователем
                     
             except Exception as e:
                 logger.error(f"Error processing user {user.id} for new period notification: {e}")
                 continue
         
-        logger.info(f"Sent {sent} new period theme notifications")
+        # Делаем один commit для всех обновлений
+        try:
+            await session.commit()
+            logger.info(f"Sent {sent} new period theme notifications")
+        except Exception as commit_error:
+            logger.error(f"Failed to commit notifications: {commit_error}")
+            await session.rollback()
+        
         return sent
         
     except Exception as e:
@@ -230,20 +253,22 @@ async def send_theme_limit_burn_reminders(bot: Bot, session: AsyncSession, days_
     
     try:
         # Получаем всех пользователей с активными тарифами и лимитами
+        # Исключаем заблокированных пользователей
         stmt = select(User, Limits).join(Limits).where(
             User.subscription_type.in_([
                 SubscriptionType.TEST_PRO,
                 SubscriptionType.PRO,
                 SubscriptionType.ULTRA,
                 SubscriptionType.FREE
-            ])
+            ]),
+            User.is_blocked == False  # Не отправляем уведомления заблокированным пользователям
         )
         result = await session.execute(stmt)
         users_with_limits = result.all()
         
         now = datetime.now(timezone.utc)
         
-        logger.info(f"Checking theme limit burn reminders for {len(users_with_limits)} users (days_before={days_before})")
+        logger.info(f"Checking theme limit burn reminders for {len(users_with_limits)} non-blocked users (days_before={days_before})")
         
         for user, limits in users_with_limits:
             try:
@@ -334,13 +359,32 @@ async def send_theme_limit_burn_reminders(bot: Bot, session: AsyncSession, days_
                             f"days_passed={days_passed}, days_until_burn={days_until_burn})"
                         )
                     except Exception as e:
-                        logger.error(f"Failed to send reminder to user {user.id}: {e}")
+                        error_msg = str(e).lower()
+                        
+                        # Проверяем, заблокировал ли пользователь бота
+                        if "forbidden" in error_msg and ("bot was blocked" in error_msg or "user is deactivated" in error_msg):
+                            # Помечаем пользователя как заблокировавшего бота
+                            user.is_blocked = True
+                            session.add(user)
+                            logger.warning(
+                                f"User {user.id} (telegram_id={user.telegram_id}) has blocked the bot. "
+                                f"Marked as blocked to skip future notifications."
+                            )
+                        else:
+                            logger.error(f"Failed to send reminder to user {user.id}: {e}")
                         
             except Exception as e:
                 logger.error(f"Error processing user {user.id} for reminders: {e}")
                 continue
         
-        logger.info(f"Sent {sent} theme limit burn reminders (days_before={days_before})")
+        # Сохраняем изменения (например, is_blocked для заблокировавших пользователей)
+        try:
+            await session.commit()
+            logger.info(f"Sent {sent} theme limit burn reminders (days_before={days_before})")
+        except Exception as commit_error:
+            logger.error(f"Failed to commit reminder updates: {commit_error}")
+            await session.rollback()
+        
         return sent
         
     except Exception as e:

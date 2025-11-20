@@ -8,6 +8,7 @@ from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from aiogram.enums import ChatType
 from sqlalchemy.orm import Session
 
 from config.database import SessionLocal, redis_client
@@ -90,7 +91,7 @@ def is_admin(user_id: int) -> bool:
     return user_id in admin_ids
 
 
-@router.message(F.text.startswith("/admin"))
+@router.message(F.text.startswith("/admin"), F.chat.type == ChatType.PRIVATE)
 async def admin_command(message: Message, state: FSMContext):
     """Handle admin command."""
     
@@ -315,7 +316,7 @@ async def show_broadcast_history(callback: CallbackQuery):
         )
 
 
-@router.message(AdminStates.waiting_for_broadcast_message)
+@router.message(AdminStates.waiting_for_broadcast_message, F.chat.type == ChatType.PRIVATE)
 async def handle_broadcast_message(message: Message, state: FSMContext):
     """Handle broadcast message input."""
     
@@ -705,7 +706,7 @@ def set_admin_subscription(user: User, limits: Limits, target_type: str):
     user.updated_at = now
 
 
-@router.message(F.text == "/resetme")
+@router.message(F.text == "/resetme", F.chat.type == ChatType.PRIVATE)
 async def resetme_command(message: Message, state: FSMContext):
     """Reset admin profile for testing new user flow."""
     

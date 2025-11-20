@@ -3,7 +3,8 @@
 import asyncio
 import json
 import logging
-from typing import Optional, Dict, Any
+import time
+from typing import Optional, Dict, Any, Callable, TypeVar
 from datetime import datetime
 
 import redis
@@ -20,6 +21,88 @@ def _get_redis_client():
 from database.models import User, Limits
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar('T')
+
+
+class CacheRetryError(Exception):
+    """Exception raised when cache operation fails after all retries."""
+    pass
+
+
+def _is_retriable_redis_error(error: Exception) -> bool:
+    """Проверяет, можно ли повторить операцию после этой ошибки."""
+    error_str = str(error).lower()
+    retriable_patterns = [
+        'name or service not known',  # DNS ошибки
+        'errno -2',  # DNS resolve ошибки
+        'errno 104',  # Connection reset by peer
+        'errno 110',  # Connection timed out
+        'errno 111',  # Connection refused
+        'connection',
+        'timeout',
+        'network',
+        'temporarily unavailable'
+    ]
+    return any(pattern in error_str for pattern in retriable_patterns)
+
+
+def _retry_redis_operation(
+    operation: Callable[[], T],
+    operation_name: str,
+    max_retries: int = 3,
+    initial_delay: float = 0.1,
+    max_delay: float = 2.0
+) -> Optional[T]:
+    """
+    Выполняет Redis операцию с повторными попытками.
+    
+    Args:
+        operation: Функция для выполнения
+        operation_name: Имя операции для логирования
+        max_retries: Максимальное количество попыток
+        initial_delay: Начальная задержка между попытками (секунды)
+        max_delay: Максимальная задержка между попытками (секунды)
+        
+    Returns:
+        Результат операции или None при неудаче
+    """
+    last_error = None
+    
+    for attempt in range(max_retries):
+        try:
+            return operation()
+        except Exception as e:
+            last_error = e
+            
+            # Проверяем, можно ли повторить операцию
+            if not _is_retriable_redis_error(e):
+                # Логируем не-retriable ошибки как warning
+                from core.utils.log_rate_limiter import should_log_redis_warning
+                if should_log_redis_warning(f"redis_non_retriable_{operation_name}"):
+                    logger.warning(f"Redis {operation_name} failed with non-retriable error: {e}")
+                return None
+            
+            if attempt < max_retries - 1:
+                # Вычисляем задержку с экспоненциальным ростом
+                delay = min(initial_delay * (2 ** attempt), max_delay)
+                
+                from core.utils.log_rate_limiter import should_log_redis_warning
+                if should_log_redis_warning(f"redis_retry_{operation_name}"):
+                    logger.warning(
+                        f"Redis {operation_name} failed (attempt {attempt + 1}/{max_retries}): {e}. "
+                        f"Retrying in {delay:.1f}s..."
+                    )
+                time.sleep(delay)
+            else:
+                # Логируем финальную неудачу
+                from core.utils.log_rate_limiter import should_log_redis_warning
+                if should_log_redis_warning(f"redis_final_fail_{operation_name}"):
+                    logger.error(
+                        f"Redis {operation_name} failed after {max_retries} attempts: {last_error}"
+                    )
+    
+    return None
 
 
 class UserCacheService:
@@ -165,14 +248,31 @@ class UserCacheService:
             user_cache_key = self._get_user_cache_key(telegram_id)
             
             try:
-                cached_user_data = await asyncio.to_thread(self.redis_client.get, user_cache_key)
+                # Используем retry логику для чтения из кэша
+                def _get_user_cache():
+                    return self.redis_client.get(user_cache_key)
+                
+                cached_user_data = await asyncio.to_thread(
+                    _retry_redis_operation,
+                    _get_user_cache,
+                    "get user cache"
+                )
+                
                 if cached_user_data:
                     user_data = json.loads(cached_user_data)
                     user_id = user_data["id"]
                     
-                    # Try to get limits from cache
+                    # Try to get limits from cache with retry
                     limits_cache_key = self._get_limits_cache_key(user_id)
-                    cached_limits_data = await asyncio.to_thread(self.redis_client.get, limits_cache_key)
+                    
+                    def _get_limits_cache():
+                        return self.redis_client.get(limits_cache_key)
+                    
+                    cached_limits_data = await asyncio.to_thread(
+                        _retry_redis_operation,
+                        _get_limits_cache,
+                        "get limits cache"
+                    )
                     
                     if cached_limits_data:
                         limits_data = json.loads(cached_limits_data)
@@ -231,7 +331,7 @@ class UserCacheService:
         return None, None
     
     async def _cache_user(self, user: User) -> None:
-        """Cache user data."""
+        """Cache user data with retry logic."""
         if self.redis_client is None:
             return  # Skip caching if Redis unavailable
         
@@ -239,7 +339,15 @@ class UserCacheService:
             cache_key = self._get_user_cache_key(user.telegram_id)
             user_data = self._user_to_dict(user)
             cache_data = json.dumps(user_data, default=str)
-            await asyncio.to_thread(self.redis_client.setex, cache_key, self.user_cache_ttl, cache_data)
+            
+            def _set_user_cache():
+                return self.redis_client.setex(cache_key, self.user_cache_ttl, cache_data)
+            
+            await asyncio.to_thread(
+                _retry_redis_operation,
+                _set_user_cache,
+                "cache user"
+            )
         except Exception as e:
             # Use rate limiting for cache errors to reduce log spam
             from core.utils.log_rate_limiter import should_log_redis_warning
@@ -247,7 +355,7 @@ class UserCacheService:
                 logger.warning(f"Failed to cache user {user.telegram_id}: {e}")
     
     async def _cache_limits(self, limits: Limits) -> None:
-        """Cache limits data."""
+        """Cache limits data with retry logic."""
         if self.redis_client is None:
             return  # Skip caching if Redis unavailable
         
@@ -255,7 +363,15 @@ class UserCacheService:
             cache_key = self._get_limits_cache_key(limits.user_id)
             limits_data = self._limits_to_dict(limits)
             cache_data = json.dumps(limits_data, default=str)
-            await asyncio.to_thread(self.redis_client.setex, cache_key, self.limits_cache_ttl, cache_data)
+            
+            def _set_limits_cache():
+                return self.redis_client.setex(cache_key, self.limits_cache_ttl, cache_data)
+            
+            await asyncio.to_thread(
+                _retry_redis_operation,
+                _set_limits_cache,
+                "cache limits"
+            )
         except Exception as e:
             # Use rate limiting for cache errors to reduce log spam
             from core.utils.log_rate_limiter import should_log_redis_warning

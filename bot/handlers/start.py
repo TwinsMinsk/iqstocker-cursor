@@ -5,6 +5,7 @@ import logging
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
+from aiogram.enums import ChatType
 from datetime import datetime, timezone, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -20,7 +21,7 @@ router = Router()
 logger = logging.getLogger(__name__)
 
 
-@router.message(F.text.startswith("/start"))
+@router.message(F.text.startswith("/start"), F.chat.type == ChatType.PRIVATE)
 async def start_command(message: Message, state: FSMContext, session: AsyncSession):
     """Handle /start command with step-by-step messaging and deep-link support."""
     

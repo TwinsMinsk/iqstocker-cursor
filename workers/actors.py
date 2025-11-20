@@ -11,6 +11,8 @@ This file defines the actors that will be processed by the worker service.
 
 import dramatiq
 from dramatiq.brokers.redis import RedisBroker
+from dramatiq.results import Results
+from dramatiq.results.backends import RedisBackend
 from config.settings import settings
 import logging
 import os
@@ -111,6 +113,22 @@ def ensure_broker_initialized():
             **redis_client_kwargs
         )
         
+        # Добавляем Results middleware для хранения результатов выполнения задач
+        # Это позволяет получать результаты actor'ов и избавляет от предупреждений
+        results_backend = RedisBackend(url=current_redis_url, **redis_client_kwargs)
+        results_middleware = Results(backend=results_backend)
+        new_broker.add_middleware(results_middleware)
+        logger.info(f"[PID {os.getpid()}] Added Results middleware to broker")
+        
+        # Добавляем Heartbeat middleware для мониторинга состояния воркера
+        try:
+            from workers.healthcheck import HeartbeatMiddleware
+            heartbeat_middleware = HeartbeatMiddleware()
+            new_broker.add_middleware(heartbeat_middleware)
+            logger.info(f"[PID {os.getpid()}] Added Heartbeat middleware to broker")
+        except Exception as heartbeat_error:
+            logger.warning(f"[PID {os.getpid()}] Failed to add Heartbeat middleware: {heartbeat_error}")
+        
         # Устанавливаем брокер глобально для Dramatiq
         dramatiq.set_broker(new_broker)
         
@@ -157,7 +175,7 @@ def reinitialize_broker_after_fork():
 # Note: При multiprocessing каждый процесс заново импортирует модуль,
 # поэтому ensure_broker_initialized() вызывается при каждом импорте
 
-@dramatiq.actor(max_retries=3, time_limit=120000)  # 2 минуты на обработку
+@dramatiq.actor(max_retries=3, time_limit=120000, store_results=True)  # 2 минуты на обработку
 def process_csv_analysis_task(csv_analysis_id: int, user_telegram_id: int):
     """Обработка CSV в фоновом воркере."""
     from config.database import ManagedSessionLocal
@@ -540,21 +558,21 @@ def notify_analysis_failed(user_telegram_id: int, error_message: str):
         logger.error(f"Failed to notify user {user_telegram_id}: {e}")
 
 
-@dramatiq.actor
+@dramatiq.actor(store_results=True)
 def send_notification(user_id: int, message: str):
     """Send notification to user."""
     print(f"Sending notification to user {user_id}: {message}")
     # Add your notification logic here
     return {"status": "sent", "user_id": user_id}
 
-@dramatiq.actor
+@dramatiq.actor(store_results=True)
 def generate_report(user_id: int, report_type: str):
     """Generate analytics report."""
     print(f"Generating {report_type} report for user {user_id}")
     # Add your report generation logic here
     return {"status": "generated", "report_type": report_type}
 
-@dramatiq.actor
+@dramatiq.actor(store_results=True)
 def cleanup_temp_files():
     """Clean up temporary files."""
     print("Cleaning up temporary files")

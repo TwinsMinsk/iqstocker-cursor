@@ -106,6 +106,12 @@ async def remove_duplicate_subscriptions(telegram_id: int):
 
 
 if __name__ == "__main__":
-    telegram_id = 1105557180
-    asyncio.run(remove_duplicate_subscriptions(telegram_id))
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Удаление дублирующих подписок пользователя')
+    parser.add_argument('telegram_id', type=int, nargs='?', default=1105557180,
+                        help='Telegram ID пользователя (по умолчанию: 1105557180)')
+    
+    args = parser.parse_args()
+    asyncio.run(remove_duplicate_subscriptions(args.telegram_id))
 
