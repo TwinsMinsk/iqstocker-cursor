@@ -288,7 +288,13 @@ class PaymentHandler:
         return expired_count
     
     def get_payment_url(self, subscription_type: str, user_id: int) -> str:
-        """Generate payment URL for Boosty."""
+        """
+        DEPRECATED: Этот метод больше не используется в продакшене.
+        Используйте get_payment_handler().create_subscription_link() вместо этого.
+        Оставлен для обратной совместимости с тестами.
+        
+        Generate payment URL for Boosty (deprecated).
+        """
         base_url = "https://boosty.to/iqstocker"
         
         if subscription_type.upper() == "PRO":

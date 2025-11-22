@@ -447,7 +447,10 @@ async def update_lexicon_entry(
         if not success:
             raise ValueError("Failed to save lexicon entry to database")
         
-        logger.info(f"Lexicon entry '{key}' ({category}) updated in database")
+        # Redis кэш автоматически инвалидируется в LexiconService.save_value()
+        # Бот автоматически обнаружит инвалидацию при следующем обращении к ключу
+        # и загрузит актуальное значение из БД
+        logger.info(f"Lexicon entry '{key}' ({category}) updated in database. Redis cache invalidated.")
         
         return JSONResponse({
             "success": True,

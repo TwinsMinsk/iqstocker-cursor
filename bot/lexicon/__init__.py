@@ -92,10 +92,30 @@ class LexiconMapping(Mapping[str, str]):
         """
         value = None
         
-        # Сначала проверяем локальный кэш
+        # Проверяем локальный кэш, но только если Redis кэш не инвалидирован
+        # Это важно для работы в мультипроцессной среде (админ-панель и бот в разных процессах)
         with self._lock:
             if key in self._cache:
-                return self._cache[key]
+                # Проверяем, не инвалидирован ли ключ в Redis
+                # Если Redis кэш для этого ключа отсутствует, значит он был обновлен
+                if self._service.redis_client is not None:
+                    try:
+                        cache_key = self._service._get_cache_key(self._category, key)
+                        # Если ключ есть в Redis кэше, используем локальный кэш
+                        # Если ключа нет в Redis, значит он был инвалидирован - загружаем заново
+                        if self._service.redis_client.exists(cache_key):
+                            return self._cache[key]
+                        else:
+                            # Ключ был инвалидирован, удаляем из локального кэша
+                            logger.debug(f"Key '{key}' invalidated in Redis, reloading from DB")
+                            del self._cache[key]
+                    except Exception as exc:
+                        logger.debug(f"Failed to check Redis cache for '{key}': {exc}")
+                        # При ошибке Redis используем локальный кэш
+                        return self._cache[key]
+                else:
+                    # Redis недоступен, используем локальный кэш
+                    return self._cache[key]
         
         # Используем service.get_value_sync() который использует Redis кэш
         # и загружает из БД только при кэш-миссе
