@@ -103,30 +103,37 @@ class LexiconMapping(Mapping[str, str]):
                         cache_key = self._service._get_cache_key(self._category, key)
                         # Если ключ есть в Redis кэше, используем локальный кэш
                         # Если ключа нет в Redis, значит он был инвалидирован - загружаем заново
-                        if self._service.redis_client.exists(cache_key):
+                        exists = self._service.redis_client.exists(cache_key)
+                        if exists:
+                            logger.debug(f"Key '{key}' found in local and Redis cache (cache_key: {cache_key}), using cached value")
                             return self._cache[key]
                         else:
                             # Ключ был инвалидирован, удаляем из локального кэша
-                            logger.debug(f"Key '{key}' invalidated in Redis, reloading from DB")
+                            logger.info(f"Key '{key}' invalidated in Redis (cache_key: {cache_key}), removing from local cache and reloading from DB")
                             del self._cache[key]
                     except Exception as exc:
-                        logger.debug(f"Failed to check Redis cache for '{key}': {exc}")
+                        logger.warning(f"Failed to check Redis cache for '{key}': {exc}")
                         # При ошибке Redis используем локальный кэш
                         return self._cache[key]
                 else:
                     # Redis недоступен, используем локальный кэш
+                    logger.debug(f"Redis unavailable, using local cache for '{key}'")
                     return self._cache[key]
         
         # Используем service.get_value_sync() который использует Redis кэш
         # и загружает из БД только при кэш-миссе
         try:
+            logger.info(f"Loading lexicon value '{key}' from service (category: {self._category})")
             value = self._service.get_value_sync(key, self._category)
             if value is not None:
                 with self._lock:
                     self._cache[key] = value
+                logger.info(f"Successfully loaded and cached lexicon value '{key}' (length: {len(value)} chars)")
                 return value
+            else:
+                logger.warning(f"Lexicon value '{key}' not found in service")
         except Exception as exc:
-            logger.debug(f"Failed to get lexicon value '{key}' from service: {exc}")
+            logger.warning(f"Failed to get lexicon value '{key}' from service: {exc}")
 
         # Если не нашли через service, загружаем полный словарь из service
         # (который уже содержит merge БД + статический файл, где БД имеет приоритет)

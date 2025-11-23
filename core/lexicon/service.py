@@ -305,21 +305,22 @@ class LexiconService:
     
     def get_value_sync(self, key: str, category: str, session: Optional[Session] = None) -> Optional[str]:
         """Get a single lexicon value (sync)."""
+        cache_key = self._get_cache_key(category, key)
+        
         # Try cache first (only if Redis is available)
         if self.redis_client is not None:
-            cache_key = self._get_cache_key(category, key)
             try:
                 cached_value = self.redis_client.get(cache_key)
                 if cached_value:
-                    logger.debug(f"Lexicon value cache hit: {category}:{key}")
+                    logger.debug(f"Lexicon value cache hit: {category}:{key} (cache_key: {cache_key})")
                     return cached_value
                 else:
-                    logger.debug(f"Lexicon value cache miss: {category}:{key}, loading from database")
+                    logger.info(f"Lexicon value cache miss: {category}:{key} (cache_key: {cache_key}), loading from database")
             except Exception as e:
                 from core.utils.log_rate_limiter import should_log_redis_warning
                 if should_log_redis_warning("get_value"):
                     logger.warning(f"Failed to get from cache: {e}")
-                logger.debug(f"Lexicon value cache error: {category}:{key}, falling back to database")
+                logger.info(f"Lexicon value cache error: {category}:{key}, falling back to database")
         
         # Load from database
         try:
@@ -354,10 +355,14 @@ class LexiconService:
             if self.redis_client is not None:
                 try:
                     self.redis_client.setex(cache_key, self.cache_ttl, value)
+                    logger.info(f"Loaded lexicon value '{key}' from database and cached in Redis (cache_key: {cache_key}, length: {len(value)} chars)")
                 except Exception as e:
                     from core.utils.log_rate_limiter import should_log_redis_warning
                     if should_log_redis_warning("cache_value"):
                         logger.warning(f"Failed to cache value: {e}")
+                    logger.info(f"Loaded lexicon value '{key}' from database (failed to cache in Redis)")
+            else:
+                logger.info(f"Loaded lexicon value '{key}' from database (Redis unavailable)")
             return value
         
         return None
