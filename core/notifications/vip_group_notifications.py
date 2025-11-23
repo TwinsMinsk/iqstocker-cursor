@@ -64,11 +64,12 @@ async def send_vip_group_removal_notification(
                     "Оформи PRO или ULTRA подписку и получи обратно доступ ко всем возможностям, включая VIP-группу."
                 )
         
-        # Get button text for "Перейти на PRO"
+        # Get button text for "Перейти на PRO/ULTRA"
+        from bot.keyboards.callbacks import ProfileCallbackData
         try:
-            button_pro_text = LEXICON_COMMANDS_RU.get('button_subscribe_pro_vip', "💎 Перейти на PRO")
+            button_pro_text = LEXICON_COMMANDS_RU.get('button_subscribe_pro_ultra', "⚡️Перейти на PRO/ULTRA")
         except KeyError:
-            button_pro_text = "💎 Перейти на PRO"
+            button_pro_text = "⚡️Перейти на PRO/ULTRA"
         
         # Get button text for "Назад в меню"
         try:
@@ -78,7 +79,7 @@ async def send_vip_group_removal_notification(
         
         # Create keyboard
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=button_pro_text, callback_data="profile")],
+            [InlineKeyboardButton(text=button_pro_text, callback_data=ProfileCallbackData(action="show_offer").pack())],
             [InlineKeyboardButton(text=button_menu_text, callback_data="main_menu")]
         ])
         

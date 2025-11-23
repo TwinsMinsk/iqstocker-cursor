@@ -65,23 +65,25 @@ async def send_test_notification(telegram_id: int, notification_key: str):
             # Create keyboard based on notification type
             if notification_key == 'notification_test_pro_4_days' or notification_key == 'notification_test_pro_1_day':
                 # Use new button for TEST_PRO notifications
+                from bot.keyboards.callbacks import ProfileCallbackData
                 try:
                     button_text = LEXICON_COMMANDS_RU['button_subscribe_pro_ultra']
                 except KeyError:
                     button_text = "⚡️Перейти на PRO/ULTRA"
                 
                 keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text=button_text, callback_data="profile")]
+                    [InlineKeyboardButton(text=button_text, callback_data=ProfileCallbackData(action="show_offer").pack())]
                 ])
                 
                 # Add "Back to menu" button
                 keyboard = add_main_menu_button_to_keyboard(keyboard, user.subscription_type)
             elif notification_key == 'notification_vip_group_removed_tariff_expired':
-                # Use VIP button
+                # Use PRO/ULTRA button
+                from bot.keyboards.callbacks import ProfileCallbackData
                 try:
-                    button_pro_text = LEXICON_COMMANDS_RU.get('button_subscribe_pro_vip', "💎 Перейти на PRO")
+                    button_pro_text = LEXICON_COMMANDS_RU.get('button_subscribe_pro_ultra', "⚡️Перейти на PRO/ULTRA")
                 except KeyError:
-                    button_pro_text = "💎 Перейти на PRO"
+                    button_pro_text = "⚡️Перейти на PRO/ULTRA"
                 
                 try:
                     button_menu_text = LEXICON_COMMANDS_RU.get('back_to_main_menu', "↩️ Назад в меню")
@@ -89,7 +91,7 @@ async def send_test_notification(telegram_id: int, notification_key: str):
                     button_menu_text = "↩️ Назад в меню"
                 
                 keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text=button_pro_text, callback_data="profile")],
+                    [InlineKeyboardButton(text=button_pro_text, callback_data=ProfileCallbackData(action="show_offer").pack())],
                     [InlineKeyboardButton(text=button_menu_text, callback_data="main_menu")]
                 ])
             else:

@@ -78,13 +78,14 @@ class NotificationManager:
                 message = "⏳ Осталось всего 4 дня бесплатного PRO.\nЧерез 4 дня большинство функций станет недоступно.\n\n👉 Оформи PRO сегодня, чтобы ничего не потерять."
             
             from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            from bot.keyboards.callbacks import ProfileCallbackData
             try:
                 button_text = LEXICON_COMMANDS_RU['button_subscribe_pro_ultra']
             except KeyError:
                 button_text = "⚡️Перейти на PRO/ULTRA"
             
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text=button_text, callback_data="profile")]
+                [InlineKeyboardButton(text=button_text, callback_data=ProfileCallbackData(action="show_offer").pack())]
             ])
             
             # Добавляем кнопку "Назад в меню" в новый ряд
@@ -113,13 +114,14 @@ class NotificationManager:
                 message = "⚠️ Осталось 24 часа до конца бесплатного PRO!\n\nПотом доступ к ключевым функциям исчезнет.\n\n👉 Оформи PRO сейчас и используй все возможности дальше."
             
             from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            from bot.keyboards.callbacks import ProfileCallbackData
             try:
                 button_text = LEXICON_COMMANDS_RU['button_subscribe_pro_ultra']
             except KeyError:
                 button_text = "⚡️Перейти на PRO/ULTRA"
             
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text=button_text, callback_data="profile")]
+                [InlineKeyboardButton(text=button_text, callback_data=ProfileCallbackData(action="show_offer").pack())]
             ])
             
             # Добавляем кнопку "Назад в меню" в новый ряд
