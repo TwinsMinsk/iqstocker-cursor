@@ -272,9 +272,10 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
                     if key in hidden_faq_buttons:
                         continue
                     
+                    # ЗАКОММЕНТИРОВАНО: button_subscribe_pro_vip не используется в боте
                     # IQ Радар category - VIP group related buttons
-                    if key == 'button_subscribe_pro_vip':
-                        categories['iq_radar']['items'][key] = value
+                    # if key == 'button_subscribe_pro_vip':
+                    #     categories['iq_radar']['items'][key] = value
                     # FAQ кнопки должны быть в категории FAQ, а не buttons (кроме скрытых)
                     elif key.startswith('faq_btn_') or key.startswith('faq_q'):
                         categories['faq']['items'][key] = value
@@ -423,26 +424,43 @@ async def update_lexicon_entry(
         if not lexicon_service:
             raise HTTPException(status_code=500, detail="LexiconService is not available")
         
-        # Validate that key exists (load current lexicon to check)
+        # Determine actual category for saving
+        # Buttons from LEXICON_COMMANDS_RU should always be saved with category 'buttons'
+        # regardless of which display category they're in
         try:
             current_lexicon = lexicon_service.load_lexicon()
-            if category == 'buttons':
-                lexicon_dict = current_lexicon.get('LEXICON_COMMANDS_RU', {})
+            lexicon_commands = current_lexicon.get('LEXICON_COMMANDS_RU', {})
+            lexicon_ru = current_lexicon.get('LEXICON_RU', {})
+            
+            # Check if key is a button (exists in LEXICON_COMMANDS_RU)
+            if key in lexicon_commands:
+                actual_category = 'buttons'
+                lexicon_dict = lexicon_commands
             else:
-                lexicon_dict = current_lexicon.get('LEXICON_RU', {})
+                actual_category = category
+                lexicon_dict = lexicon_ru
             
             if key not in lexicon_dict:
-                raise HTTPException(status_code=404, detail=f"Key {key} not found in {category}")
+                raise HTTPException(status_code=404, detail=f"Key {key} not found")
         except Exception as e:
             logger.warning(f"Could not validate key existence: {e}")
-            # Continue anyway - might be a new key
+            # Try to determine category by checking both dictionaries
+            try:
+                current_lexicon = lexicon_service.load_lexicon()
+                lexicon_commands = current_lexicon.get('LEXICON_COMMANDS_RU', {})
+                if key in lexicon_commands:
+                    actual_category = 'buttons'
+                else:
+                    actual_category = category
+            except:
+                actual_category = category
         
         # Convert Quill HTML to Telegram-compatible HTML
         value_str = str(value) if not isinstance(value, str) else value
         value_str = convert_quill_html_to_telegram(value_str)
         
-        # Save to database
-        success = lexicon_service.save_value(key, value_str, category)
+        # Save to database with actual category
+        success = lexicon_service.save_value(key, value_str, actual_category)
         
         if not success:
             raise ValueError("Failed to save lexicon entry to database")
@@ -450,7 +468,7 @@ async def update_lexicon_entry(
         # Redis кэш автоматически инвалидируется в LexiconService.save_value()
         # Бот автоматически обнаружит инвалидацию при следующем обращении к ключу
         # и загрузит актуальное значение из БД
-        logger.info(f"Lexicon entry '{key}' ({category}) updated in database. Redis cache invalidated.")
+        logger.info(f"Lexicon entry '{key}' saved with category '{actual_category}' (display category: '{category}'). Redis cache invalidated.")
         
         return JSONResponse({
             "success": True,
@@ -469,13 +487,24 @@ async def update_lexicon_entry(
 async def get_lexicon_entry(key: str, category: str = Query("main")):
     """Get a single lexicon entry."""
     try:
+        # Determine actual category - buttons should always use 'buttons' category
+        actual_category = category
         if lexicon_service:
-            value = lexicon_service.get_value(key, category)
+            try:
+                current_lexicon = lexicon_service.load_lexicon()
+                lexicon_commands = current_lexicon.get('LEXICON_COMMANDS_RU', {})
+                if key in lexicon_commands:
+                    actual_category = 'buttons'
+            except:
+                pass
+        
+        if lexicon_service:
+            value = lexicon_service.get_value(key, actual_category)
             if value is None:
                 # Fallback to file
                 try:
                     from bot.lexicon.lexicon_ru import LEXICON_RU, LEXICON_COMMANDS_RU
-                    if category == 'buttons':
+                    if actual_category == 'buttons':
                         value = LEXICON_COMMANDS_RU.get(key, "")
                     else:
                         value = LEXICON_RU.get(key, "")
@@ -485,7 +514,7 @@ async def get_lexicon_entry(key: str, category: str = Query("main")):
             # Fallback to file
             try:
                 from bot.lexicon.lexicon_ru import LEXICON_RU, LEXICON_COMMANDS_RU
-                if category == 'buttons':
+                if actual_category == 'buttons':
                     value = LEXICON_COMMANDS_RU.get(key, "")
                 else:
                     value = LEXICON_RU.get(key, "")

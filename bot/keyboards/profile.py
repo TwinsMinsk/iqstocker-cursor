@@ -266,3 +266,18 @@ def get_profile_ultra_keyboard() -> InlineKeyboardMarkup:
     )
     builder.adjust(1)
     return builder.as_markup()
+
+
+def get_notification_test_pro_end_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура для уведомления об истечении Test Pro."""
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text=LEXICON_COMMANDS_RU['button_subscribe_pro_ultra'],
+        callback_data=ProfileCallbackData(action="show_free_offer").pack()
+    )
+    builder.button(
+        text=LEXICON_COMMANDS_RU['button_back_to_menu'],
+        callback_data=CommonCallbackData(action="main_menu").pack()
+    )
+    builder.adjust(1)
+    return builder.as_markup()

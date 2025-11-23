@@ -269,6 +269,8 @@ class NotificationManager:
         """Check and convert expired TEST_PRO subscriptions to FREE."""
         
         from core.tariffs.tariff_service import TariffService
+        from bot.lexicon import LEXICON_RU
+        from bot.keyboards.profile import get_notification_test_pro_end_keyboard
         
         # Use naive datetime for comparison with database (TIMESTAMP WITHOUT TIME ZONE)
         now = datetime.utcnow()
@@ -296,6 +298,15 @@ class NotificationManager:
                 user.limits.theme_cooldown_days = free_limits['theme_cooldown_days']  # 7 дней
                 # Устанавливаем новую дату начала тарифа (для отсчета 7 дней)
                 user.limits.current_tariff_started_at = now
+            
+            # Send notification about subscription expiration
+            try:
+                message = LEXICON_RU.get('notification_test_pro_end', 
+                    "⏰ Твой тестовый период PRO закончился. Ты перешел на тариф FREE.")
+                keyboard = get_notification_test_pro_end_keyboard()
+                await self.send_notification(user.telegram_id, message, keyboard)
+            except Exception as e:
+                print(f"Error sending notification to user {user.telegram_id}: {e}")
             
             converted_count += 1
         
