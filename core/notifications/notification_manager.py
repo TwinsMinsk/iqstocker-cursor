@@ -79,12 +79,12 @@ class NotificationManager:
             
             from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
             try:
-                button_text = LEXICON_COMMANDS_RU['button_subscribe_pro_compare']
+                button_text = LEXICON_COMMANDS_RU['button_subscribe_pro_ultra']
             except KeyError:
-                button_text = "🔓 Перейти на PRO"
+                button_text = "⚡️Перейти на PRO/ULTRA"
             
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text=button_text, callback_data="upgrade_pro")]
+                [InlineKeyboardButton(text=button_text, callback_data="profile")]
             ])
             
             # Добавляем кнопку "Назад в меню" в новый ряд
@@ -114,12 +114,12 @@ class NotificationManager:
             
             from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
             try:
-                button_text = LEXICON_COMMANDS_RU['button_subscribe_pro_compare']
+                button_text = LEXICON_COMMANDS_RU['button_subscribe_pro_ultra']
             except KeyError:
-                button_text = "🔓 Перейти на PRO"
+                button_text = "⚡️Перейти на PRO/ULTRA"
             
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text=button_text, callback_data="upgrade_pro")]
+                [InlineKeyboardButton(text=button_text, callback_data="profile")]
             ])
             
             # Добавляем кнопку "Назад в меню" в новый ряд

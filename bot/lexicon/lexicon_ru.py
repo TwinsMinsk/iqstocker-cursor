@@ -841,6 +841,7 @@ LEXICON_COMMANDS_RU = {
     'button_compare_free_pro': "📊 Сравнить Free и PRO",
     'button_subscribe_pro_compare': "🔓 Перейти на PRO",
     'button_subscribe_pro_vip': "💎 Перейти на PRO",
+    'button_subscribe_pro_ultra': "⚡️Перейти на PRO/ULTRA",
     'button_back_profile': "Назад",
     'button_subscribe': "🔓 Оформить подписку",
     'button_subscribe_pro': "🏆 Перейти на PRO",
