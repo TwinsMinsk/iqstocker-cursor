@@ -155,6 +155,20 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
                     logger.info(f"Notification keys found in lexicon_data: {notification_keys_in_data}")
                 else:
                     logger.warning(f"No notification keys in lexicon_data! Total keys: {len(LEXICON_RU)}")
+                
+                # Debug: Check specifically for notification_test_pro_end
+                if 'notification_test_pro_end' in LEXICON_RU:
+                    logger.info("✅ notification_test_pro_end found in lexicon_data")
+                else:
+                    logger.warning("❌ notification_test_pro_end NOT found in lexicon_data - forcing refresh")
+                    # Force refresh if key is missing
+                    lexicon_data = lexicon_service.load_lexicon(force_refresh=True)
+                    LEXICON_RU = lexicon_data.get('LEXICON_RU', {})
+                    LEXICON_COMMANDS_RU = lexicon_data.get('LEXICON_COMMANDS_RU', {})
+                    if 'notification_test_pro_end' in LEXICON_RU:
+                        logger.info("✅ notification_test_pro_end found after force refresh")
+                    else:
+                        logger.error("❌ notification_test_pro_end still NOT found after force refresh")
                     
             except Exception as e:
                 logger.warning(f"Failed to load from service, using file: {e}")
@@ -210,7 +224,10 @@ def get_lexicon_categories() -> Dict[str, Dict[str, Any]]:
                     elif key.startswith('notification_'):
                         categories['broadcast']['items'][key] = value
                         notification_keys_found.append(key)
-                        logger.debug(f"Added to broadcast category: {key}")
+                        if key == 'notification_test_pro_end':
+                            logger.info(f"✅ Added notification_test_pro_end to broadcast category")
+                        else:
+                            logger.debug(f"Added to broadcast category: {key}")
                     # Analytics category (includes recommendations keys)
                     elif (key.startswith('analytics') or key.startswith('sold_portfolio') or 
                         key.startswith('new_works') or key.startswith('upload_limit') or
@@ -359,6 +376,12 @@ async def lexicon_page(request: Request, category: str = "main", search: str = "
                 # Загружаем с кешем (без force_refresh)
                 lexicon_data = lexicon_service.load_lexicon_sync(force_refresh=False)
                 logger.debug("Lexicon loaded from cache or database")
+                
+                # Check if notification_test_pro_end exists, if not force refresh
+                LEXICON_RU = lexicon_data.get('LEXICON_RU', {})
+                if 'notification_test_pro_end' not in LEXICON_RU:
+                    logger.warning("notification_test_pro_end not found, forcing refresh")
+                    lexicon_data = lexicon_service.load_lexicon_sync(force_refresh=True)
             except Exception as e:
                 logger.warning(f"Failed to load lexicon: {e}")
         

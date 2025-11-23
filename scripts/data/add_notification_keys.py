@@ -45,6 +45,7 @@ def add_notification_keys():
         notification_keys = [
             'notification_test_pro_4_days',
             'notification_test_pro_1_day',
+            'notification_test_pro_end',
             # УДАЛЕНО: 'notification_free_monthly_promo' - маркетинговое уведомление отключено
         ]
         
