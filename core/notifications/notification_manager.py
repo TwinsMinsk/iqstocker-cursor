@@ -299,14 +299,18 @@ class NotificationManager:
                 # Устанавливаем новую дату начала тарифа (для отсчета 7 дней)
                 user.limits.current_tariff_started_at = now
             
-            # Send notification about subscription expiration
-            try:
-                message = LEXICON_RU.get('notification_test_pro_end', 
-                    "⏰ Твой тестовый период PRO закончился. Ты перешел на тариф FREE.")
-                keyboard = get_notification_test_pro_end_keyboard()
-                await self.send_notification(user.telegram_id, message, keyboard)
-            except Exception as e:
-                print(f"Error sending notification to user {user.telegram_id}: {e}")
+            # Send notification about subscription expiration (only if not sent before)
+            if user.test_pro_end_notification_sent_at is None:
+                try:
+                    message = LEXICON_RU.get('notification_test_pro_end', 
+                        "⏰ Твой тестовый период PRO закончился. Ты перешел на тариф FREE.")
+                    keyboard = get_notification_test_pro_end_keyboard()
+                    success = await self.send_notification(user.telegram_id, message, keyboard)
+                    if success:
+                        # Mark notification as sent
+                        user.test_pro_end_notification_sent_at = now
+                except Exception as e:
+                    print(f"Error sending notification to user {user.telegram_id}: {e}")
             
             converted_count += 1
         

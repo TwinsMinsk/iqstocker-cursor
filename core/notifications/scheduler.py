@@ -33,10 +33,10 @@ class TaskScheduler:
     def start(self):
         """Start the scheduler."""
         
-        # Daily check for expired TEST_PRO subscriptions (at 00:00 UTC)
+        # Daily check for expired TEST_PRO subscriptions (at 09:00 UTC)
         self.scheduler.add_job(
             self.check_expired_subscriptions,
-            CronTrigger(hour=0, minute=0),
+            CronTrigger(hour=9, minute=0),
             id='check_expired_subscriptions',
             name='Check expired TEST_PRO subscriptions'
         )

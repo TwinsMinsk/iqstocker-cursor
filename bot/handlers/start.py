@@ -14,8 +14,10 @@ from config.settings import settings
 from database.models import User, SubscriptionType, Limits
 from bot.lexicon import LEXICON_RU, LEXICON_COMMANDS_RU
 from bot.keyboards.main_menu import get_main_menu_keyboard
+from bot.keyboards.profile import get_notification_test_pro_end_keyboard
 from bot.utils.safe_edit import safe_edit_message
 from core.tariffs.tariff_service import TariffService
+from core.notifications.notification_manager import get_notification_manager
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -215,6 +217,20 @@ async def handle_existing_user(message: Message, user: User, session: AsyncSessi
                 free_limits = tariff_service.get_tariff_limits(SubscriptionType.FREE)
                 user.limits.analytics_total = free_limits['analytics_limit']
                 user.limits.themes_total = free_limits['themes_limit']
+            
+            # Send notification about subscription expiration (only if not sent before)
+            if user.test_pro_end_notification_sent_at is None:
+                try:
+                    notification_manager = get_notification_manager(message.bot)
+                    message_text = LEXICON_RU.get('notification_test_pro_end', 
+                        "⏰ Твой тестовый период PRO закончился. Ты перешел на тариф FREE.")
+                    keyboard = get_notification_test_pro_end_keyboard()
+                    success = await notification_manager.send_notification(user.telegram_id, message_text, keyboard)
+                    if success:
+                        # Mark notification as sent
+                        user.test_pro_end_notification_sent_at = now_utc
+                except Exception as e:
+                    logger.error(f"Error sending notification to user {user.telegram_id}: {e}")
             
             await session.commit()  # Сохраняем изменения
     

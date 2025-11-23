@@ -251,6 +251,9 @@ class PaymentHandler:
                 expired_users = expired_users_result.scalars().all()
                 
                 for user in expired_users:
+                    # Store original subscription type before conversion
+                    original_subscription_type = user.subscription_type
+                    
                     # Switch to FREE
                     user.subscription_type = SubscriptionType.FREE
                     user.subscription_expires_at = None
@@ -269,6 +272,26 @@ class PaymentHandler:
                         limits.current_tariff_started_at = datetime.utcnow()
                         limits.theme_cooldown_days = free_limits['theme_cooldown_days']
                         # analytics_used и themes_used НЕ трогаем - это история
+                    
+                    # Send notification for TEST_PRO expiration (only if not sent before)
+                    if original_subscription_type == SubscriptionType.TEST_PRO and user.test_pro_end_notification_sent_at is None:
+                        try:
+                            from core.notifications.notification_manager import get_notification_manager
+                            from bot.lexicon import LEXICON_RU
+                            from bot.keyboards.profile import get_notification_test_pro_end_keyboard
+                            
+                            # Get notification manager (may have bot if set by scheduler)
+                            notification_manager = get_notification_manager()
+                            if notification_manager and notification_manager.bot:
+                                message_text = LEXICON_RU.get('notification_test_pro_end', 
+                                    "⏰ Твой тестовый период PRO закончился. Ты перешел на тариф FREE.")
+                                keyboard = get_notification_test_pro_end_keyboard()
+                                success = await notification_manager.send_notification(user.telegram_id, message_text, keyboard)
+                                if success:
+                                    # Mark notification as sent
+                                    user.test_pro_end_notification_sent_at = datetime.utcnow()
+                        except Exception as e:
+                            logger.error(f"Error sending notification to user {user.telegram_id}: {e}")
                     
                     expired_count += 1
                 
