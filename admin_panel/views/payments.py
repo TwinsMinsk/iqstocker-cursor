@@ -11,7 +11,7 @@ from typing import Optional
 from decimal import Decimal
 
 from config.database import AsyncSessionLocal
-from database.models import Subscription, User, SubscriptionType, SystemSettings
+from database.models import Subscription, User, SubscriptionType, SystemSettings, CustomPaymentLink
 
 router = APIRouter()
 templates = Jinja2Templates(directory="admin_panel/templates")
@@ -125,6 +125,12 @@ async def payments_page(
             link_setting = link_query.scalar_one_or_none()
             payment_links[key] = link_setting.value if link_setting else ''
         
+        # Get custom payment links
+        custom_links_query = await session.execute(
+            select(CustomPaymentLink).order_by(desc(CustomPaymentLink.created_at))
+        )
+        custom_links = custom_links_query.scalars().all()
+        
         return templates.TemplateResponse(
             "payments.html",
             {
@@ -142,7 +148,8 @@ async def payments_page(
                 "week_revenue": float(week_revenue),
                 "active_count": active_count,
                 "current_time": current_time,
-                "payment_links": payment_links
+                "payment_links": payment_links,
+                "custom_links": custom_links
             }
         )
 
@@ -193,5 +200,90 @@ async def update_payment_links(
         except Exception as e:
             await session.rollback()
             print(f"Error updating payment links: {e}")
+            return RedirectResponse(url="/payments?error=1", status_code=303)
+
+
+@router.post("/payments/custom-links/create", response_class=RedirectResponse)
+async def create_custom_link(
+    request: Request,
+    name: str = Form(...),
+    url: str = Form(...)
+):
+    """Create a new custom payment link."""
+    async with AsyncSessionLocal() as session:
+        try:
+            custom_link = CustomPaymentLink(
+                name=name.strip(),
+                url=url.strip(),
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow()
+            )
+            session.add(custom_link)
+            await session.commit()
+            
+            return RedirectResponse(url="/payments?custom_link_created=1", status_code=303)
+            
+        except Exception as e:
+            await session.rollback()
+            print(f"Error creating custom link: {e}")
+            return RedirectResponse(url="/payments?error=1", status_code=303)
+
+
+@router.post("/payments/custom-links/{link_id}/update", response_class=RedirectResponse)
+async def update_custom_link(
+    request: Request,
+    link_id: int,
+    name: str = Form(...),
+    url: str = Form(...)
+):
+    """Update an existing custom payment link."""
+    async with AsyncSessionLocal() as session:
+        try:
+            link_query = await session.execute(
+                select(CustomPaymentLink).where(CustomPaymentLink.id == link_id)
+            )
+            custom_link = link_query.scalar_one_or_none()
+            
+            if not custom_link:
+                return RedirectResponse(url="/payments?error=link_not_found", status_code=303)
+            
+            custom_link.name = name.strip()
+            custom_link.url = url.strip()
+            custom_link.updated_at = datetime.utcnow()
+            
+            await session.commit()
+            
+            return RedirectResponse(url="/payments?custom_link_updated=1", status_code=303)
+            
+        except Exception as e:
+            await session.rollback()
+            print(f"Error updating custom link: {e}")
+            return RedirectResponse(url="/payments?error=1", status_code=303)
+
+
+@router.post("/payments/custom-links/{link_id}/delete", response_class=RedirectResponse)
+async def delete_custom_link(
+    request: Request,
+    link_id: int
+):
+    """Delete a custom payment link."""
+    async with AsyncSessionLocal() as session:
+        try:
+            link_query = await session.execute(
+                select(CustomPaymentLink).where(CustomPaymentLink.id == link_id)
+            )
+            custom_link = link_query.scalar_one_or_none()
+            
+            if not custom_link:
+                return RedirectResponse(url="/payments?error=link_not_found", status_code=303)
+            
+            await session.delete(custom_link)
+            await session.commit()
+            
+            return RedirectResponse(url="/payments?custom_link_deleted=1", status_code=303)
+            
+        except Exception as e:
+            await session.rollback()
+            print(f"Error deleting custom link: {e}")
             return RedirectResponse(url="/payments?error=1", status_code=303)
 

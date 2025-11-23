@@ -23,6 +23,7 @@ from .tariff_limits import TariffLimits
 from .referral_reward import ReferralReward, RewardType
 from .vip_group_whitelist import VIPGroupWhitelist
 from .vip_group_member import VIPGroupMember, VIPGroupMemberStatus
+from .custom_payment_link import CustomPaymentLink
 
 __all__ = [
     "Base",
@@ -55,4 +56,5 @@ __all__ = [
     "VIPGroupWhitelist",
     "VIPGroupMember",
     "VIPGroupMemberStatus",
+    "CustomPaymentLink",
 ]
