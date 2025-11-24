@@ -118,19 +118,22 @@ async def handle_all_chat_member_updates(
                             note="Removed by bot: no access"
                         )
                         
-                        # Send notification to user about removal
-                        try:
-                            # Get user from database
-                            stmt = select(User).where(User.telegram_id == telegram_id)
-                            result = await session.execute(stmt)
-                            user = result.scalar_one_or_none()
-                            
-                            if user:
-                                await send_vip_group_removal_notification(event.bot, user, session)
-                            else:
-                                logger.warning(f"User {telegram_id} not found in database, cannot send notification")
-                        except Exception as e:
-                            logger.error(f"Failed to send VIP removal notification to user {telegram_id}: {e}")
+                        # Send notification to user about removal (if enabled)
+                        if settings.vip_group_removal_notification_enabled:
+                            try:
+                                # Get user from database
+                                stmt = select(User).where(User.telegram_id == telegram_id)
+                                result = await session.execute(stmt)
+                                user = result.scalar_one_or_none()
+                                
+                                if user:
+                                    await send_vip_group_removal_notification(event.bot, user, session)
+                                else:
+                                    logger.warning(f"User {telegram_id} not found in database, cannot send notification")
+                            except Exception as e:
+                                logger.error(f"Failed to send VIP removal notification to user {telegram_id}: {e}")
+                        else:
+                            logger.debug(f"VIP group removal notification is disabled, skipping for user {telegram_id}")
                     else:
                         logger.warning(f"⚠️ Failed to remove user {telegram_id} from VIP group")
                 else:

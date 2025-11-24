@@ -341,25 +341,32 @@ async def generate_themes_callback(
                     'LEXICON_RU',
                     session
                 )
+                if message_text:
+                    logger.debug(f"Got message from LexiconService (length: {len(message_text)})")
             except Exception as e:
-                logger.warning(f"Failed to get message from LexiconService: {e}")
+                logger.warning(f"Failed to get message from LexiconService: {e}", exc_info=True)
+                message_text = None
             
             # Fallback to static lexicon
             if not message_text:
                 message_text = LEXICON_RU.get('notification_themes_2_test_pro', "")
+                if message_text:
+                    logger.debug(f"Using fallback from static lexicon (length: {len(message_text)})")
             
             if not message_text:
-                logger.warning("Message key 'notification_themes_2_test_pro' not found in lexicon")
+                logger.error("Message key 'notification_themes_2_test_pro' not found in lexicon (neither DB nor static)")
             else:
                 # Отправляем дополнительное сообщение (не сохраняется в архив)
-                await callback.bot.send_message(
-                    chat_id=callback.from_user.id,
-                    text=message_text,
-                    parse_mode="HTML",
-                    reply_markup=notification_keyboard
-                )
-                
-                logger.info(f"Sent notification_themes_2_test_pro to user {user.id}")
+                try:
+                    await callback.bot.send_message(
+                        chat_id=callback.from_user.id,
+                        text=message_text,
+                        parse_mode="HTML",
+                        reply_markup=notification_keyboard
+                    )
+                    logger.info(f"Sent notification_themes_2_test_pro to user {user.id}")
+                except Exception as e:
+                    logger.error(f"Failed to send notification_themes_2_test_pro to user {user.id}: {e}", exc_info=True)
         
         await callback.answer()
     except Exception:

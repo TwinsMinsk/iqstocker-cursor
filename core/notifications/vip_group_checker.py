@@ -112,13 +112,16 @@ async def check_vip_group_members(bot: Bot, session: AsyncSession) -> dict:
                                     f"Successfully removed user {user.telegram_id} from VIP group"
                                 )
                                 
-                                # Send notification to user about removal
-                                try:
-                                    await send_vip_group_removal_notification(bot, user, session)
-                                except Exception as e:
-                                    logger.error(
-                                        f"Failed to send VIP removal notification to user {user.telegram_id}: {e}"
-                                    )
+                                # Send notification to user about removal (if enabled)
+                                if settings.vip_group_removal_notification_enabled:
+                                    try:
+                                        await send_vip_group_removal_notification(bot, user, session)
+                                    except Exception as e:
+                                        logger.error(
+                                            f"Failed to send VIP removal notification to user {user.telegram_id}: {e}"
+                                        )
+                                else:
+                                    logger.debug(f"VIP group removal notification is disabled, skipping for user {user.telegram_id}")
                             else:
                                 stats['errors'] += 1
                                 logger.warning(

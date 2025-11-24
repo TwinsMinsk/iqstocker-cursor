@@ -411,13 +411,23 @@ async def lexicon_page(request: Request, category: str = "main", search: str = "
         else:
             filtered_categories = categories
         
+        # Define inactive notifications (currently disabled)
+        # These notifications are configured but not active in the system
+        inactive_notifications = {
+            'notification_vip_group_removed_tariff_expired': {
+                'status': 'disabled',
+                'message': 'Уведомление отключено и не работает. Изменения в тексте не будут применяться.'
+            }
+        }
+        
         return templates.TemplateResponse(
             "lexicon.html",
             {
                 "request": request,
                 "categories": filtered_categories,
                 "active_category": category,
-                "search_query": search
+                "search_query": search,
+                "inactive_notifications": inactive_notifications
             }
         )
     except Exception as e:

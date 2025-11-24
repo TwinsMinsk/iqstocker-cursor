@@ -247,9 +247,11 @@ class LexiconService:
     
     async def get_value_async(self, key: str, category: str, session: Optional[AsyncSession] = None) -> Optional[str]:
         """Get a single lexicon value (async)."""
+        # Определяем cache_key заранее (нужен для _get_from_db_async даже если Redis недоступен)
+        cache_key = self._get_cache_key(category, key)
+        
         # Try cache first (only if Redis is available)
         if self.redis_client is not None:
-            cache_key = self._get_cache_key(category, key)
             try:
                 import asyncio
                 cached_value = await asyncio.to_thread(self.redis_client.get, cache_key)

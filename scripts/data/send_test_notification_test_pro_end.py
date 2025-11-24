@@ -83,7 +83,15 @@ async def send_test_notification(telegram_id: int):
 
 def main():
     """Main function."""
-    telegram_id = 811079407
+    # Get telegram_id from command line argument or use default
+    if len(sys.argv) > 1:
+        try:
+            telegram_id = int(sys.argv[1])
+        except ValueError:
+            logger.error(f"❌ Invalid telegram_id: {sys.argv[1]}. Must be an integer.")
+            return False
+    else:
+        telegram_id = 811079407  # Default admin ID
     
     logger.info(f"Target user ID: {telegram_id}")
     

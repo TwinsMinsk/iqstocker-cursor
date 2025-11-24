@@ -230,6 +230,9 @@ class AppSettings(BaseSettings):
     # Enable automatic cleanup of system messages in VIP group
     # Requires bot to be admin with "Delete messages" permission
     vip_group_cleanup_enabled: bool = Field(True, env="VIP_GROUP_CLEANUP_ENABLED")
+    # Enable VIP group removal notification when user is removed due to expired subscription
+    # Currently disabled - notification is not active
+    vip_group_removal_notification_enabled: bool = Field(False, env="VIP_GROUP_REMOVAL_NOTIFICATION_ENABLED")
 
 
 

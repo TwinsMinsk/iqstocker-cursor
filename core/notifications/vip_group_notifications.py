@@ -9,6 +9,7 @@ from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from database.models import User
 from bot.lexicon import LEXICON_RU, LEXICON_COMMANDS_RU
 from core.lexicon.service import LexiconService
+from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,11 @@ async def send_vip_group_removal_notification(
     Returns:
         True if sent successfully, False otherwise
     """
+    # Check if notification is enabled
+    if not settings.vip_group_removal_notification_enabled:
+        logger.debug(f"VIP group removal notification is disabled, skipping for user {user.telegram_id}")
+        return False
+    
     if not bot:
         logger.warning(f"No bot instance available for sending VIP removal notification to {user.telegram_id}")
         return False
