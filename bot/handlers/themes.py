@@ -120,6 +120,70 @@ async def generate_themes_callback(
             )
             await callback.answer()
             return
+
+        # === ПРОВЕРКА ДЛЯ TEST_PRO: БЛОКИРОВКА ПЕРИОДА 2+ И ОПРЕДЕЛЕНИЕ УВЕДОМЛЕНИЯ ===
+        # Тариф Test Pro длится только 14 дней (периоды 0 и 1)
+        # Период 2 (день 14+) - тариф должен был истечь, блокируем запросы
+        should_send_notification = False
+        if user.subscription_type == SubscriptionType.TEST_PRO and limits.current_tariff_started_at:
+            from datetime import timedelta, timezone
+            from core.theme_settings import get_theme_cooldown_days_for_session
+            
+            cooldown_days = await get_theme_cooldown_days_for_session(session, user.id)
+            tariff_start_time = limits.current_tariff_started_at
+            
+            # Приводим к timezone-aware
+            if tariff_start_time.tzinfo is None:
+                tariff_start_time = tariff_start_time.replace(tzinfo=timezone.utc)
+            
+            now = datetime.now(timezone.utc)
+            time_diff = now - tariff_start_time
+            
+            # Определяем текущий период (0, 1, 2, 3...)
+            current_period = int(time_diff.total_seconds() / (cooldown_days * 24 * 3600))
+            
+            # Блокируем запросы если период >= 2 (день 14+)
+            # Тариф Test Pro длится только 14 дней, поэтому период 2 уже вне тарифа
+            if current_period >= 2:
+                await safe_edit_message(
+                    callback=callback,
+                    text=LEXICON_RU['limits_themes_exhausted'],
+                    reply_markup=get_main_menu_keyboard(user.subscription_type)
+                )
+                await callback.answer()
+                logger.warning(
+                    f"User {user.id} (TEST_PRO) tried to request themes in period {current_period} "
+                    f"(day {time_diff.days}), but TEST_PRO allows only periods 0-1"
+                )
+                return
+            
+            # Проверяем, это второй период (период 1) для показа уведомления
+            if current_period == 1:
+                # Считаем количество запросов в этом периоде
+                period_start = tariff_start_time + timedelta(days=current_period * cooldown_days)
+                period_end = period_start + timedelta(days=cooldown_days)
+                
+                period_start_naive = period_start.replace(tzinfo=None) if period_start.tzinfo else period_start
+                period_end_naive = period_end.replace(tzinfo=None) if period_end.tzinfo else period_end
+                
+                # Проверяем количество запросов в текущем периоде
+                query_count = select(func.count(ThemeRequest.id)).where(
+                    ThemeRequest.user_id == user.id,
+                    ThemeRequest.status == "ISSUED",
+                    ThemeRequest.created_at >= period_start_naive,
+                    ThemeRequest.created_at < period_end_naive
+                )
+                result_count = await session.execute(query_count)
+                requests_in_period = result_count.scalar() or 0
+                
+                # Если это ПЕРВЫЙ запрос во втором периоде (период 1)
+                # В каждом периоде можно сделать только 1 запрос, поэтому проверяем == 0
+                if requests_in_period == 0:
+                    should_send_notification = True
+                    logger.info(
+                        f"User {user.id} is making 1st request in period 1 (TEST_PRO) - "
+                        f"will send notification"
+                    )
         
         # Determine amount by tariff
         tariff = user.subscription_type
@@ -220,11 +284,48 @@ async def generate_themes_callback(
             f"themes_used: {limits.themes_used}/{limits.themes_total}"
         )
         
+        # === ОТПРАВКА ОСНОВНОГО СООБЩЕНИЯ С ТЕМАМИ ===
+        # Если нужно отправить уведомление - используем клавиатуру с кнопкой подписки
+        from bot.keyboards.themes import get_themes_menu_keyboard_with_subscribe
+        
+        if should_send_notification:
+            # Клавиатура с дополнительной кнопкой PRO/ULTRA
+            keyboard = get_themes_menu_keyboard_with_subscribe(has_archive=True)
+        else:
+            # Обычная клавиатура
+            keyboard = get_themes_menu_keyboard(has_archive=True)
+        
         await safe_edit_message(
             callback=callback,
             text=out,
-            reply_markup=get_themes_menu_keyboard(has_archive=True)
+            reply_markup=keyboard
         )
+        
+        # === ОТПРАВКА ДОПОЛНИТЕЛЬНОГО УВЕДОМЛЕНИЯ ===
+        if should_send_notification:
+            from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            from bot.keyboards.callbacks import ProfileCallbackData
+            
+            # Создаем клавиатуру только с кнопкой PRO/ULTRA
+            notification_keyboard = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [InlineKeyboardButton(
+                        text=LEXICON_COMMANDS_RU['button_subscribe_pro_ultra'],
+                        callback_data=ProfileCallbackData(action="show_test_pro_offer").pack()
+                    )]
+                ]
+            )
+            
+            # Отправляем дополнительное сообщение (не сохраняется в архив)
+            await callback.bot.send_message(
+                chat_id=callback.from_user.id,
+                text=LEXICON_RU['notification_themes_2_test_pro'],
+                parse_mode="HTML",
+                reply_markup=notification_keyboard
+            )
+            
+            logger.info(f"Sent notification_themes_2_test_pro to user {user.id}")
+        
         await callback.answer()
     except Exception:
         await session.rollback()

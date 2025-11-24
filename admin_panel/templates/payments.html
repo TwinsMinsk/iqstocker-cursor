@@ -265,55 +265,59 @@
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </div>
-                            
-                            <!-- Edit Modal -->
-                            <div class="modal fade" id="editModal{{ link.id }}" tabindex="-1" aria-hidden="true">
-                                <div class="modal-dialog">
-                                    <div class="modal-content">
-                                        <div class="modal-header">
-                                            <h5 class="modal-title">Редактировать ссылку</h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                        </div>
-                                        <form method="post" action="/payments/custom-links/{{ link.id }}/update">
-                                            <div class="modal-body">
-                                                <div class="mb-3">
-                                                    <label for="edit_name_{{ link.id }}" class="form-label">Название</label>
-                                                    <input type="text" class="form-control" 
-                                                           id="edit_name_{{ link.id }}" 
-                                                           name="name" 
-                                                           value="{{ link.name }}" 
-                                                           required>
-                                                </div>
-                                                <div class="mb-3">
-                                                    <label for="edit_url_{{ link.id }}" class="form-label">Ссылка</label>
-                                                    <input type="url" class="form-control" 
-                                                           id="edit_url_{{ link.id }}" 
-                                                           name="url" 
-                                                           value="{{ link.url }}" 
-                                                           required>
-                                                </div>
-                                            </div>
-                                            <div class="modal-footer">
-                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                                                <button type="submit" class="btn btn-primary">Сохранить</button>
-                                            </div>
-                                        </form>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Delete Form (hidden) -->
-                            <form id="deleteForm{{ link.id }}" 
-                                  method="post" 
-                                  action="/payments/custom-links/{{ link.id }}/delete" 
-                                  style="display: none;">
-                            </form>
                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
+        
+        <!-- Modals for editing links (placed outside table to avoid Bootstrap conflicts) -->
+        {% for link in custom_links %}
+        <!-- Edit Modal -->
+        <div class="modal fade" id="editModal{{ link.id }}" tabindex="-1" aria-labelledby="editModalLabel{{ link.id }}" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="editModalLabel{{ link.id }}">Редактировать ссылку</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form method="post" action="/payments/custom-links/{{ link.id }}/update" id="editForm{{ link.id }}">
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label for="edit_name_{{ link.id }}" class="form-label">Название</label>
+                                <input type="text" class="form-control" 
+                                       id="edit_name_{{ link.id }}" 
+                                       name="name" 
+                                       value="{{ link.name }}" 
+                                       required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="edit_url_{{ link.id }}" class="form-label">Ссылка</label>
+                                <input type="url" class="form-control" 
+                                       id="edit_url_{{ link.id }}" 
+                                       name="url" 
+                                       value="{{ link.url }}" 
+                                       required>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                            <button type="submit" class="btn btn-primary">Сохранить</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Delete Form (hidden) -->
+        <form id="deleteForm{{ link.id }}" 
+              method="post" 
+              action="/payments/custom-links/{{ link.id }}/delete" 
+              style="display: none;">
+        </form>
+        {% endfor %}
+        
         {% else %}
         <div class="alert alert-info" role="alert">
             <i class="fas fa-info-circle me-2"></i>Пока нет кастомных ссылок. Добавьте первую ссылку выше.
@@ -530,6 +534,31 @@ function confirmDelete(linkId) {
         document.getElementById('deleteForm' + linkId).submit();
     }
 }
+
+// Предотвращение автоматической отправки формы при нажатии Enter в модальных окнах
+document.addEventListener('DOMContentLoaded', function() {
+    // Обработка всех форм редактирования в модальных окнах
+    {% for link in custom_links %}
+    const editForm{{ link.id }} = document.getElementById('editForm{{ link.id }}');
+    if (editForm{{ link.id }}) {
+        editForm{{ link.id }}.addEventListener('keydown', function(e) {
+            // Если нажат Enter и это не кнопка submit, предотвращаем отправку
+            if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') {
+                e.preventDefault();
+            }
+        });
+        
+        // Предотвращаем закрытие модального окна при клике вне его области во время редактирования
+        const editModal{{ link.id }} = document.getElementById('editModal{{ link.id }}');
+        if (editModal{{ link.id }}) {
+            editModal{{ link.id }}.addEventListener('show.bs.modal', function() {
+                // Сбрасываем состояние формы при открытии модального окна
+                editForm{{ link.id }}.reset();
+            });
+        }
+    }
+    {% endfor %}
+});
 </script>
 {% endblock %}
 
