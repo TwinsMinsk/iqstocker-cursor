@@ -223,25 +223,41 @@
                 </thead>
                 <tbody>
                     {% for link in custom_links %}
-                    <tr>
+                    <tr id="link-row-{{ link.id }}">
                         <td>{{ link.id }}</td>
                         <td>
-                            <strong>{{ link.name }}</strong>
+                            <span class="link-name-display">
+                                <strong>{{ link.name }}</strong>
+                            </span>
+                            <input type="text" 
+                                   class="form-control form-control-sm link-name-edit" 
+                                   id="edit-name-{{ link.id }}"
+                                   value="{{ link.name }}" 
+                                   style="display: none;"
+                                   required>
                         </td>
                         <td>
-                            <div class="input-group input-group-sm">
-                                <input type="text" class="form-control" 
-                                       id="link-url-{{ link.id }}" 
-                                       value="{{ link.url }}" 
-                                       readonly
-                                       onclick="this.select(); document.execCommand('copy');">
-                                <button class="btn btn-outline-secondary" 
-                                        type="button" 
-                                        onclick="copyLink({{ link.id }})"
-                                        title="Копировать ссылку">
-                                    <i class="fas fa-copy"></i>
-                                </button>
+                            <div class="link-url-display">
+                                <div class="input-group input-group-sm">
+                                    <input type="text" class="form-control" 
+                                           id="link-url-{{ link.id }}" 
+                                           value="{{ link.url }}" 
+                                           readonly
+                                           onclick="this.select(); document.execCommand('copy');">
+                                    <button class="btn btn-outline-secondary" 
+                                            type="button" 
+                                            onclick="copyLink({{ link.id }})"
+                                            title="Копировать ссылку">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
                             </div>
+                            <input type="url" 
+                                   class="form-control form-control-sm link-url-edit" 
+                                   id="edit-url-{{ link.id }}"
+                                   value="{{ link.url }}" 
+                                   style="display: none;"
+                                   required>
                         </td>
                         <td>
                             <small class="text-muted">
@@ -252,11 +268,24 @@
                         <td>
                             <div class="btn-group btn-group-sm" role="group">
                                 <button type="button" 
-                                        class="btn btn-warning" 
-                                        data-bs-toggle="modal" 
-                                        data-bs-target="#editModal{{ link.id }}"
+                                        class="btn btn-warning edit-btn" 
+                                        onclick="startEdit({{ link.id }})"
                                         title="Редактировать">
                                     <i class="fas fa-edit"></i>
+                                </button>
+                                <button type="button" 
+                                        class="btn btn-success save-btn" 
+                                        onclick="saveEdit({{ link.id }})"
+                                        style="display: none;"
+                                        title="Сохранить">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                                <button type="button" 
+                                        class="btn btn-secondary cancel-btn" 
+                                        onclick="cancelEdit({{ link.id }})"
+                                        style="display: none;"
+                                        title="Отмена">
+                                    <i class="fas fa-times"></i>
                                 </button>
                                 <button type="button" 
                                         class="btn btn-danger" 
@@ -272,43 +301,16 @@
             </table>
         </div>
         
-        <!-- Modals for editing links (placed outside table to avoid Bootstrap conflicts) -->
+        <!-- Hidden forms for delete and update -->
         {% for link in custom_links %}
-        <!-- Edit Modal -->
-        <div class="modal fade" id="editModal{{ link.id }}" tabindex="-1" aria-labelledby="editModalLabel{{ link.id }}" aria-hidden="true">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="editModalLabel{{ link.id }}">Редактировать ссылку</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <form method="post" action="/payments/custom-links/{{ link.id }}/update" id="editForm{{ link.id }}">
-                        <div class="modal-body">
-                            <div class="mb-3">
-                                <label for="edit_name_{{ link.id }}" class="form-label">Название</label>
-                                <input type="text" class="form-control" 
-                                       id="edit_name_{{ link.id }}" 
-                                       name="name" 
-                                       value="{{ link.name }}" 
-                                       required>
-                            </div>
-                            <div class="mb-3">
-                                <label for="edit_url_{{ link.id }}" class="form-label">Ссылка</label>
-                                <input type="url" class="form-control" 
-                                       id="edit_url_{{ link.id }}" 
-                                       name="url" 
-                                       value="{{ link.url }}" 
-                                       required>
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                            <button type="submit" class="btn btn-primary">Сохранить</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
+        <!-- Update Form (hidden, used for saving) -->
+        <form id="updateForm{{ link.id }}" 
+              method="post" 
+              action="/payments/custom-links/{{ link.id }}/update" 
+              style="display: none;">
+            <input type="hidden" name="name" id="update-name-{{ link.id }}">
+            <input type="hidden" name="url" id="update-url-{{ link.id }}">
+        </form>
         
         <!-- Delete Form (hidden) -->
         <form id="deleteForm{{ link.id }}" 
@@ -535,30 +537,94 @@ function confirmDelete(linkId) {
     }
 }
 
-// Предотвращение автоматической отправки формы при нажатии Enter в модальных окнах
-document.addEventListener('DOMContentLoaded', function() {
-    // Обработка всех форм редактирования в модальных окнах
-    {% for link in custom_links %}
-    const editForm{{ link.id }} = document.getElementById('editForm{{ link.id }}');
-    if (editForm{{ link.id }}) {
-        editForm{{ link.id }}.addEventListener('keydown', function(e) {
-            // Если нажат Enter и это не кнопка submit, предотвращаем отправку
-            if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') {
-                e.preventDefault();
-            }
-        });
-        
-        // Предотвращаем закрытие модального окна при клике вне его области во время редактирования
-        const editModal{{ link.id }} = document.getElementById('editModal{{ link.id }}');
-        if (editModal{{ link.id }}) {
-            editModal{{ link.id }}.addEventListener('show.bs.modal', function() {
-                // Сбрасываем состояние формы при открытии модального окна
-                editForm{{ link.id }}.reset();
-            });
-        }
+// Inline editing functions
+let originalValues = {};
+
+function startEdit(linkId) {
+    // Сохраняем исходные значения
+    const nameInput = document.getElementById('edit-name-' + linkId);
+    const urlInput = document.getElementById('edit-url-' + linkId);
+    
+    originalValues[linkId] = {
+        name: nameInput.value,
+        url: urlInput.value
+    };
+    
+    // Скрываем отображаемые значения, показываем поля редактирования
+    const row = document.getElementById('link-row-' + linkId);
+    row.querySelector('.link-name-display').style.display = 'none';
+    row.querySelector('.link-url-display').style.display = 'none';
+    nameInput.style.display = 'block';
+    urlInput.style.display = 'block';
+    
+    // Переключаем кнопки
+    row.querySelector('.edit-btn').style.display = 'none';
+    row.querySelector('.save-btn').style.display = 'inline-block';
+    row.querySelector('.cancel-btn').style.display = 'inline-block';
+    
+    // Фокусируемся на поле названия
+    nameInput.focus();
+    nameInput.select();
+}
+
+function cancelEdit(linkId) {
+    // Восстанавливаем исходные значения
+    const nameInput = document.getElementById('edit-name-' + linkId);
+    const urlInput = document.getElementById('edit-url-' + linkId);
+    
+    if (originalValues[linkId]) {
+        nameInput.value = originalValues[linkId].name;
+        urlInput.value = originalValues[linkId].url;
     }
-    {% endfor %}
-});
+    
+    // Скрываем поля редактирования, показываем отображаемые значения
+    const row = document.getElementById('link-row-' + linkId);
+    row.querySelector('.link-name-display').style.display = 'block';
+    row.querySelector('.link-url-display').style.display = 'block';
+    nameInput.style.display = 'none';
+    urlInput.style.display = 'none';
+    
+    // Переключаем кнопки
+    row.querySelector('.edit-btn').style.display = 'inline-block';
+    row.querySelector('.save-btn').style.display = 'none';
+    row.querySelector('.cancel-btn').style.display = 'none';
+    
+    // Очищаем сохраненные значения
+    delete originalValues[linkId];
+}
+
+function saveEdit(linkId) {
+    const nameInput = document.getElementById('edit-name-' + linkId);
+    const urlInput = document.getElementById('edit-url-' + linkId);
+    
+    // Валидация
+    if (!nameInput.value.trim()) {
+        alert('Название не может быть пустым');
+        nameInput.focus();
+        return;
+    }
+    
+    if (!urlInput.value.trim()) {
+        alert('Ссылка не может быть пустой');
+        urlInput.focus();
+        return;
+    }
+    
+    // Проверка формата URL
+    try {
+        new URL(urlInput.value);
+    } catch (e) {
+        alert('Введите корректный URL');
+        urlInput.focus();
+        return;
+    }
+    
+    // Заполняем скрытую форму и отправляем
+    const updateForm = document.getElementById('updateForm' + linkId);
+    document.getElementById('update-name-' + linkId).value = nameInput.value.trim();
+    document.getElementById('update-url-' + linkId).value = urlInput.value.trim();
+    updateForm.submit();
+}
 </script>
 {% endblock %}
 
