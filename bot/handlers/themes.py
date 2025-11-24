@@ -285,14 +285,14 @@ async def generate_themes_callback(
         )
         
         # === ОТПРАВКА ОСНОВНОГО СООБЩЕНИЯ С ТЕМАМИ ===
-        # Если нужно отправить уведомление - используем клавиатуру с кнопкой подписки
         from bot.keyboards.themes import get_themes_menu_keyboard_with_subscribe
         
+        # Если нужно отправить уведомление, то первое сообщение (с темами) отправляем БЕЗ клавиатуры.
+        # А клавиатуру с кнопками прикрепляем ко второму сообщению (уведомлению).
         if should_send_notification:
-            # Клавиатура с дополнительной кнопкой PRO/ULTRA
-            keyboard = get_themes_menu_keyboard_with_subscribe(has_archive=True)
+            keyboard = None
         else:
-            # Обычная клавиатура
+            # Обычная клавиатура к сообщению с темами
             keyboard = get_themes_menu_keyboard(has_archive=True)
         
         await safe_edit_message(
@@ -303,18 +303,8 @@ async def generate_themes_callback(
         
         # === ОТПРАВКА ДОПОЛНИТЕЛЬНОГО УВЕДОМЛЕНИЯ ===
         if should_send_notification:
-            from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-            from bot.keyboards.callbacks import ProfileCallbackData
-            
-            # Создаем клавиатуру только с кнопкой PRO/ULTRA
-            notification_keyboard = InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [InlineKeyboardButton(
-                        text=LEXICON_COMMANDS_RU['button_subscribe_pro_ultra'],
-                        callback_data=ProfileCallbackData(action="show_offer").pack()
-                    )]
-                ]
-            )
+            # Клавиатура для уведомления (4 кнопки: Подписка, Темы, Архив, Назад)
+            notification_keyboard = get_themes_menu_keyboard_with_subscribe(has_archive=True)
             
             # Отправляем дополнительное сообщение (не сохраняется в архив)
             await callback.bot.send_message(
