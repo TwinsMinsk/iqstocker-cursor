@@ -247,10 +247,20 @@ async def back_to_profile(callback: CallbackQuery, user: User, limits: Limits):
 
 
 @router.callback_query(ProfileCallbackData.filter(F.action == "show_offer"))
-async def show_payment_offer(callback: CallbackQuery, lexicon: Mapping[str, str] = LEXICON_RU):
+async def show_payment_offer(callback: CallbackQuery, state: FSMContext, lexicon: Mapping[str, str] = LEXICON_RU):
     """Показывает сообщение с предложением о покупке."""
     # ✅ Отвечаем СРАЗУ - убираем индикатор загрузки
     await callback.answer()
+    
+    # Очистка предыдущего сообщения с темами (если было уведомление)
+    data = await state.get_data()
+    temp_msg_id = data.get("temp_themes_message_id")
+    if temp_msg_id:
+        try:
+            await callback.bot.delete_message(chat_id=callback.from_user.id, message_id=temp_msg_id)
+        except Exception:
+            pass
+        await state.update_data(temp_themes_message_id=None)
     
     await safe_edit_message(
         callback=callback,

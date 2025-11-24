@@ -3,6 +3,7 @@
 from datetime import datetime, timedelta, timezone
 from aiogram import Router, F
 from aiogram.types import CallbackQuery
+from aiogram.fsm.context import FSMContext
 from sqlalchemy import select, func, desc
 import logging
 
@@ -87,8 +88,19 @@ async def generate_themes_callback(
     user: User,
     limits: Limits,
     session: AsyncSession,
+    state: FSMContext,
 ):
     """Handle get themes callback - generate and show themes list."""
+    
+    # Очистка предыдущего сообщения с темами (если было уведомление)
+    data = await state.get_data()
+    temp_msg_id = data.get("temp_themes_message_id")
+    if temp_msg_id:
+        try:
+            await callback.bot.delete_message(chat_id=callback.from_user.id, message_id=temp_msg_id)
+        except Exception:
+            pass
+        await state.update_data(temp_themes_message_id=None)
     
     logger.info(f"Generate themes callback triggered for user {user.id}, action: {callback_data.action}")
     
@@ -295,11 +307,17 @@ async def generate_themes_callback(
             # Обычная клавиатура к сообщению с темами
             keyboard = get_themes_menu_keyboard(has_archive=True)
         
-        await safe_edit_message(
+        # Редактируем текущее сообщение (превращаем его в список тем)
+        msg = await safe_edit_message(
             callback=callback,
             text=out,
             reply_markup=keyboard
         )
+        
+        # Если отправили темы без клавиатуры (т.е. будет уведомление), запоминаем ID этого сообщения,
+        # чтобы удалить его при нажатии кнопок на уведомлении
+        if should_send_notification and msg:
+            await state.update_data(temp_themes_message_id=msg.message_id)
         
         # === ОТПРАВКА ДОПОЛНИТЕЛЬНОГО УВЕДОМЛЕНИЯ ===
         if should_send_notification:
@@ -328,8 +346,19 @@ async def archive_themes_callback(
     callback_data: ThemesCallback,
     user: User,
     session: AsyncSession,
+    state: FSMContext,
 ):
     """Show themes archive - first page (most recent)."""
+    
+    # Очистка предыдущего сообщения с темами
+    data = await state.get_data()
+    temp_msg_id = data.get("temp_themes_message_id")
+    if temp_msg_id:
+        try:
+            await callback.bot.delete_message(chat_id=callback.from_user.id, message_id=temp_msg_id)
+        except Exception:
+            pass
+        await state.update_data(temp_themes_message_id=None)
     
     logger.info(f"Archive themes callback triggered for user {user.id}, action: {callback_data.action}")
     
