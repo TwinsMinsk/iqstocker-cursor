@@ -331,15 +331,35 @@ async def generate_themes_callback(
             from bot.keyboards.themes import get_themes_notification_keyboard
             notification_keyboard = get_themes_notification_keyboard(has_archive=True)
             
-            # Отправляем дополнительное сообщение (не сохраняется в архив)
-            await callback.bot.send_message(
-                chat_id=callback.from_user.id,
-                text=LEXICON_RU['notification_themes_2_test_pro'],
-                parse_mode="HTML",
-                reply_markup=notification_keyboard
-            )
+            # Получаем текст уведомления из базы данных (с форматированием) или fallback на статический
+            message_text = None
+            try:
+                from core.lexicon.service import LexiconService
+                lexicon_service = LexiconService()
+                message_text = await lexicon_service.get_value_async(
+                    'notification_themes_2_test_pro',
+                    'LEXICON_RU',
+                    session
+                )
+            except Exception as e:
+                logger.warning(f"Failed to get message from LexiconService: {e}")
             
-            logger.info(f"Sent notification_themes_2_test_pro to user {user.id}")
+            # Fallback to static lexicon
+            if not message_text:
+                message_text = LEXICON_RU.get('notification_themes_2_test_pro', "")
+            
+            if not message_text:
+                logger.warning("Message key 'notification_themes_2_test_pro' not found in lexicon")
+            else:
+                # Отправляем дополнительное сообщение (не сохраняется в архив)
+                await callback.bot.send_message(
+                    chat_id=callback.from_user.id,
+                    text=message_text,
+                    parse_mode="HTML",
+                    reply_markup=notification_keyboard
+                )
+                
+                logger.info(f"Sent notification_themes_2_test_pro to user {user.id}")
         
         await callback.answer()
     except Exception:
