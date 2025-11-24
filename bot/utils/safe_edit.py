@@ -65,3 +65,26 @@ async def safe_delete_message(callback: CallbackQuery):
     except Exception as e:
         logger.error(f"Unexpected error while deleting message: {e}")
         raise
+
+
+async def safe_edit_message_by_id(bot, chat_id: int, message_id: int, text: str = "", reply_markup=None, parse_mode="HTML"):
+    """Safely edit message by message_id with error handling."""
+    try:
+        await bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=message_id,
+            text=text,
+            reply_markup=reply_markup,
+            parse_mode=parse_mode
+        )
+    except TelegramBadRequest as e:
+        if "message is not modified" in str(e).lower():
+            logger.debug("Message was not modified")
+        elif "message to edit not found" in str(e).lower():
+            logger.warning(f"Message {message_id} to edit not found")
+        elif "query is too old" in str(e).lower() or "query id is invalid" in str(e).lower():
+            logger.warning("Query expired before edit could be applied")
+        else:
+            logger.error(f"Failed to edit message {message_id}: {e}")
+    except Exception as e:
+        logger.error(f"Unexpected error while editing message {message_id}: {e}")

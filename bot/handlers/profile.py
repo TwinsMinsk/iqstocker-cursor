@@ -252,12 +252,17 @@ async def show_payment_offer(callback: CallbackQuery, state: FSMContext, lexicon
     # ✅ Отвечаем СРАЗУ - убираем индикатор загрузки
     await callback.answer()
     
-    # Очистка предыдущего сообщения с темами (если было уведомление)
+    # Редактируем предыдущее сообщение с темами (если было уведомление)
     data = await state.get_data()
     temp_msg_id = data.get("temp_themes_message_id")
     if temp_msg_id:
         try:
-            await callback.bot.delete_message(chat_id=callback.from_user.id, message_id=temp_msg_id)
+            # Редактируем первое сообщение (темы) в пустое сообщение
+            await callback.bot.edit_message_text(
+                chat_id=callback.from_user.id,
+                message_id=temp_msg_id,
+                text=" "  # Пустое сообщение
+            )
         except Exception:
             pass
         await state.update_data(temp_themes_message_id=None)
