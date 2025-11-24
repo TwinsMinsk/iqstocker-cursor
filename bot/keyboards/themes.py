@@ -62,3 +62,32 @@ def get_themes_menu_keyboard_with_subscribe(has_archive: bool = False) -> Inline
 
     builder.adjust(1)
     return builder.as_markup()
+
+
+def get_themes_notification_keyboard(has_archive: bool = False) -> InlineKeyboardMarkup:
+    """Build keyboard for notification message (without 'Get themes' button)."""
+    from bot.keyboards.callbacks import ProfileCallbackData
+    
+    builder = InlineKeyboardBuilder()
+
+    # Кнопка для подписки (Первая)
+    builder.button(
+        text=LEXICON_COMMANDS_RU['button_subscribe_pro_ultra'],
+        callback_data=ProfileCallbackData(action="show_offer").pack()
+    )
+
+    # Кнопка архива (если есть)
+    if has_archive:
+        builder.button(
+            text=LEXICON_COMMANDS_RU['archive_themes'],
+            callback_data=ThemesCallback(action="archive").pack()
+        )
+    
+    # Кнопка назад
+    builder.button(
+        text=LEXICON_COMMANDS_RU['back_to_main_menu'],
+        callback_data="main_menu"
+    )
+
+    builder.adjust(1)
+    return builder.as_markup()

@@ -92,16 +92,15 @@ async def generate_themes_callback(
 ):
     """Handle get themes callback - generate and show themes list."""
     
-    # Редактируем предыдущее сообщение с темами (если было уведомление)
+    # Удаляем предыдущее сообщение с темами (если было уведомление)
     data = await state.get_data()
     temp_msg_id = data.get("temp_themes_message_id")
     if temp_msg_id:
         try:
-            # Редактируем первое сообщение (темы) в пустое сообщение
-            await callback.bot.edit_message_text(
+            # Удаляем первое сообщение (темы)
+            await callback.bot.delete_message(
                 chat_id=callback.from_user.id,
-                message_id=temp_msg_id,
-                text=" "  # Пустое сообщение
+                message_id=temp_msg_id
             )
         except Exception:
             pass
@@ -321,13 +320,16 @@ async def generate_themes_callback(
         
         # Если отправили темы без клавиатуры (т.е. будет уведомление), запоминаем ID этого сообщения,
         # чтобы удалить его при нажатии кнопок на уведомлении
-        if should_send_notification and msg:
-            await state.update_data(temp_themes_message_id=msg.message_id)
+        if should_send_notification:
+            # Используем ID из возвращенного сообщения или из callback.message как fallback
+            themes_message_id = msg.message_id if msg else callback.message.message_id
+            await state.update_data(temp_themes_message_id=themes_message_id)
         
         # === ОТПРАВКА ДОПОЛНИТЕЛЬНОГО УВЕДОМЛЕНИЯ ===
         if should_send_notification:
-            # Клавиатура для уведомления (4 кнопки: Подписка, Темы, Архив, Назад)
-            notification_keyboard = get_themes_menu_keyboard_with_subscribe(has_archive=True)
+            # Клавиатура для уведомления (3 кнопки: Подписка, Архив, Назад) - без "Получить темы"
+            from bot.keyboards.themes import get_themes_notification_keyboard
+            notification_keyboard = get_themes_notification_keyboard(has_archive=True)
             
             # Отправляем дополнительное сообщение (не сохраняется в архив)
             await callback.bot.send_message(

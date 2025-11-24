@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 async def safe_edit_message(callback: CallbackQuery = None, message: Message = None, text: str = "", reply_markup=None, parse_mode="HTML"):
-    """Safely edit message with error handling."""
+    """Safely edit message with error handling. Returns the edited or new Message object."""
     
     # Determine which message to edit
     target_message = None
@@ -20,11 +20,12 @@ async def safe_edit_message(callback: CallbackQuery = None, message: Message = N
         raise ValueError("Either callback or message must be provided")
     
     try:
-        await target_message.edit_text(
+        edited_msg = await target_message.edit_text(
             text=text,
             reply_markup=reply_markup,
             parse_mode=parse_mode
         )
+        return edited_msg  # Вернуть отредактированное сообщение
         
         # ✅ ОПТИМИЗАЦИЯ: Не вызываем callback.answer() здесь, так как он уже вызывается 
         # в начале обработчиков для быстрого ответа. Если callback.answer() еще не был вызван,
@@ -33,17 +34,18 @@ async def safe_edit_message(callback: CallbackQuery = None, message: Message = N
     except TelegramBadRequest as e:
         if "message is not modified" in str(e).lower():
             logger.debug("Message was not modified")
-            # Не вызываем callback.answer() - должен быть вызван в обработчике
+            return target_message  # Вернуть оригинальное сообщение
         elif "message to edit not found" in str(e).lower():
             logger.warning("Message to edit not found, sending new message")
-            await target_message.answer(
+            new_msg = await target_message.answer(
                 text=text,
                 reply_markup=reply_markup,
                 parse_mode=parse_mode
             )
+            return new_msg  # Вернуть новое сообщение
         elif "query is too old" in str(e).lower() or "query id is invalid" in str(e).lower():
             logger.warning("Callback query expired before edit could be applied")
-            # Не вызываем callback.answer() - должен быть вызван в обработчике
+            return target_message  # Вернуть оригинальное сообщение
         else:
             logger.error(f"Failed to edit message: {e}")
             raise
