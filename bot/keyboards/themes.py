@@ -38,6 +38,12 @@ def get_themes_menu_keyboard_with_subscribe(has_archive: bool = False) -> Inline
     
     builder = InlineKeyboardBuilder()
 
+    # Дополнительная кнопка для подписки (Первая)
+    builder.button(
+        text=LEXICON_COMMANDS_RU['button_subscribe_pro_ultra'],
+        callback_data=ProfileCallbackData(action="show_offer").pack()
+    )
+
     builder.button(
         text=LEXICON_COMMANDS_RU['get_themes'],
         callback_data=ThemesCallback(action="generate").pack()
@@ -49,12 +55,6 @@ def get_themes_menu_keyboard_with_subscribe(has_archive: bool = False) -> Inline
             callback_data=ThemesCallback(action="archive").pack()
         )
     
-    # Дополнительная кнопка для подписки
-    builder.button(
-        text=LEXICON_COMMANDS_RU['button_subscribe_pro_ultra'],
-        callback_data=ProfileCallbackData(action="show_test_pro_offer").pack()
-    )
-
     builder.button(
         text=LEXICON_COMMANDS_RU['back_to_main_menu'],
         callback_data="main_menu"

@@ -8,7 +8,7 @@ import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from database.models import User, SubscriptionType, Limits, ThemeRequest
-from bot.lexicon import LEXICON_RU
+from bot.lexicon import LEXICON_RU, LEXICON_COMMANDS_RU
 from bot.keyboards.main_menu import get_main_menu_keyboard
 from bot.keyboards.callbacks import ThemesCallback
 from bot.keyboards.themes import get_themes_menu_keyboard
@@ -311,7 +311,7 @@ async def generate_themes_callback(
                 inline_keyboard=[
                     [InlineKeyboardButton(
                         text=LEXICON_COMMANDS_RU['button_subscribe_pro_ultra'],
-                        callback_data=ProfileCallbackData(action="show_test_pro_offer").pack()
+                        callback_data=ProfileCallbackData(action="show_offer").pack()
                     )]
                 ]
             )

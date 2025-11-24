@@ -187,68 +187,17 @@ async def setup_test_environment():
             else:
                 print("   ✅ Запросов в периоде 1 нет")
             
-            # 7. Сохраняем изменения ПЕРЕД инвалидацией кеша
-            print("\n💾 Сохраняем изменения в БД...")
-            await session.commit()
-            print("   ✅ Изменения сохранены")
-            
-            # 8. Инвалидируем кеш ПОСЛЕ коммита
-            print("\n🗑️ Инвалидируем кеш...")
+            # 7. Инвалидируем кеш
             from core.cache.user_cache import get_user_cache_service
             cache_service = get_user_cache_service()
-            try:
-                await cache_service.invalidate_user_and_limits(ADMIN_TELEGRAM_ID, user_id)
-                print("   ✅ Кеш инвалидирован")
-            except Exception as e:
-                print(f"   ⚠️ Не удалось инвалидировать кеш (Redis может быть недоступен): {e}")
-                print("   ℹ️ Бот подхватит изменения из БД при следующем запросе")
+            await cache_service.invalidate_user_and_limits(ADMIN_TELEGRAM_ID, user_id)
+            
+            # 8. Сохраняем изменения
+            await session.commit()
             
             print("\n" + "=" * 80)
             print("✅ ТЕСТОВОЕ ОКРУЖЕНИЕ НАСТРОЕНО!")
             print("=" * 80)
-            # 9. Проверяем, что изменения действительно применены (новый запрос к БД)
-            print("\n🔍 Проверяем примененные изменения (читаем из БД)...")
-            # Создаем новую сессию для проверки, чтобы убедиться, что данные сохранены
-            async with AsyncSessionLocal() as check_session:
-                check_user_query = select(
-                    User.subscription_type,
-                    User.test_pro_started_at,
-                    User.subscription_expires_at,
-                    User.telegram_id
-                ).where(User.id == user_id)
-                check_user_result = await check_session.execute(check_user_query)
-                check_user = check_user_result.first()
-                
-                check_limits_query = select(
-                    Limits.current_tariff_started_at,
-                    Limits.themes_total,
-                    Limits.themes_used,
-                    Limits.theme_cooldown_days
-                ).where(Limits.id == limits_id)
-                check_limits_result = await check_session.execute(check_limits_query)
-                check_limits = check_limits_result.first()
-                
-                if check_user and check_limits:
-                    print(f"   ✅ Telegram ID: {check_user.telegram_id}")
-                    print(f"   ✅ Тариф: {check_user.subscription_type}")
-                    print(f"   ✅ Дата начала TEST_PRO: {check_user.test_pro_started_at}")
-                    print(f"   ✅ Истекает: {check_user.subscription_expires_at}")
-                    print(f"   ✅ Дата начала тарифа (limits): {check_limits.current_tariff_started_at}")
-                    print(f"   ✅ Лимиты тем: {check_limits.themes_used}/{check_limits.themes_total}")
-                    print(f"   ✅ Кулдаун тем: {check_limits.theme_cooldown_days} дней")
-                    
-                    # Проверяем период
-                    if check_limits.current_tariff_started_at:
-                        now = datetime.now(timezone.utc)
-                        tariff_start = check_limits.current_tariff_started_at
-                        if tariff_start.tzinfo is None:
-                            tariff_start = tariff_start.replace(tzinfo=timezone.utc)
-                        time_diff = now - tariff_start
-                        period = int(time_diff.total_seconds() / (check_limits.theme_cooldown_days * 24 * 3600))
-                        print(f"   ✅ Текущий период: {period} (должен быть 1)")
-                else:
-                    print("   ❌ Не удалось проверить изменения - данные не найдены в БД!")
-            
             print(f"\n📊 Текущее состояние:")
             print(f"   Тариф: TEST_PRO")
             print(f"   Дата начала тарифа: {tariff_start_time.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -258,12 +207,9 @@ async def setup_test_environment():
             
             print(f"\n🎯 Что делать дальше:")
             print(f"   1. Откройте бота от имени админа (telegram_id: {ADMIN_TELEGRAM_ID})")
-            print(f"   2. Если изменения не видны, попробуйте:")
-            print(f"      - Отправить команду /start в боте (перезагрузит данные)")
-            print(f"      - Или подождать несколько секунд и обновить бота")
-            print(f"   3. Перейдите в раздел '💡 Темы'")
-            print(f"   4. Нажмите '🎯 Получить темы'")
-            print(f"   5. Должно появиться:")
+            print(f"   2. Перейдите в раздел 'Темы'")
+            print(f"   3. Нажмите 'Получить темы'")
+            print(f"   4. Должно появиться:")
             print(f"      - Сообщение с темами (5 тем)")
             print(f"      - Уведомление notification_themes_2_test_pro")
             print(f"      - Кнопка '⚡️Перейти на PRO/ULTRA'")
