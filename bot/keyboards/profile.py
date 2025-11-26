@@ -51,7 +51,7 @@ def get_profile_test_pro_keyboard() -> InlineKeyboardMarkup:
         callback_data=ProfileCallbackData(action="limits_help").pack()
     )
     builder.button(
-        text=LEXICON_COMMANDS_RU['button_back_to_menu'],
+        text=LEXICON_COMMANDS_RU['back_to_main_menu'],
         callback_data=CommonCallbackData(action="main_menu").pack()
     )
     builder.adjust(1)
@@ -78,7 +78,7 @@ def get_profile_offer_keyboard(lexicon: Optional[Mapping[str, str]] = None) -> I
         callback_data=ProfileCallbackData(action="back_to_profile").pack()
     )
     builder.button(
-        text=LEXICON_COMMANDS_RU['button_back_to_menu'],
+        text=LEXICON_COMMANDS_RU['back_to_main_menu'],
         callback_data=CommonCallbackData(action="main_menu").pack()
     )
     builder.adjust(1)
@@ -121,7 +121,7 @@ def get_profile_free_keyboard() -> InlineKeyboardMarkup:
         callback_data=ProfileCallbackData(action="limits_help").pack()
     )
     builder.button(
-        text=LEXICON_COMMANDS_RU['button_back_to_menu'],
+        text=LEXICON_COMMANDS_RU['back_to_main_menu'],
         callback_data=CommonCallbackData(action="main_menu").pack()
     )
     builder.adjust(1)
@@ -143,7 +143,7 @@ def get_profile_compare_keyboard(lexicon: Optional[Mapping[str, str]] = None) ->
         callback_data=ProfileCallbackData(action="back_to_profile").pack()
     )
     builder.button(
-        text=LEXICON_COMMANDS_RU['button_back_to_menu'],
+        text=LEXICON_COMMANDS_RU['back_to_main_menu'],
         callback_data=CommonCallbackData(action="main_menu").pack()
     )
     builder.adjust(1)
@@ -200,7 +200,7 @@ def get_profile_pro_keyboard(lexicon: Optional[Mapping[str, str]] = None) -> Inl
         callback_data=ProfileCallbackData(action="limits_help").pack()
     )
     builder.button(
-        text=LEXICON_COMMANDS_RU['button_back_to_menu'],
+        text=LEXICON_COMMANDS_RU['back_to_main_menu'],
         callback_data=CommonCallbackData(action="main_menu").pack()
     )
     builder.adjust(1)
@@ -246,7 +246,7 @@ def get_profile_pro_compare_keyboard(from_analytics: bool = False, subscription_
         )
     
     builder.button(
-        text=LEXICON_COMMANDS_RU['button_back_to_menu'],
+        text=LEXICON_COMMANDS_RU['back_to_main_menu'],
         callback_data=CommonCallbackData(action="main_menu").pack()
     )
     builder.adjust(1)
@@ -261,7 +261,7 @@ def get_profile_ultra_keyboard() -> InlineKeyboardMarkup:
         callback_data=ProfileCallbackData(action="limits_help").pack()
     )
     builder.button(
-        text=LEXICON_COMMANDS_RU['button_back_to_menu'],
+        text=LEXICON_COMMANDS_RU['back_to_main_menu'],
         callback_data=CommonCallbackData(action="main_menu").pack()
     )
     builder.adjust(1)
@@ -276,7 +276,7 @@ def get_notification_test_pro_end_keyboard() -> InlineKeyboardMarkup:
         callback_data=ProfileCallbackData(action="show_free_offer").pack()
     )
     builder.button(
-        text=LEXICON_COMMANDS_RU['button_back_to_menu'],
+        text=LEXICON_COMMANDS_RU['back_to_main_menu'],
         callback_data=CommonCallbackData(action="main_menu").pack()
     )
     builder.adjust(1)

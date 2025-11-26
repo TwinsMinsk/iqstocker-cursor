@@ -306,7 +306,13 @@ class LexiconService:
         return None
     
     def get_value_sync(self, key: str, category: str, session: Optional[Session] = None) -> Optional[str]:
-        """Get a single lexicon value (sync)."""
+        """Get a single lexicon value (sync).
+        
+        Tries in order:
+        1. Redis cache
+        2. Database
+        3. Static file fallback
+        """
         cache_key = self._get_cache_key(category, key)
         
         # Try cache first (only if Redis is available)
@@ -325,19 +331,41 @@ class LexiconService:
                 logger.info(f"Lexicon value cache error: {category}:{key}, falling back to database")
         
         # Load from database
+        value = None
         try:
             if session is None:
                 with ManagedSessionLocal() as db_session:
-                    return self._get_from_db_sync(db_session, key, category, cache_key)
+                    value = self._get_from_db_sync(db_session, key, category, cache_key)
             else:
-                return self._get_from_db_sync(session, key, category, cache_key)
+                value = self._get_from_db_sync(session, key, category, cache_key)
         except Exception as e:
             logger.error(f"Failed to get lexicon value from database: {e}")
-            # Fallback to file
+        
+        # If found in DB, return it
+        if value is not None:
+            return value
+        
+        # Fallback to static file if not found in DB
+        logger.debug(f"Key '{key}' not found in database, trying static file fallback")
+        try:
             file_data = self._load_from_file_fallback()
             category_map = {'LEXICON_RU': 'LEXICON_RU', 'LEXICON_COMMANDS_RU': 'LEXICON_COMMANDS_RU', 'buttons': 'LEXICON_COMMANDS_RU'}
             actual_category = category_map.get(category, category)
-            return file_data.get(actual_category, {}).get(key)
+            fallback_value = file_data.get(actual_category, {}).get(key)
+            
+            if fallback_value:
+                logger.debug(f"Key '{key}' found in static file (should be migrated to DB)")
+                # Cache the value from static file to avoid repeated lookups
+                if self.redis_client is not None:
+                    try:
+                        self.redis_client.setex(cache_key, self.cache_ttl, fallback_value)
+                    except Exception:
+                        pass  # Ignore caching errors for fallback values
+            
+            return fallback_value
+        except Exception as e:
+            logger.warning(f"Failed to load from static file fallback: {e}")
+            return None
     
     def _get_from_db_sync(self, session: Session, key: str, category: str, cache_key: str) -> Optional[str]:
         """Get value from database and cache it (sync)."""

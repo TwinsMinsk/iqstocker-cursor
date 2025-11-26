@@ -130,7 +130,12 @@ async def admin_command(message: Message, state: FSMContext):
             InlineKeyboardButton(text=LEXICON_COMMANDS_RU['admin_manage_tariff'], callback_data="admin_manage_tariff"),
             InlineKeyboardButton(text="📈 Здоровье", callback_data="admin_health")
         ],
-        [InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")]
+        [
+            InlineKeyboardButton(
+                text=LEXICON_COMMANDS_RU.get('back_to_main_menu', "↩️ Назад в меню"),
+                callback_data="main_menu"
+            )
+        ]
     ]
     
     await message.answer(
@@ -510,7 +515,12 @@ async def admin_back_callback(callback: CallbackQuery):
             InlineKeyboardButton(text=LEXICON_COMMANDS_RU['admin_manage_tariff'], callback_data="admin_manage_tariff"),
             InlineKeyboardButton(text="📈 Здоровье", callback_data="admin_health")
         ],
-        [InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")]
+        [
+            InlineKeyboardButton(
+                text=LEXICON_COMMANDS_RU.get('back_to_main_menu', "↩️ Назад в меню"),
+                callback_data="main_menu"
+            )
+        ]
     ]
     
     try:

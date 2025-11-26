@@ -16,6 +16,14 @@ from bot.utils.safe_edit import safe_edit_message
 router = Router()
 
 
+def _main_menu_button() -> InlineKeyboardButton:
+    """Единая кнопка возврата в главное меню."""
+    return InlineKeyboardButton(
+        text=LEXICON_COMMANDS_RU.get('back_to_main_menu', "↩️ Назад в меню"),
+        callback_data="main_menu"
+    )
+
+
 def get_payment_button_text(user_subscription_type: SubscriptionType, target_subscription_type: SubscriptionType, lexicon: dict = LEXICON_RU) -> str:
     """Получить текст кнопки оплаты из лексикона."""
     btn_key = None
@@ -98,7 +106,7 @@ async def upgrade_pro_from_analytics_callback(callback: CallbackQuery, user: Use
             InlineKeyboardButton(text="↩️ Назад в аналитику", callback_data="analytics")
         ],
         [
-            InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
+            _main_menu_button()
         ]
     ]
     
@@ -181,7 +189,7 @@ async def upgrade_pro_callback_new(callback: CallbackQuery, callback_data: Upgra
         ],
         back_button,
         [
-            InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
+            _main_menu_button()
         ]
     ]
     
@@ -247,7 +255,7 @@ async def upgrade_pro_callback(callback: CallbackQuery, user: User):
             InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_back_profile'], callback_data=ProfileCallbackData(action="back_to_profile").pack())
         ],
         [
-            InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
+            _main_menu_button()
         ]
     ]
     
@@ -330,7 +338,7 @@ async def upgrade_ultra_callback_new(callback: CallbackQuery, callback_data: Upg
         ],
         back_button,
         [
-            InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
+            _main_menu_button()
         ]
     ]
     
@@ -396,7 +404,7 @@ async def upgrade_ultra_callback(callback: CallbackQuery, user: User):
             InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_back_profile'], callback_data=ProfileCallbackData(action="back_to_profile").pack())
         ],
         [
-            InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
+            _main_menu_button()
         ]
     ]
     
@@ -453,7 +461,7 @@ async def compare_subscriptions_callback_new(callback: CallbackQuery, callback_d
         ],
         back_button,
         [
-            InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
+            _main_menu_button()
         ]
     ]
     
@@ -501,7 +509,7 @@ async def compare_subscriptions_callback(callback: CallbackQuery, user: User):
             InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_back_profile'], callback_data=ProfileCallbackData(action="back_to_profile").pack())
         ],
         [
-            InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
+            _main_menu_button()
         ]
     ]
     
@@ -546,7 +554,7 @@ async def compare_free_pro_callback_new(callback: CallbackQuery, callback_data: 
         ],
         back_button,
         [
-            InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
+            _main_menu_button()
         ]
     ]
     
@@ -582,7 +590,7 @@ async def compare_free_pro_callback(callback: CallbackQuery, user: User):
             InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_back_profile'], callback_data=ProfileCallbackData(action="back_to_profile").pack())
         ],
         [
-            InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
+            _main_menu_button()
         ]
     ]
     
@@ -627,7 +635,7 @@ async def compare_pro_ultra_callback_new(callback: CallbackQuery, callback_data:
         ],
         back_button,
         [
-            InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
+            _main_menu_button()
         ]
     ]
     
@@ -663,7 +671,7 @@ async def compare_pro_ultra_callback(callback: CallbackQuery, user: User):
             InlineKeyboardButton(text=LEXICON_COMMANDS_RU['button_back_profile'], callback_data=ProfileCallbackData(action="back_to_profile").pack())
         ],
         [
-            InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
+            _main_menu_button()
         ]
     ]
     
@@ -729,7 +737,7 @@ async def payment_pro_test_discount_callback(callback: CallbackQuery, callback_d
         ],
         back_button,
         [
-            InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
+            _main_menu_button()
         ]
     ]
     
@@ -798,7 +806,7 @@ async def payment_pro_std_callback(callback: CallbackQuery, callback_data: Payme
     keyboard = [
         [InlineKeyboardButton(text=button_text_pro, url=payment_url)],
         back_button,
-        [InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")]
+        [_main_menu_button()]
     ]
 
     await safe_edit_message(
@@ -863,7 +871,7 @@ async def payment_ultra_test_discount_callback(callback: CallbackQuery, callback
         ],
         back_button,
         [
-            InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")
+            _main_menu_button()
         ]
     ]
     
@@ -932,7 +940,7 @@ async def payment_ultra_std_callback(callback: CallbackQuery, callback_data: Pay
     keyboard = [
         [InlineKeyboardButton(text=button_text_ultra, url=payment_url)],
         back_button,
-        [InlineKeyboardButton(text="↩️ Назад в меню", callback_data="main_menu")]
+        [_main_menu_button()]
     ]
 
     await safe_edit_message(

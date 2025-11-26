@@ -33,10 +33,10 @@ class TaskScheduler:
     def start(self):
         """Start the scheduler."""
         
-        # Frequent check for expired TEST_PRO subscriptions (every 5 minutes)
+        # Hourly check for expired TEST_PRO subscriptions (every hour)
         self.scheduler.add_job(
             self.check_expired_subscriptions,
-            IntervalTrigger(minutes=5),
+            IntervalTrigger(hours=1),
             id='check_expired_subscriptions',
             name='Check expired TEST_PRO subscriptions'
         )
