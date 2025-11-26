@@ -18,6 +18,7 @@ from bot.keyboards.profile import get_notification_test_pro_end_keyboard
 from bot.utils.safe_edit import safe_edit_message
 from core.tariffs.tariff_service import TariffService
 from core.notifications.notification_manager import get_notification_manager
+from core.cache.user_cache import get_user_cache_service
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -202,6 +203,8 @@ async def handle_existing_user(message: Message, user: User, session: AsyncSessi
     # Convert to naive datetime for database (TIMESTAMP WITHOUT TIME ZONE)
     now_utc = now_utc_aware.replace(tzinfo=None)
     
+    subscription_converted = False
+    
     # Check if TEST_PRO subscription expired
     if user.subscription_type == SubscriptionType.TEST_PRO and user.subscription_expires_at:
         expires_at = user.subscription_expires_at
@@ -217,6 +220,12 @@ async def handle_existing_user(message: Message, user: User, session: AsyncSessi
                 free_limits = tariff_service.get_tariff_limits(SubscriptionType.FREE)
                 user.limits.analytics_total = free_limits['analytics_limit']
                 user.limits.themes_total = free_limits['themes_limit']
+                # Ensure other FREE-specific limits are reset as well
+                if hasattr(user.limits, "top_themes_total"):
+                    user.limits.top_themes_total = 0
+                user.limits.theme_cooldown_days = free_limits['theme_cooldown_days']
+                user.limits.current_tariff_started_at = now_utc
+                user.limits.last_period_notified = None
             
             # Send notification about subscription expiration (only if not sent before)
             if user.test_pro_end_notification_sent_at is None:
@@ -233,10 +242,15 @@ async def handle_existing_user(message: Message, user: User, session: AsyncSessi
                     logger.error(f"Error sending notification to user {user.telegram_id}: {e}")
             
             await session.commit()  # Сохраняем изменения
+            subscription_converted = True
     
     # Можно обновить last_activity_at
     user.last_activity_at = now_utc
     await session.commit()
+    
+    if subscription_converted:
+        cache_service = get_user_cache_service()
+        await cache_service.invalidate_user_and_limits(user.telegram_id, user.id)
     
     # Determine subscription status
     if user.subscription_type == SubscriptionType.TEST_PRO:

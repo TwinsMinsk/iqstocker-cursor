@@ -12,6 +12,7 @@ from config.database import AsyncSessionLocal
 from database.models import User, SubscriptionType, Limits
 from config.settings import settings
 from core.notifications.notification_utils import add_main_menu_button_to_keyboard
+from core.cache.user_cache import get_user_cache_service
 
 
 class NotificationManager:
@@ -316,6 +317,11 @@ class NotificationManager:
         
         if converted_count > 0:
             await session.commit()
+            
+            cache_service = get_user_cache_service()
+            for user in expired_users:
+                await cache_service.invalidate_user_and_limits(user.telegram_id, user.id)
+            
             print(f"Converted {converted_count} expired TEST_PRO subscriptions to FREE")
         
         return converted_count
