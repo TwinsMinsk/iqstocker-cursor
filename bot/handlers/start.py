@@ -221,8 +221,6 @@ async def handle_existing_user(message: Message, user: User, session: AsyncSessi
                 user.limits.analytics_total = free_limits['analytics_limit']
                 user.limits.themes_total = free_limits['themes_limit']
                 # Ensure other FREE-specific limits are reset as well
-                if hasattr(user.limits, "top_themes_total"):
-                    user.limits.top_themes_total = 0
                 user.limits.theme_cooldown_days = free_limits['theme_cooldown_days']
                 user.limits.current_tariff_started_at = now_utc
                 user.limits.last_period_notified = None

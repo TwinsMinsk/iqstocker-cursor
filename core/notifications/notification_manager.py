@@ -5,6 +5,7 @@ from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
+from sqlalchemy.orm import selectinload
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 
@@ -275,12 +276,16 @@ class NotificationManager:
         
         # Use naive datetime for comparison with database (TIMESTAMP WITHOUT TIME ZONE)
         now = datetime.utcnow()
-        stmt = select(User).filter(
-            User.subscription_type == SubscriptionType.TEST_PRO,
-            User.subscription_expires_at < now
+        stmt = (
+            select(User)
+            .options(selectinload(User.limits))
+            .filter(
+                User.subscription_type == SubscriptionType.TEST_PRO,
+                User.subscription_expires_at < now
+            )
         )
         result = await session.execute(stmt)
-        expired_users = result.scalars().all()
+        expired_users = result.scalars().unique().all()
         
         # Get FREE limits from TariffService
         tariff_service = TariffService()
@@ -292,13 +297,13 @@ class NotificationManager:
             user.subscription_expires_at = None
             
             # Update limits to FREE level using TariffService
-            if user.limits:
-                user.limits.analytics_total = free_limits['analytics_limit']  # 0
-                user.limits.themes_total = free_limits['themes_limit']  # 4 (стандартный лимит для FREE)
-                user.limits.top_themes_total = 0
-                user.limits.theme_cooldown_days = free_limits['theme_cooldown_days']  # 7 дней
+            limits = user.limits
+            if limits:
+                limits.analytics_total = free_limits['analytics_limit']  # 0
+                limits.themes_total = free_limits['themes_limit']  # 4 (стандартный лимит для FREE)
+                limits.theme_cooldown_days = free_limits['theme_cooldown_days']  # 7 дней
                 # Устанавливаем новую дату начала тарифа (для отсчета 7 дней)
-                user.limits.current_tariff_started_at = now
+                limits.current_tariff_started_at = now
             
             # Send notification about subscription expiration (only if not sent before)
             if user.test_pro_end_notification_sent_at is None:
