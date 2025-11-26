@@ -218,6 +218,7 @@ async def check_and_burn_unused_theme_limits(
         period_end_naive = period_end.replace(tzinfo=None) if period_end.tzinfo else period_end
         
         # Проверяем, был ли запрос в этом периоде
+        # Используем first() вместо scalar_one_or_none() для обработки случаев с несколькими запросами
         query = select(ThemeRequest).where(
             ThemeRequest.user_id == user.id,
             ThemeRequest.status == "ISSUED",
@@ -225,7 +226,7 @@ async def check_and_burn_unused_theme_limits(
             ThemeRequest.created_at < period_end_naive
         )
         result = await session.execute(query)
-        request_in_period = result.scalar_one_or_none()
+        request_in_period = result.scalars().first()  # Возвращает первый результат или None
         
         # Если не было запроса в этом периоде и еще есть лимиты - сжигаем
         if not request_in_period and limits.themes_remaining > 0:
