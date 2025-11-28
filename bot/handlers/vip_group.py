@@ -126,8 +126,14 @@ async def handle_all_chat_member_updates(
                                 result = await session.execute(stmt)
                                 user = result.scalar_one_or_none()
                                 
+                                # Check if notification was already sent (idempotency)
                                 if user:
-                                    await send_vip_group_removal_notification(event.bot, user, session)
+                                    if user.vip_group_removal_notification_sent_at is None:
+                                        await send_vip_group_removal_notification(event.bot, user, session)
+                                    else:
+                                        logger.debug(
+                                            f"VIP removal notification already sent to user {telegram_id}, skipping"
+                                        )
                                 else:
                                     logger.warning(f"User {telegram_id} not found in database, cannot send notification")
                             except Exception as e:

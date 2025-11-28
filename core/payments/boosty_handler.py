@@ -181,6 +181,12 @@ class BoostyPaymentHandler:
             user.subscription_type = subscription_type
             user.subscription_expires_at = expires_at
             
+            # Reset notification flags when upgrading to PRO/ULTRA
+            # This allows notifications to be sent again if subscription expires in the future
+            if subscription_type in [SubscriptionType.PRO, SubscriptionType.ULTRA]:
+                user.test_pro_end_notification_sent_at = None
+                user.vip_group_removal_notification_sent_at = None
+            
             # Update limits based on subscription using TariffService
             if not user.limits:
                 # Create limits if they don't exist

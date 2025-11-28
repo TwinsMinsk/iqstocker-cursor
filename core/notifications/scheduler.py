@@ -121,6 +121,14 @@ class TaskScheduler:
             name='Check VIP group members access'
         )
         
+        # Hourly FREE users VIP group check (every hour)
+        self.scheduler.add_job(
+            self.check_free_users_vip_group,
+            IntervalTrigger(hours=1),
+            id='vip_group_free_users_check',
+            name='Check and remove FREE users from VIP group'
+        )
+        
         # Start the scheduler
         self.scheduler.start()
         print("Task scheduler started successfully")
@@ -131,12 +139,19 @@ class TaskScheduler:
         print("Task scheduler stopped")
     
     async def check_expired_subscriptions(self):
-        """Check and convert expired TEST_PRO subscriptions."""
-        print("Checking expired TEST_PRO subscriptions...")
+        """Check and convert expired subscriptions (TEST_PRO, PRO, ULTRA)."""
+        print("Checking expired subscriptions...")
         async with AsyncSessionLocal() as session:
             try:
+                # Check TEST_PRO subscriptions
                 converted_count = await self.notification_manager.check_and_convert_expired_test_pro(session)
-                print(f"Converted {converted_count} expired subscriptions")
+                print(f"Converted {converted_count} expired TEST_PRO subscriptions")
+                
+                # Check PRO/ULTRA subscriptions
+                from core.subscriptions.payment_handler import PaymentHandler
+                payment_handler = PaymentHandler()
+                expired_count = await payment_handler.check_subscription_expiry()
+                print(f"Converted {expired_count} expired PRO/ULTRA subscriptions")
             except Exception as e:
                 print(f"Error checking expired subscriptions: {e}")
     
@@ -322,6 +337,28 @@ class TaskScheduler:
             except Exception as e:
                 logger.error(f"Error checking VIP group access: {e}")
                 print(f"Error checking VIP group access: {e}")
+    
+    async def check_free_users_vip_group(self):
+        """Check FREE users and remove them from VIP group if needed."""
+        print("Checking FREE users in VIP group...")
+        if not self.bot:
+            print("Bot not available for VIP group check")
+            return
+        
+        from core.notifications.vip_group_checker import check_and_remove_free_users_from_vip_group
+        
+        async with AsyncSessionLocal() as session:
+            try:
+                stats = await check_and_remove_free_users_from_vip_group(self.bot, session)
+                print(
+                    f"FREE users VIP group check completed: checked={stats['checked']}, "
+                    f"in_whitelist={stats['in_whitelist']}, waiting_for_delay={stats['waiting_for_delay']}, "
+                    f"already_notified={stats['already_notified']}, not_in_group={stats['not_in_group']}, "
+                    f"removed={stats['removed']}, errors={stats['errors']}"
+                )
+            except Exception as e:
+                logger.error(f"Error checking FREE users VIP group: {e}")
+                print(f"Error checking FREE users VIP group: {e}")
     
     async def monitor_resources(self):
         """Мониторинг использования ресурсов."""

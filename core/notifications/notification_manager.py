@@ -293,32 +293,26 @@ class NotificationManager:
         
         converted_count = 0
         for user in expired_users:
-            user.subscription_type = SubscriptionType.FREE
-            user.subscription_expires_at = None
+            # Store original subscription type
+            original_subscription_type = user.subscription_type
             
-            # Update limits to FREE level using TariffService
-            limits = user.limits
-            if limits:
-                limits.analytics_total = free_limits['analytics_limit']  # 0
-                limits.themes_total = free_limits['themes_limit']  # 4 (стандартный лимит для FREE)
-                limits.theme_cooldown_days = free_limits['theme_cooldown_days']  # 7 дней
-                # Устанавливаем новую дату начала тарифа (для отсчета 7 дней)
-                limits.current_tariff_started_at = now
-            
-            # Send notification about subscription expiration (only if not sent before)
-            if user.test_pro_end_notification_sent_at is None:
-                try:
-                    message = LEXICON_RU.get('notification_test_pro_end', 
-                        "⏰ Твой тестовый период PRO закончился. Ты перешел на тариф FREE.")
-                    keyboard = get_notification_test_pro_end_keyboard()
-                    success = await self.send_notification(user.telegram_id, message, keyboard)
-                    if success:
-                        # Mark notification as sent
-                        user.test_pro_end_notification_sent_at = now
-                except Exception as e:
-                    print(f"Error sending notification to user {user.telegram_id}: {e}")
-            
-            converted_count += 1
+            # Use lifecycle service for transition
+            try:
+                from core.subscriptions.lifecycle_service import SubscriptionLifecycleService
+                
+                success = await SubscriptionLifecycleService.transition_to_free(
+                    user=user,
+                    session=session,
+                    bot=self.bot,
+                    original_subscription_type=original_subscription_type
+                )
+                
+                if success:
+                    converted_count += 1
+                else:
+                    print(f"Failed to transition user {user.telegram_id} to FREE")
+            except Exception as e:
+                print(f"Error transitioning user {user.telegram_id} to FREE: {e}")
         
         if converted_count > 0:
             await session.commit()

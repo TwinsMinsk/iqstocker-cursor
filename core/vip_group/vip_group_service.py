@@ -173,6 +173,122 @@ class VIPGroupService:
             logger.error(f"Unexpected error removing user {telegram_id} from VIP group: {e}")
             return False
     
+    async def remove_free_user_from_vip_group_if_needed(
+        self,
+        bot: Bot,
+        user: User,
+        session: AsyncSession
+    ) -> bool:
+        """
+        Remove user with FREE subscription from VIP group if they are in it.
+        Respects whitelist - users in whitelist are not removed.
+        
+        Args:
+            bot: Bot instance
+            user: User object with FREE subscription
+            session: Database session
+            
+        Returns:
+            True if user was removed, False if not in group, in whitelist, or error
+        """
+        if not self.check_enabled:
+            logger.debug("VIP group check is disabled, skipping removal")
+            return False
+        
+        # Check whitelist first - if user is in whitelist, don't remove
+        if await self.is_in_whitelist(user.telegram_id, session):
+            logger.debug(f"User {user.telegram_id} is in whitelist, skipping VIP group removal")
+            return False
+        
+        # Only remove if user has FREE subscription
+        if user.subscription_type != SubscriptionType.FREE:
+            logger.debug(f"User {user.telegram_id} doesn't have FREE subscription, skipping removal")
+            return False
+        
+        # Check if notification was already sent (idempotency)
+        if user.vip_group_removal_notification_sent_at is not None:
+            logger.debug(
+                f"User {user.telegram_id} already received VIP removal notification, skipping"
+            )
+            return False
+        
+        # Check if at least 1 hour has passed since transition notification
+        # This ensures delay between transition notification and removal notification
+        # test_pro_end_notification_sent_at is always set during transition (even if notification not sent)
+        now_utc = datetime.utcnow()
+        transition_notification_time = user.test_pro_end_notification_sent_at
+        
+        if transition_notification_time is None:
+            # This should not happen if transition_to_free was called correctly
+            # But if it does, we log a warning and allow removal (edge case)
+            logger.warning(
+                f"User {user.telegram_id} has FREE subscription but test_pro_end_notification_sent_at is None. "
+                f"This may indicate transition was done incorrectly. Allowing removal."
+            )
+        else:
+            time_since_transition = now_utc - transition_notification_time
+            hours_since_transition = time_since_transition.total_seconds() / 3600
+            
+            if hours_since_transition < 1.0:
+                logger.debug(
+                    f"User {user.telegram_id} transitioned to FREE less than 1 hour ago "
+                    f"({hours_since_transition:.2f} hours), waiting before removal"
+                )
+                return False
+        
+        try:
+            # Check if user is in VIP group
+            try:
+                chat_member = await bot.get_chat_member(
+                    chat_id=self.vip_group_id,
+                    user_id=user.telegram_id
+                )
+                
+                # User is in group
+                if chat_member.status in ['member', 'administrator', 'creator']:
+                    logger.info(
+                        f"User {user.telegram_id} has FREE subscription and is in VIP group, removing..."
+                    )
+                    
+                    removed = await self.remove_user_from_group(
+                        bot,
+                        user.telegram_id,
+                        send_notification=True,  # Send notification to user
+                        user=user,
+                        session=session
+                    )
+                    
+                    if removed:
+                        # Record removal
+                        await self.record_member_leave(
+                            telegram_id=user.telegram_id,
+                            session=session,
+                            status=VIPGroupMemberStatus.REMOVED,
+                            note="Removed by bot: subscription changed to FREE"
+                        )
+                        logger.info(f"Successfully removed FREE user {user.telegram_id} from VIP group")
+                        return True
+                    else:
+                        logger.warning(f"Failed to remove FREE user {user.telegram_id} from VIP group")
+                        return False
+                else:
+                    # User is not in group
+                    logger.debug(f"User {user.telegram_id} is not in VIP group")
+                    return False
+                    
+            except TelegramAPIError as e:
+                # User is not in group or bot doesn't have permission
+                if "user not found" in str(e).lower() or "not a member" in str(e).lower():
+                    logger.debug(f"User {user.telegram_id} is not in VIP group")
+                    return False
+                else:
+                    logger.warning(f"Error checking user {user.telegram_id} in VIP group: {e}")
+                    return False
+                
+        except Exception as e:
+            logger.error(f"Unexpected error removing FREE user {user.telegram_id} from VIP group: {e}")
+            return False
+    
     async def unban_user_from_group(
         self,
         bot: Bot,

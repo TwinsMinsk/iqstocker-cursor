@@ -414,10 +414,8 @@ async def lexicon_page(request: Request, category: str = "main", search: str = "
         # Define inactive notifications (currently disabled)
         # These notifications are configured but not active in the system
         inactive_notifications = {
-            'notification_vip_group_removed_tariff_expired': {
-                'status': 'disabled',
-                'message': 'Уведомление отключено и не работает. Изменения в тексте не будут применяться.'
-            }
+            # notification_vip_group_removed_tariff_expired - АКТИВНО с 28.11.2025
+            # Уведомление восстановлено и работает при удалении пользователей из VIP группы
         }
         
         return templates.TemplateResponse(

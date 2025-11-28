@@ -84,6 +84,12 @@ class PaymentHandler:
                 user.subscription_type = sub_type
                 user.subscription_expires_at = expires_at
                 
+                # Reset notification flags when upgrading to PRO/ULTRA
+                # This allows notifications to be sent again if subscription expires in the future
+                if sub_type in [SubscriptionType.PRO, SubscriptionType.ULTRA]:
+                    user.test_pro_end_notification_sent_at = None
+                    user.vip_group_removal_notification_sent_at = None
+                
                 # Update limits
                 limits_query = select(Limits).where(Limits.user_id == user.id)
                 limits_result = await session.execute(limits_query)
@@ -254,46 +260,27 @@ class PaymentHandler:
                     # Store original subscription type before conversion
                     original_subscription_type = user.subscription_type
                     
-                    # Switch to FREE
-                    user.subscription_type = SubscriptionType.FREE
-                    user.subscription_expires_at = None
-                    
-                    # Update limits to FREE tier (не обнуляем used - это история)
-                    limits_query = select(Limits).where(Limits.user_id == user.id)
-                    limits_result = await session.execute(limits_query)
-                    limits = limits_result.scalar_one_or_none()
-                    
-                    if limits:
-                        tariff_service = TariffService()
-                        free_limits = tariff_service.get_tariff_limits(SubscriptionType.FREE)
-                        limits.analytics_total = free_limits['analytics_limit']
-                        limits.themes_total = free_limits['themes_limit']
-                        # Устанавливаем новую дату начала тарифа (для отсчета 7 дней)
-                        limits.current_tariff_started_at = datetime.utcnow()
-                        limits.theme_cooldown_days = free_limits['theme_cooldown_days']
-                        # analytics_used и themes_used НЕ трогаем - это история
-                    
-                    # Send notification for TEST_PRO expiration (only if not sent before)
-                    if original_subscription_type == SubscriptionType.TEST_PRO and user.test_pro_end_notification_sent_at is None:
-                        try:
-                            from core.notifications.notification_manager import get_notification_manager
-                            from bot.lexicon import LEXICON_RU
-                            from bot.keyboards.profile import get_notification_test_pro_end_keyboard
-                            
-                            # Get notification manager (may have bot if set by scheduler)
-                            notification_manager = get_notification_manager()
-                            if notification_manager and notification_manager.bot:
-                                message_text = LEXICON_RU.get('notification_test_pro_end', 
-                                    "⏰ Твой тестовый период PRO закончился. Ты перешел на тариф FREE.")
-                                keyboard = get_notification_test_pro_end_keyboard()
-                                success = await notification_manager.send_notification(user.telegram_id, message_text, keyboard)
-                                if success:
-                                    # Mark notification as sent
-                                    user.test_pro_end_notification_sent_at = datetime.utcnow()
-                        except Exception as e:
-                            logger.error(f"Error sending notification to user {user.telegram_id}: {e}")
-                    
-                    expired_count += 1
+                    # Use lifecycle service for transition
+                    try:
+                        from core.subscriptions.lifecycle_service import SubscriptionLifecycleService
+                        from core.notifications.notification_manager import get_notification_manager
+                        
+                        notification_manager = get_notification_manager()
+                        bot = notification_manager.bot if notification_manager else None
+                        
+                        success = await SubscriptionLifecycleService.transition_to_free(
+                            user=user,
+                            session=session,
+                            bot=bot,
+                            original_subscription_type=original_subscription_type
+                        )
+                        
+                        if success:
+                            expired_count += 1
+                        else:
+                            logger.error(f"Failed to transition user {user.telegram_id} to FREE")
+                    except Exception as e:
+                        logger.error(f"Error transitioning user {user.telegram_id} to FREE: {e}")
                 
                 await session.commit()
                 

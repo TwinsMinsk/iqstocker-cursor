@@ -30,6 +30,14 @@ async def send_vip_group_removal_notification(
     Returns:
         True if sent successfully, False otherwise
     """
+    # Check if notification was already sent (idempotency)
+    if user.vip_group_removal_notification_sent_at is not None:
+        logger.debug(
+            f"VIP removal notification already sent to user {user.telegram_id} "
+            f"at {user.vip_group_removal_notification_sent_at}, skipping"
+        )
+        return False
+    
     # Check if notification is enabled
     if not settings.vip_group_removal_notification_enabled:
         logger.debug(f"VIP group removal notification is disabled, skipping for user {user.telegram_id}")
@@ -59,15 +67,19 @@ async def send_vip_group_removal_notification(
             except KeyError:
                 # Final fallback
                 message_text = (
-                    "⚠️ <b>Твой тариф истек</b>\n\n"
-                    "К сожалению, твоя подписка закончилась, и мы удалили тебя из VIP-группы <b>IQ Радар</b>.\n\n"
-                    "💎 <b>Что ты теряешь:</b>\n"
-                    "• Доступ к эксклюзивным разборам портфелей\n"
-                    "• Подсказки и советы, которых нет в боте\n"
-                    "• Советы по аналитике и росту на стоках\n"
-                    "• Общение с другими авторами\n\n"
-                    "🚀 <b>Вернись к полному функционалу!</b>\n"
-                    "Оформи PRO или ULTRA подписку и получи обратно доступ ко всем возможностям, включая VIP-группу."
+                    "🚫 <b>Доступ к IQ Радару закрыт</b>\n\n"
+                    "Твой доступ к IQ Радару отключён, потому что:\n\n"
+                    "❌ Ты не продлил тариф <b>PRO или ULTRA</b> в боте\n"
+                    "или\n"
+                    "❌ У тебя нет отдельной активной подписки на <b>IQ Радар</b>\n\n"
+                    "Чтобы восстановить доступ, выбери один из двух вариантов:\n\n"
+                    "✅ <b>Перейти на PRO или ULTRA в боте</b> - сейчас это самый выгодный вариант для постоянного доступа к IQ Радару. "
+                    "<i>Просто оплати подписку PRO или ULTRA, зайди в раздел «Профиль» и перейди по ссылке в IQ Радар - доступ откроется автоматически "
+                    "и будет действовать всё время, <b>пока у тебя активна подписка в боте.</b></i>\n\n"
+                    "или\n\n"
+                    "✅ Ты можешь оформить <b>отдельную ежемесячную подписку на IQ Радар</b> - для этого перейди в @iqradarbot и нажми «Оплатить доступ» → "
+                    "«Оплатить ежемесячный доступ». Сразу после оплаты ты будешь автоматически добавлен в канал.\n\n"
+                    "Выбери подходящий тебе вариант и <b>верни доступ к IQ Радару прямо сейчас!</b>"
                 )
         
         # Get button text for "Перейти на PRO/ULTRA"
@@ -83,9 +95,10 @@ async def send_vip_group_removal_notification(
         except KeyError:
             button_menu_text = "↩️ Назад в меню"
         
-        # Create keyboard
+        # Create keyboard with PRO/ULTRA button and back to menu button
+        # Используем show_free_offer для Free пользователей (которые удаляются из VIP группы)
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=button_pro_text, callback_data=ProfileCallbackData(action="show_offer").pack())],
+            [InlineKeyboardButton(text=button_pro_text, callback_data=ProfileCallbackData(action="show_free_offer").pack())],
             [InlineKeyboardButton(text=button_menu_text, callback_data="main_menu")]
         ])
         
@@ -96,6 +109,11 @@ async def send_vip_group_removal_notification(
             parse_mode="HTML",
             reply_markup=keyboard
         )
+        
+        # Mark notification as sent
+        from datetime import datetime
+        user.vip_group_removal_notification_sent_at = datetime.utcnow()
+        await session.commit()
         
         logger.info(f"VIP group removal notification sent to user {user.id} (telegram_id={user.telegram_id})")
         return True
